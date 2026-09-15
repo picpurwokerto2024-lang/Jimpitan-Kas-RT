@@ -1,0 +1,10 @@
+{
+  "name": "Jimpitan RT - Scanner QR Siskamling & Kas Ronda",
+  "description": "Aplikasi Jimpitan RT digital berbasis QR Code dengan input perminggu, deteksi hari kosong, rekonsiliasi tunggakan & pelunasan bulan lalu, laporan pertanggal, dan ekspor PDF resmi 3 tanda tangan.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

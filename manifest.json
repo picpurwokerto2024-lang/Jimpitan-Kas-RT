@@ -1,0 +1,112 @@
+{
+  "id": "/",
+  "name": "Jimpitan RT - Scanner QR & Rekap Kas Warga",
+  "short_name": "Jimpitan RT",
+  "description": "Aplikasi Jimpitan RT digital berbasis QR Code untuk ronda malam siskamling, rekapitulasi kas warga, dan transparansi keuangan.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "background_color": "#2b0f4a",
+  "theme_color": "#340d57",
+  "lang": "id-ID",
+  "dir": "ltr",
+  "categories": [
+    "utilities",
+    "finance",
+    "productivity",
+    "social"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Buku Kas & Transparansi",
+      "short_name": "Kas RT",
+      "description": "Cek rekap penerimaan kas dan transparansi keuangan RT",
+      "url": "/?tab=kas_rekap",
+      "icons": [
+        {
+          "src": "/pwa-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Scan QR Jimpitan",
+      "short_name": "Scan QR",
+      "description": "Buka kamera scanner QR untuk ronda malam",
+      "url": "/?tab=scan",
+      "icons": [
+        {
+          "src": "/pwa-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Data Warga & Rumah",
+      "short_name": "Warga RT",
+      "description": "Lihat direktori nomor rumah dan riwayat jimpitan",
+      "url": "/?tab=data_warga",
+      "icons": [
+        {
+          "src": "/pwa-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Hitung Pecahan Uang",
+      "short_name": "Hitung Kas",
+      "description": "Kalkulator hitung fisik koin dan lembar kas ronda",
+      "url": "/?tab=hitung_uang",
+      "icons": [
+        {
+          "src": "/pwa-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

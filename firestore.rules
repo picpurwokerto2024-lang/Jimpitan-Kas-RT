@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pengaturan RT/RW
+    match /settings/{document=**} {
+      allow read, write: if true;
+    }
+    // Data Warga
+    match /warga/{document=**} {
+      allow read, write: if true;
+    }
+    // Catatan Penarikan Jimpitan
+    match /jimpitan_records/{document=**} {
+      allow read, write: if true;
+    }
+    // Kas & Mutasi Pengeluaran
+    match /kas_mutations/{document=**} {
+      allow read, write: if true;
+    }
+    // Regu Ronda
+    match /regu_ronda/{document=**} {
+      allow read, write: if true;
+    }
+    // Hitungan Pecahan Uang Fisik
+    match /money_counts/{document=**} {
+      allow read, write: if true;
+    }
+    // Sesi Status Ronda & Finish Harian
+    match /ronda_sessions/{document=**} {
+      allow read, write: if true;
+    }
+    // Connection health check
+    match /test/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

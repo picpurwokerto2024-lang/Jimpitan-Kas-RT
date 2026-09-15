@@ -1,0 +1,136 @@
+{
+  "entities": {
+    "Settings": {
+      "title": "AppSettings",
+      "description": "Pengaturan RT/RW dan sistem jimpitan",
+      "type": "object",
+      "properties": {
+        "namaRt": { "type": "string" },
+        "namaRw": { "type": "string" },
+        "lingkungan": { "type": "string" },
+        "defaultNominal": { "type": "number" },
+        "pinAdmin": { "type": "string" },
+        "soundEnabled": { "type": "boolean" },
+        "speechEnabled": { "type": "boolean" },
+        "currencySymbol": { "type": "string" }
+      }
+    },
+    "Warga": {
+      "title": "Warga",
+      "description": "Data warga dan kartu QR rumah",
+      "type": "object",
+      "properties": {
+        "nomorRumah": { "type": "string" },
+        "nama": { "type": "string" },
+        "blok": { "type": "string" },
+        "rt": { "type": "string" },
+        "rw": { "type": "string" },
+        "alamat": { "type": "string" },
+        "nomorHp": { "type": "string" },
+        "nominalDefault": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "qrCodeData": { "type": "string" }
+      },
+      "required": ["nomorRumah", "nama", "qrCodeData"]
+    },
+    "JimpitanRecord": {
+      "title": "JimpitanRecord",
+      "description": "Catatan transaksi penarikan jimpitan ronda",
+      "type": "object",
+      "properties": {
+        "tanggal": { "type": "string" },
+        "waktu": { "type": "string" },
+        "wargaId": { "type": "string" },
+        "nomorRumah": { "type": "string" },
+        "namaWarga": { "type": "string" },
+        "nominal": { "type": "number" },
+        "petugas": { "type": "string" },
+        "reguId": { "type": "string" },
+        "reguNama": { "type": "string" },
+        "status": { "type": "string" },
+        "catatan": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["tanggal", "nomorRumah", "namaWarga", "nominal", "createdAt"]
+    },
+    "KasMutation": {
+      "title": "KasMutation",
+      "description": "Buku kas mutasi pengeluaran & pemasukan",
+      "type": "object",
+      "properties": {
+        "tanggal": { "type": "string" },
+        "jenis": { "type": "string" },
+        "nominal": { "type": "number" },
+        "kategori": { "type": "string" },
+        "keterangan": { "type": "string" },
+        "petugas": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["tanggal", "jenis", "nominal", "keterangan", "createdAt"]
+    },
+    "ReguRonda": {
+      "title": "ReguRonda",
+      "description": "Jadwal dan susunan regu ronda siskamling",
+      "type": "object",
+      "properties": {
+        "nama": { "type": "string" },
+        "hari": { "type": "string" },
+        "koordinator": { "type": "string" },
+        "anggota": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["nama", "hari", "koordinator"]
+    },
+    "MoneyCounts": {
+      "title": "MoneyCounts",
+      "description": "Hitungan rincian pecahan uang fisik koin & kertas",
+      "type": "object",
+      "properties": {
+        "koin100": { "type": "number" },
+        "koin200": { "type": "number" },
+        "koin500": { "type": "number" },
+        "koin1000": { "type": "number" },
+        "kertas1000": { "type": "number" },
+        "kertas2000": { "type": "number" },
+        "kertas5000": { "type": "number" },
+        "kertas10000": { "type": "number" },
+        "kertas20000": { "type": "number" },
+        "kertas50000": { "type": "number" },
+        "kertas100000": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/current": {
+      "entity": "Settings",
+      "description": "Single document holding current RT settings"
+    },
+    "/warga/{wargaId}": {
+      "entity": "Warga",
+      "description": "Collection of RT resident records"
+    },
+    "/jimpitan_records/{recordId}": {
+      "entity": "JimpitanRecord",
+      "description": "Collection of jimpitan collection logs"
+    },
+    "/kas_mutations/{mutationId}": {
+      "entity": "KasMutation",
+      "description": "Collection of kas entries"
+    },
+    "/regu_ronda/{reguId}": {
+      "entity": "ReguRonda",
+      "description": "Collection of ronda squads"
+    },
+    "/money_counts/{countId}": {
+      "entity": "MoneyCounts",
+      "description": "Pecahan uang fisik hitungan ronda"
+    },
+    "/test/{docId}": {
+      "entity": "Settings",
+      "description": "Test connection health check"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgMask" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#1E1B4B"/>
+      <stop offset="50%" stopColor="#2E1065"/>
+      <stop offset="100%" stopColor="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="goldMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FDE047"/>
+      <stop offset="50%" stopColor="#F59E0B"/>
+      <stop offset="100%" stopColor="#D97706"/>
+    </linearGradient>
+    <linearGradient id="coinMask" x1="20%" y1="20%" x2="80%" y2="80%">
+      <stop offset="0%" stopColor="#FEF08A"/>
+      <stop offset="100%" stopColor="#CA8A04"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bgMask)"/>
+  
+  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#goldMask)" stroke-width="8"/>
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#FDE047" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.7"/>
+
+  <path d="M256 96L384 186H128L256 96Z" fill="url(#goldMask)"/>
+  <path d="M256 110L360 182H152L256 110Z" fill="#FEF08A" opacity="0.95"/>
+  <rect x="140" y="186" width="16" height="85" rx="4" fill="url(#goldMask)"/>
+  <rect x="356" y="186" width="16" height="85" rx="4" fill="url(#goldMask)"/>
+
+  <polygon points="256,84 262,98 277,99 265,110 268,125 256,117 244,125 247,110 235,99 250,98" fill="#FFFFFF"/>
+  <rect x="153" y="200" width="206" height="120" rx="30" fill="#0F172A" stroke="url(#goldMask)" stroke-width="7"/>
+  <text x="256" y="290" fill="url(#goldMask)" font-size="90" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="5">RT</text>
+
+  <circle cx="256" cy="360" r="52" fill="url(#coinMask)" stroke="#FFFFFF" stroke-width="5"/>
+  <circle cx="256" cy="360" r="41" fill="none" stroke="#78350F" stroke-width="3" stroke-dasharray="6 4"/>
+  <text x="256" y="378" fill="#78350F" font-size="46" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
+
+  <path d="M128 360C128 312 145 278 175 252C166 278 166 320 188 342C162 350 141 360 128 360Z" fill="url(#goldMask)" opacity="0.9"/>
+  <circle cx="133" cy="308" r="8" fill="#FEF08A"/>
+  <circle cx="145" cy="278" r="8" fill="#FEF08A"/>
+  <circle cx="162" cy="256" r="8" fill="#FEF08A"/>
+
+  <path d="M384 360C384 312 367 278 337 252C346 278 346 320 324 342C350 350 371 360 384 360Z" fill="url(#goldMask)" opacity="0.9"/>
+  <circle cx="379" cy="308" r="8" fill="#FEF08A"/>
+  <circle cx="367" cy="278" r="8" fill="#FEF08A"/>
+  <circle cx="350" cy="256" r="8" fill="#FEF08A"/>
+
+  <path d="M178 418H334L322 440H190L178 418Z" fill="url(#goldMask)"/>
+  <text x="256" y="435" fill="#451A03" font-size="21" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="3">JIMPITAN</text>
+</svg>

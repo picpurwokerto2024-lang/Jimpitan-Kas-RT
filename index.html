@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Jimpitan RT - Scanner QR Siskamling & Kas Ronda</title>
+    <meta name="description" content="Aplikasi Jimpitan RT digital berbasis QR Code dengan input perminggu, deteksi hari kosong, rekonsiliasi tunggakan & pelunasan bulan lalu, laporan pertanggal, dan ekspor PDF resmi 3 tanda tangan." />
+    <meta property="og:title" content="Jimpitan RT - Scanner QR Siskamling & Kas Ronda" />
+    <meta property="og:description" content="Aplikasi Jimpitan RT digital berbasis QR Code dengan input perminggu, deteksi hari kosong, rekonsiliasi tunggakan & pelunasan bulan lalu, laporan pertanggal, dan ekspor PDF resmi 3 tanda tangan." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="theme-color" content="#340d57" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Jimpitan RT" />
+    <meta name="application-name" content="Jimpitan RT" />
+    <meta name="msapplication-TileColor" content="#2b0f4a" />
+    <meta name="msapplication-tap-highlight" content="no" />
+
+    <!-- Icons & Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.svg" />
+    <link rel="mask-icon" href="/favicon.svg" color="#4e157d" />
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Instant Native Splash Screen Style -->
+    <style>
+      #app-splash-loader {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(135deg, #2b0f4a 0%, #4e157d 50%, #781e5d 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        z-index: 9999;
+        transition: opacity 0.3s ease-out;
+      }
+      .splash-logo-box {
+        width: 80px;
+        height: 80px;
+        border-radius: 24px;
+        background: rgba(27, 8, 48, 0.7);
+        border: 2px solid #fbbf24;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      }
+      .splash-spinner {
+        width: 24px;
+        height: 24px;
+        border: 2.5px solid rgba(255, 255, 255, 0.2);
+        border-top-color: #fbbf24;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-top: 24px;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-stone-800 antialiased selection:bg-purple-200 selection:text-purple-950">
+    <div id="root">
+      <!-- Native Pre-load Splash Screen displayed immediately until React mounts -->
+      <div id="app-splash-loader">
+        <div class="splash-logo-box">
+          <svg width="56" height="56" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="splashGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FDE047"/>
+                <stop offset="50%" stopColor="#F59E0B"/>
+                <stop offset="100%" stopColor="#D97706"/>
+              </linearGradient>
+            </defs>
+            <path d="M50 14L80 34H20L50 14Z" fill="url(#splashGold)"/>
+            <path d="M50 17L74 33H26L50 17Z" fill="#FEF08A" opacity="0.9"/>
+            <rect x="23" y="34" width="4" height="20" rx="1" fill="url(#splashGold)"/>
+            <rect x="73" y="34" width="4" height="20" rx="1" fill="url(#splashGold)"/>
+            <polygon points="50,11 51.5,14.5 55,14.8 52.3,17.2 53.1,20.7 50,18.8 46.9,20.7 47.7,17.2 45,14.8 48.5,14.5" fill="#FFFFFF"/>
+            <rect x="26" y="37" width="48" height="28" rx="7" fill="#0F172A" stroke="url(#splashGold)" stroke-width="1.8"/>
+            <text x="50" y="58" fill="url(#splashGold)" font-size="21" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="1.5">RT</text>
+            <circle cx="50" cy="74" r="12" fill="url(#splashGold)" stroke="#FFFFFF" stroke-width="1.2"/>
+            <text x="50" y="78" fill="#78350F" font-size="11" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
+            <path d="M20 74C20 63 24 55 31 49C29 55 29 65 34 70C28 72 23 74 20 74Z" fill="url(#splashGold)" opacity="0.9"/>
+            <path d="M80 74C80 63 76 55 69 49C71 55 71 65 66 70C72 72 77 74 80 74Z" fill="url(#splashGold)" opacity="0.9"/>
+          </svg>
+        </div>
+        <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">JIMPITAN RT</div>
+        <div style="font-size: 12px; font-weight: 600; color: #fde68a; margin-top: 4px;">Siskamling &amp; Kas Ronda Digital</div>
+        <div class="splash-spinner"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
