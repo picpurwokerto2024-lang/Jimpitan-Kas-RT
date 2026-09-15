@@ -1,48 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
   <defs>
-    <linearGradient id="bg192" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stopColor="#1E1B4B"/>
-      <stop offset="50%" stopColor="#2E1065"/>
-      <stop offset="100%" stopColor="#0F172A"/>
+    <linearGradient id="bgGrad192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="45%" stop-color="#1E1B4B" />
+      <stop offset="100%" stop-color="#311042" />
     </linearGradient>
-    <linearGradient id="gold192" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#FDE047"/>
-      <stop offset="50%" stopColor="#F59E0B"/>
-      <stop offset="100%" stopColor="#D97706"/>
+
+    <linearGradient id="glowGrad192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
     </linearGradient>
-    <linearGradient id="coin192" x1="20%" y1="20%" x2="80%" y2="80%">
-      <stop offset="0%" stopColor="#FEF08A"/>
-      <stop offset="100%" stopColor="#CA8A04"/>
+
+    <linearGradient id="goldGrad192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="35%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <linearGradient id="laserGrad192" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="128" fill="url(#bg192)"/>
-  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#gold192)" stroke-width="10"/>
-  <circle cx="256" cy="256" r="202" fill="none" stroke="#FDE047" stroke-width="3" stroke-dasharray="8 6" opacity="0.7"/>
+  <rect width="192" height="192" rx="46" fill="url(#bgGrad192)" />
 
-  <path d="M256 72L410 174H102L256 72Z" fill="url(#gold192)"/>
-  <path d="M256 88L380 170H132L256 88Z" fill="#FEF08A" opacity="0.95"/>
-  <rect x="118" y="174" width="20" height="102" rx="5" fill="url(#gold192)"/>
-  <rect x="374" y="174" width="20" height="102" rx="5" fill="url(#gold192)"/>
+  <!-- Target Corners -->
+  <path d="M 45 66 L 45 51 C 45 46 48 45 53 45 L 66 45" fill="none" stroke="url(#glowGrad192)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 126 45 L 139 45 C 144 45 147 46 147 51 L 147 66" fill="none" stroke="url(#glowGrad192)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 45 126 L 45 141 C 45 146 48 147 53 147 L 66 147" fill="none" stroke="url(#glowGrad192)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 126 147 L 139 147 C 144 147 147 146 147 141 L 147 126" fill="none" stroke="url(#glowGrad192)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
 
-  <polygon points="256,56 264,74 282,75 268,88 272,106 256,96 240,106 244,88 230,75 248,74" fill="#FFFFFF"/>
-  <rect x="133" y="190" width="246" height="144" rx="36" fill="#0F172A" stroke="url(#gold192)" stroke-width="9"/>
-  <text x="256" y="298" fill="url(#gold192)" font-size="108" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="7">RT</text>
+  <!-- Roof Crest -->
+  <path d="M 96 48 L 138 81 C 140 83 140 86 138 88 L 131 93 C 129 95 127 94 125 93 L 96 70 L 67 93 C 65 94 63 95 61 93 L 54 88 C 52 86 52 83 54 81 Z" fill="url(#goldGrad192)" />
 
-  <circle cx="256" cy="380" r="62" fill="url(#coin192)" stroke="#FFFFFF" stroke-width="6"/>
-  <circle cx="256" cy="380" r="49" fill="none" stroke="#78350F" stroke-width="4" stroke-dasharray="7 5"/>
-  <text x="256" y="401" fill="#78350F" font-size="56" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
+  <!-- Jimpitan Coin -->
+  <circle cx="96" cy="107" r="34" fill="#1E293B" stroke="url(#goldGrad192)" stroke-width="3" />
+  <circle cx="96" cy="107" r="30" fill="none" stroke="#FEF08A" stroke-width="1" stroke-dasharray="2 2" opacity="0.6" />
 
-  <path d="M102 380C102 323 123 282 159 251C148 282 148 333 174 359C143 369 118 380 102 380Z" fill="url(#gold192)" opacity="0.9"/>
-  <circle cx="108" cy="318" r="10" fill="#FEF08A"/>
-  <circle cx="123" cy="282" r="10" fill="#FEF08A"/>
-  <circle cx="143" cy="256" r="10" fill="#FEF08A"/>
+  <!-- QR Pattern Mini -->
+  <rect x="76" y="87" width="11" height="11" rx="2.5" fill="url(#goldGrad192)" />
+  <rect x="79" y="90" width="5" height="5" rx="1" fill="#0F172A" />
 
-  <path d="M410 380C410 323 389 282 353 251C364 282 364 333 338 359C369 369 394 380 410 380Z" fill="url(#gold192)" opacity="0.9"/>
-  <circle cx="404" cy="318" r="10" fill="#FEF08A"/>
-  <circle cx="389" cy="282" r="10" fill="#FEF08A"/>
-  <circle cx="369" cy="256" r="10" fill="#FEF08A"/>
+  <rect x="105" y="87" width="11" height="11" rx="2.5" fill="url(#goldGrad192)" />
+  <rect x="108" y="90" width="5" height="5" rx="1" fill="#0F172A" />
 
-  <path d="M164 446H348L333 472H179L164 446Z" fill="url(#gold192)"/>
-  <text x="256" y="466" fill="#451A03" font-size="26" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="4">JIMPITAN</text>
+  <rect x="76" y="115" width="11" height="11" rx="2.5" fill="url(#goldGrad192)" />
+  <rect x="79" y="118" width="5" height="5" rx="1" fill="#0F172A" />
+
+  <!-- Rp Text -->
+  <text x="107" y="123" fill="url(#goldGrad192)" font-size="11" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">Rp</text>
+
+  <!-- Laser Line -->
+  <line x1="39" y1="107" x2="153" y2="107" stroke="url(#laserGrad192)" stroke-width="1.8" stroke-linecap="round" />
+
+  <!-- Bottom Pill -->
+  <rect x="62" y="156" width="68" height="15" rx="7.5" fill="#0F172A" stroke="url(#goldGrad192)" stroke-width="1" />
+  <text x="96" y="167" fill="#FEF08A" font-size="6.5" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" text-anchor="middle" letter-spacing="1.5">JIMPITAN RT</text>
 </svg>

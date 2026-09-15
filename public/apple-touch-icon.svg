@@ -1,48 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
   <defs>
-    <linearGradient id="bgTouch" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stopColor="#1E1B4B"/>
-      <stop offset="50%" stopColor="#2E1065"/>
-      <stop offset="100%" stopColor="#0F172A"/>
+    <linearGradient id="bgGradApple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="45%" stop-color="#1E1B4B" />
+      <stop offset="100%" stop-color="#311042" />
     </linearGradient>
-    <linearGradient id="goldTouch" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#FDE047"/>
-      <stop offset="50%" stopColor="#F59E0B"/>
-      <stop offset="100%" stopColor="#D97706"/>
+
+    <linearGradient id="glowGradApple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
     </linearGradient>
-    <linearGradient id="coinTouch" x1="20%" y1="20%" x2="80%" y2="80%">
-      <stop offset="0%" stopColor="#FEF08A"/>
-      <stop offset="100%" stopColor="#CA8A04"/>
+
+    <linearGradient id="goldGradApple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="35%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <linearGradient id="laserGradApple" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="128" fill="url(#bgTouch)"/>
-  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldTouch)" stroke-width="10"/>
-  <circle cx="256" cy="256" r="202" fill="none" stroke="#FDE047" stroke-width="3" stroke-dasharray="8 6" opacity="0.7"/>
+  <!-- iOS handles corner radius automatically, but background is full bleed -->
+  <rect width="180" height="180" fill="url(#bgGradApple)" />
 
-  <path d="M256 72L410 174H102L256 72Z" fill="url(#goldTouch)"/>
-  <path d="M256 88L380 170H132L256 88Z" fill="#FEF08A" opacity="0.95"/>
-  <rect x="118" y="174" width="20" height="102" rx="5" fill="url(#goldTouch)"/>
-  <rect x="374" y="174" width="20" height="102" rx="5" fill="url(#goldTouch)"/>
+  <!-- Target Corners -->
+  <path d="M 42 62 L 42 48 C 42 43 45 42 50 42 L 62 42" fill="none" stroke="url(#glowGradApple)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 118 42 L 130 42 C 135 42 138 43 138 48 L 138 62" fill="none" stroke="url(#glowGradApple)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 42 118 L 42 132 C 42 137 45 138 50 138 L 62 138" fill="none" stroke="url(#glowGradApple)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 118 138 L 130 138 C 135 138 138 137 138 132 L 138 118" fill="none" stroke="url(#glowGradApple)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
 
-  <polygon points="256,56 264,74 282,75 268,88 272,106 256,96 240,106 244,88 230,75 248,74" fill="#FFFFFF"/>
-  <rect x="133" y="190" width="246" height="144" rx="36" fill="#0F172A" stroke="url(#goldTouch)" stroke-width="9"/>
-  <text x="256" y="298" fill="url(#goldTouch)" font-size="108" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="7">RT</text>
+  <!-- Roof Crest -->
+  <path d="M 90 45 L 129 76 C 131 78 131 81 129 83 L 123 87 C 121 89 119 88 117 87 L 90 66 L 63 87 C 61 88 59 89 57 87 L 51 83 C 49 81 49 78 51 76 Z" fill="url(#goldGradApple)" />
 
-  <circle cx="256" cy="380" r="62" fill="url(#coinTouch)" stroke="#FFFFFF" stroke-width="6"/>
-  <circle cx="256" cy="380" r="49" fill="none" stroke="#78350F" stroke-width="4" stroke-dasharray="7 5"/>
-  <text x="256" y="401" fill="#78350F" font-size="56" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
+  <!-- Jimpitan Coin -->
+  <circle cx="90" cy="100" r="32" fill="#1E293B" stroke="url(#goldGradApple)" stroke-width="3" />
+  <circle cx="90" cy="100" r="28" fill="none" stroke="#FEF08A" stroke-width="1" stroke-dasharray="2 2" opacity="0.6" />
 
-  <path d="M102 380C102 323 123 282 159 251C148 282 148 333 174 359C143 369 118 380 102 380Z" fill="url(#goldTouch)" opacity="0.9"/>
-  <circle cx="108" cy="318" r="10" fill="#FEF08A"/>
-  <circle cx="123" cy="282" r="10" fill="#FEF08A"/>
-  <circle cx="143" cy="256" r="10" fill="#FEF08A"/>
+  <!-- QR Pattern Mini -->
+  <rect x="71" y="81" width="10" height="10" rx="2" fill="url(#goldGradApple)" />
+  <rect x="74" y="84" width="4" height="4" rx="1" fill="#0F172A" />
 
-  <path d="M410 380C410 323 389 282 353 251C364 282 364 333 338 359C369 369 394 380 410 380Z" fill="url(#goldTouch)" opacity="0.9"/>
-  <circle cx="404" cy="318" r="10" fill="#FEF08A"/>
-  <circle cx="389" cy="282" r="10" fill="#FEF08A"/>
-  <circle cx="369" cy="256" r="10" fill="#FEF08A"/>
+  <rect x="99" y="81" width="10" height="10" rx="2" fill="url(#goldGradApple)" />
+  <rect x="102" y="84" width="4" height="4" rx="1" fill="#0F172A" />
 
-  <path d="M164 446H348L333 472H179L164 446Z" fill="url(#goldTouch)"/>
-  <text x="256" y="466" fill="#451A03" font-size="26" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="4">JIMPITAN</text>
+  <rect x="71" y="107" width="10" height="10" rx="2" fill="url(#goldGradApple)" />
+  <rect x="74" y="110" width="4" height="4" rx="1" fill="#0F172A" />
+
+  <!-- Rp Text -->
+  <text x="101" y="115" fill="url(#goldGradApple)" font-size="10" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">Rp</text>
+
+  <!-- Laser Line -->
+  <line x1="36" y1="100" x2="144" y2="100" stroke="url(#laserGradApple)" stroke-width="1.8" stroke-linecap="round" />
+
+  <!-- Bottom Pill -->
+  <rect x="58" y="146" width="64" height="14" rx="7" fill="#0F172A" stroke="url(#goldGradApple)" stroke-width="1" />
+  <text x="90" y="156.5" fill="#FEF08A" font-size="6" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" text-anchor="middle" letter-spacing="1.5">JIMPITAN RT</text>
 </svg>

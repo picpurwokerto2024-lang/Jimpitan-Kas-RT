@@ -1,56 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stopColor="#1E1B4B"/>
-      <stop offset="100%" stopColor="#0F172A"/>
+    <linearGradient id="bgGradFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#311042" />
     </linearGradient>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#FDE047"/>
-      <stop offset="50%" stopColor="#F59E0B"/>
-      <stop offset="100%" stopColor="#D97706"/>
-    </linearGradient>
-    <linearGradient id="coin" x1="20%" y1="20%" x2="80%" y2="80%">
-      <stop offset="0%" stopColor="#FEF08A"/>
-      <stop offset="100%" stopColor="#CA8A04"/>
+    <linearGradient id="goldGradFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="100%" stop-color="#F59E0B" />
     </linearGradient>
   </defs>
 
-  <!-- Background Circle Badge -->
-  <circle cx="50" cy="50" r="48" fill="url(#bg)" stroke="url(#gold)" stroke-width="2.5"/>
-  <circle cx="50" cy="50" r="44" fill="none" stroke="#FDE047" stroke-width="0.8" stroke-dasharray="2 1.5" opacity="0.6"/>
+  <rect width="64" height="64" rx="16" fill="url(#bgGradFav)" />
+  
+  <!-- Target Corners -->
+  <path d="M 14 22 L 14 16 C 14 15 15 14 16 14 L 22 14" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
+  <path d="M 42 14 L 48 14 C 49 14 50 15 50 16 L 50 22" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
+  <path d="M 14 42 L 14 48 C 14 49 15 50 16 50 L 22 50" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
+  <path d="M 42 50 L 48 50 C 49 50 50 49 50 48 L 50 42" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
 
-  <!-- Joglo / Pos Kamling Roof -->
-  <path d="M50 14L80 34H20L50 14Z" fill="url(#gold)"/>
-  <path d="M50 17L74 33H26L50 17Z" fill="#FEF08A" opacity="0.9"/>
-  <rect x="23" y="34" width="4" height="20" rx="1" fill="url(#gold)"/>
-  <rect x="73" y="34" width="4" height="20" rx="1" fill="url(#gold)"/>
-
-  <!-- Star of Protection -->
-  <polygon points="50,11 51.5,14.5 55,14.8 52.3,17.2 53.1,20.7 50,18.8 46.9,20.7 47.7,17.2 45,14.8 48.5,14.5" fill="#FFFFFF"/>
-
-  <!-- Monogram Box -->
-  <rect x="26" y="37" width="48" height="28" rx="7" fill="#0F172A" stroke="url(#gold)" stroke-width="1.8"/>
-
-  <!-- RT Text -->
-  <text x="50" y="58" fill="url(#gold)" font-size="21" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="1.5">RT</text>
-
-  <!-- Jimpitan Coin -->
-  <circle cx="50" cy="74" r="12" fill="url(#coin)" stroke="#FFFFFF" stroke-width="1.2"/>
-  <circle cx="50" cy="74" r="9.5" fill="none" stroke="#78350F" stroke-width="0.8" stroke-dasharray="1.5 1"/>
-  <text x="50" y="78" fill="#78350F" font-size="11" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
-
-  <!-- Rice & Cotton Wreath -->
-  <path d="M20 74C20 63 24 55 31 49C29 55 29 65 34 70C28 72 23 74 20 74Z" fill="url(#gold)" opacity="0.9"/>
-  <circle cx="21" cy="62" r="2" fill="#FEF08A"/>
-  <circle cx="24" cy="55" r="2" fill="#FEF08A"/>
-  <circle cx="28" cy="50" r="2" fill="#FEF08A"/>
-
-  <path d="M80 74C80 63 76 55 69 49C71 55 71 65 66 70C72 72 77 74 80 74Z" fill="url(#gold)" opacity="0.9"/>
-  <circle cx="79" cy="62" r="2" fill="#FEF08A"/>
-  <circle cx="76" cy="55" r="2" fill="#FEF08A"/>
-  <circle cx="72" cy="50" r="2" fill="#FEF08A"/>
-
-  <!-- Bottom Ribbon -->
-  <path d="M32 87H68L65 92H35L32 87Z" fill="url(#gold)"/>
-  <text x="50" y="91" fill="#451A03" font-size="5" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="0.8">JIMPITAN</text>
+  <!-- Coin Center -->
+  <circle cx="32" cy="32" r="14" fill="#1E293B" stroke="url(#goldGradFav)" stroke-width="1.8" />
+  <text x="32" y="37" fill="url(#goldGradFav)" font-size="11" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, sans-serif" text-anchor="middle">Rp</text>
 </svg>

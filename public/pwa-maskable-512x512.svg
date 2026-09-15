@@ -1,49 +1,91 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bgMask" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stopColor="#1E1B4B"/>
-      <stop offset="50%" stopColor="#2E1065"/>
-      <stop offset="100%" stopColor="#0F172A"/>
+    <!-- Background Luxury Gradient for Maskable Circle / Squircle -->
+    <linearGradient id="bgGradM" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="45%" stop-color="#1E1B4B" />
+      <stop offset="100%" stop-color="#311042" />
     </linearGradient>
-    <linearGradient id="goldMask" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#FDE047"/>
-      <stop offset="50%" stopColor="#F59E0B"/>
-      <stop offset="100%" stopColor="#D97706"/>
+
+    <!-- Glowing Indigo Gradient -->
+    <linearGradient id="glowGradM" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
     </linearGradient>
-    <linearGradient id="coinMask" x1="20%" y1="20%" x2="80%" y2="80%">
-      <stop offset="0%" stopColor="#FEF08A"/>
-      <stop offset="100%" stopColor="#CA8A04"/>
+
+    <!-- Radiant Gold 3D Gradient -->
+    <linearGradient id="goldGradM" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="35%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
     </linearGradient>
+
+    <!-- Scanner Laser Beam Gradient -->
+    <linearGradient id="laserGradM" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0" />
+      <stop offset="25%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="75%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </linearGradient>
+
+    <filter id="dropShadowM" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
   </defs>
 
-  <rect width="512" height="512" fill="url(#bgMask)"/>
-  
-  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#goldMask)" stroke-width="8"/>
-  <circle cx="256" cy="256" r="176" fill="none" stroke="#FDE047" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.7"/>
+  <!-- Full Bleed Background for Android Masking -->
+  <rect width="512" height="512" fill="url(#bgGradM)" />
 
-  <path d="M256 96L384 186H128L256 96Z" fill="url(#goldMask)"/>
-  <path d="M256 110L360 182H152L256 110Z" fill="#FEF08A" opacity="0.95"/>
-  <rect x="140" y="186" width="16" height="85" rx="4" fill="url(#goldMask)"/>
-  <rect x="356" y="186" width="16" height="85" rx="4" fill="url(#goldMask)"/>
+  <!-- Inner Safe Zone Group (Scaled to 80% to never get cropped by Android circle/squircle) -->
+  <g transform="translate(51.2, 51.2) scale(0.8)">
+    <!-- Tech Rings -->
+    <circle cx="256" cy="256" r="186" fill="none" stroke="#6366F1" stroke-width="2" stroke-dasharray="6 8" opacity="0.3" />
+    <circle cx="256" cy="256" r="216" fill="none" stroke="#38BDF8" stroke-width="1.5" opacity="0.2" />
 
-  <polygon points="256,84 262,98 277,99 265,110 268,125 256,117 244,125 247,110 235,99 250,98" fill="#FFFFFF"/>
-  <rect x="153" y="200" width="206" height="120" rx="30" fill="#0F172A" stroke="url(#goldMask)" stroke-width="7"/>
-  <text x="256" y="290" fill="url(#goldMask)" font-size="90" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="5">RT</text>
+    <!-- QR Target Corners -->
+    <path d="M 120 176 L 120 136 C 120 124 124 120 136 120 L 176 120" fill="none" stroke="url(#glowGradM)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#dropShadowM)" />
+    <path d="M 336 120 L 376 120 C 388 120 392 124 392 136 L 392 176" fill="none" stroke="url(#glowGradM)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#dropShadowM)" />
+    <path d="M 120 336 L 120 376 C 120 388 124 392 136 392 L 176 392" fill="none" stroke="url(#glowGradM)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#dropShadowM)" />
+    <path d="M 336 392 L 376 392 C 388 392 392 388 392 376 L 392 336" fill="none" stroke="url(#glowGradM)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#dropShadowM)" />
 
-  <circle cx="256" cy="360" r="52" fill="url(#coinMask)" stroke="#FFFFFF" stroke-width="5"/>
-  <circle cx="256" cy="360" r="41" fill="none" stroke="#78350F" stroke-width="3" stroke-dasharray="6 4"/>
-  <text x="256" y="378" fill="#78350F" font-size="46" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">Rp</text>
+    <!-- Central House / Community Shield Icon -->
+    <path d="M 256 128 L 366 216 C 372 221 372 230 366 235 L 348 249 C 344 252 338 251 334 248 L 256 186 L 178 248 C 174 251 168 252 164 249 L 146 235 C 140 230 140 221 146 216 Z" fill="url(#goldGradM)" />
 
-  <path d="M128 360C128 312 145 278 175 252C166 278 166 320 188 342C162 350 141 360 128 360Z" fill="url(#goldMask)" opacity="0.9"/>
-  <circle cx="133" cy="308" r="8" fill="#FEF08A"/>
-  <circle cx="145" cy="278" r="8" fill="#FEF08A"/>
-  <circle cx="162" cy="256" r="8" fill="#FEF08A"/>
+    <!-- Modern 3D Gold Jimpitan Coin with QR Center -->
+    <g filter="url(#dropShadowM)">
+      <circle cx="256" cy="286" r="92" fill="#1E293B" stroke="url(#goldGradM)" stroke-width="8" />
+      <circle cx="256" cy="286" r="82" fill="none" stroke="#FEF08A" stroke-width="2" stroke-dasharray="5 5" opacity="0.7" />
 
-  <path d="M384 360C384 312 367 278 337 252C346 278 346 320 324 342C350 350 371 360 384 360Z" fill="url(#goldMask)" opacity="0.9"/>
-  <circle cx="379" cy="308" r="8" fill="#FEF08A"/>
-  <circle cx="367" cy="278" r="8" fill="#FEF08A"/>
-  <circle cx="350" cy="256" r="8" fill="#FEF08A"/>
+      <!-- QR Pattern -->
+      <rect x="204" y="234" width="28" height="28" rx="6" fill="url(#goldGradM)" />
+      <rect x="210" y="240" width="16" height="16" rx="3" fill="#0F172A" />
+      <rect x="214" y="244" width="8" height="8" rx="1.5" fill="url(#goldGradM)" />
 
-  <path d="M178 418H334L322 440H190L178 418Z" fill="url(#goldMask)"/>
-  <text x="256" y="435" fill="#451A03" font-size="21" font-weight="900" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle" letter-spacing="3">JIMPITAN</text>
+      <rect x="280" y="234" width="28" height="28" rx="6" fill="url(#goldGradM)" />
+      <rect x="286" y="240" width="16" height="16" rx="3" fill="#0F172A" />
+      <rect x="290" y="244" width="8" height="8" rx="1.5" fill="url(#goldGradM)" />
+
+      <rect x="204" y="306" width="28" height="28" rx="6" fill="url(#goldGradM)" />
+      <rect x="210" y="312" width="16" height="16" rx="3" fill="#0F172A" />
+      <rect x="214" y="316" width="8" height="8" rx="1.5" fill="url(#goldGradM)" />
+
+      <circle cx="260" cy="248" r="4" fill="#38BDF8" />
+      <circle cx="250" cy="272" r="4" fill="#38BDF8" />
+      <circle cx="270" cy="272" r="4" fill="#38BDF8" />
+      <circle cx="260" cy="296" r="4" fill="#38BDF8" />
+
+      <text x="286" y="328" fill="url(#goldGradM)" font-size="28" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" letter-spacing="1">Rp</text>
+    </g>
+
+    <!-- Laser Beam -->
+    <line x1="104" y1="286" x2="408" y2="286" stroke="url(#laserGradM)" stroke-width="4.5" stroke-linecap="round" />
+
+    <!-- Bottom Badge -->
+    <g filter="url(#dropShadowM)">
+      <rect x="166" y="416" width="180" height="38" rx="19" fill="#0F172A" stroke="url(#goldGradM)" stroke-width="2.5" />
+      <text x="256" y="441" fill="#FEF08A" font-size="16" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" text-anchor="middle" letter-spacing="3.5">JIMPITAN RT</text>
+    </g>
+  </g>
 </svg>

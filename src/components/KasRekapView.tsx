@@ -382,6 +382,10 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   };
 
   const openEditMutation = (mut: KasMutation) => {
+    if (!isAdmin) {
+      alert('Akses Ditolak: Edit mutasi kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+      return;
+    }
     setEditingMutation(mut);
     setJenisMutasi(mut.jenis);
     setNominalMutasi(mut.nominal);
@@ -394,6 +398,10 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   };
 
   const openAddMutation = (initialCategory?: string) => {
+    if (!isAdmin) {
+      alert('Akses Ditolak: Pengeluaran dan pencatatan kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+      return;
+    }
     setEditingMutation(null);
     setJenisMutasi('keluar');
     const targetCat = initialCategory || 'Konsumsi Ronda';
@@ -424,6 +432,10 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   const handleSaveMutation = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      alert('Akses Ditolak: Pengeluaran dan mutasi kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+      return;
+    }
     const finalCategory = (kategoriMutasi === 'Lain-lain' && customKategoriInput.trim()) 
       ? customKategoriInput.trim() 
       : kategoriMutasi;
@@ -565,7 +577,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             </div>
           </div>
 
-          {appMode !== 'warga' && (
+          {isAdmin && (
             <button
               onClick={() => openAddMutation('Konsumsi Ronda')}
               className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
@@ -856,7 +868,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             </p>
           </div>
 
-          {appMode !== 'warga' && (
+          {isAdmin && (
             <button
               onClick={() => openAddMutation('Konsumsi Ronda')}
               className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center space-x-1 shadow-2xs cursor-pointer"
