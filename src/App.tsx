@@ -101,11 +101,21 @@ export default function App() {
     return 'kas_rekap';
   });
 
-  const handleSwitchMode = (mode: AppMode) => {
-    if (mode === 'petugas' && !isAdminUnlocked) {
-      handleOpenAdminPinModal('unlock');
-      return;
+  const handleSwitchMode = (mode: AppMode, bypassPinCheck = false) => {
+    // If switching from warga to penginput, enforce PIN verification
+    if (!bypassPinCheck) {
+      if (mode === 'penginput' && appMode === 'warga' && !isAdminUnlocked) {
+        setModeSelectorTarget('penginput');
+        setIsModeSelectorOpen(true);
+        return;
+      }
+      if (mode === 'petugas' && !isAdminUnlocked) {
+        setModeSelectorTarget('petugas');
+        setIsModeSelectorOpen(true);
+        return;
+      }
     }
+
     setAppMode(mode);
     try {
       localStorage.setItem(STORAGE_KEYS.APP_MODE, mode);
@@ -241,6 +251,7 @@ export default function App() {
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState<boolean>(false);
   const [adminPinModalMode, setAdminPinModalMode] = useState<'unlock' | 'change_pin'>('unlock');
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState<boolean>(false);
+  const [modeSelectorTarget, setModeSelectorTarget] = useState<AppMode | null>(null);
 
   // Modals state
   const [isPanduanOpen, setIsPanduanOpen] = useState<boolean>(false);
@@ -1241,14 +1252,19 @@ export default function App() {
       {/* Mode Selector Modal (Warga, Penginput, Petugas) */}
       <ModeSelectorModal
         isOpen={isModeSelectorOpen}
-        onClose={() => setIsModeSelectorOpen(false)}
+        onClose={() => {
+          setIsModeSelectorOpen(false);
+          setModeSelectorTarget(null);
+        }}
         currentMode={appMode}
+        initialTargetMode={modeSelectorTarget}
         onSelectMode={(mode) => {
           if (mode === 'petugas') {
             setIsAdminUnlocked(true);
           }
-          handleSwitchMode(mode);
+          handleSwitchMode(mode, true);
           setIsModeSelectorOpen(false);
+          setModeSelectorTarget(null);
         }}
         settings={settings}
         isAdminUnlocked={isAdminUnlocked}

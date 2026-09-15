@@ -397,9 +397,10 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                     <div className="min-w-0">
                       <h3 className="font-extrabold text-sky-950 text-sm tracking-tight flex items-center space-x-1.5">
                         <span>Masuk Mode Penginput</span>
+                        <Lock className="w-3.5 h-3.5 text-sky-700" />
                       </h3>
                       <p className="text-xs text-sky-700 truncate">
-                        Akses Scan QR, Kas & Rekap, Hitung Uang
+                        Akses Scan QR, Kas & Rekap, Hitung Uang (PIN Diperlukan)
                       </p>
                     </div>
                   </div>
