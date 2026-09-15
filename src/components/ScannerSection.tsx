@@ -3,7 +3,6 @@ import {
   Camera, 
   Search, 
   Clock, 
-  Upload, 
   Check, 
   X, 
   AlertCircle, 
@@ -95,7 +94,6 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
 
   // HTML5 Scanner Ref
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Map of scanned house IDs tonight
   const scannedWargaIds = new Set(recordsTonight.map((r) => r.wargaId));
@@ -319,23 +317,6 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
     };
   }, []);
 
-  // Handle image file QR decode
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const html5Qr = new Html5Qrcode('file-qr-temp-scanner');
-      const result = await html5Qr.scanFile(file, true);
-      processScannedCode(result);
-    } catch (err: any) {
-      if (soundEnabled) soundFx.playWarning();
-      alert('Tidak dapat mendeteksi kode QR dari foto ini. Silakan coba foto yang lebih jelas atau gunakan menu Pilih Rumah.');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   // Filtered warga list for "Pilih Rumah"
   const filteredWarga = wargaList.filter((w) => {
     const matchesSearch =
@@ -431,9 +412,6 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
         </button>
       </div>
 
-      {/* Hidden temporary div for file scanning */}
-      <div id="file-qr-temp-scanner" className="hidden" />
-
       {/* TAB 1: KAMERA QR VIEW */}
       {activeTab === 'camera' && (
         <div className="space-y-4">
@@ -500,32 +478,6 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Bottom Row: SCAN DARI FOTO */}
-          <div className="bg-white rounded-2xl border border-sky-100 p-3.5 flex items-center justify-between shadow-2xs">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-stone-600">
-              SCAN DARI FOTO:
-            </span>
-
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="file-qr-input"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer"
-                id="btn-pilih-file-qr"
-              >
-                <Upload className="w-3.5 h-3.5 text-sky-600" />
-                <span>PILIH FILE QR</span>
-              </button>
-            </div>
           </div>
 
           {/* Live Today's Recorded List (Tetap Muncul di Layar) */}
