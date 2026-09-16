@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
                       ? 'bg-emerald-500/30 text-emerald-200 border-emerald-400/60 hover:bg-emerald-500/40'
                       : appMode === 'penginput'
                         ? 'bg-sky-500/30 text-sky-200 border-sky-400/60 hover:bg-sky-500/40 ring-1 ring-sky-300/40'
-                        : 'bg-amber-500/30 text-amber-200 border-amber-400/60 hover:bg-amber-500/40'
+                        : 'bg-amber-500/30 text-amber-200 border-amber-400/60 hover:bg-amber-500/40 ring-1 ring-amber-300/40'
                   }`}
                   title={`Mode saat ini: ${appMode.toUpperCase()}. Klik untuk memilih atau beralih mode.`}
                   id="btn-header-mode-toggle"
@@ -105,12 +105,12 @@ export const Header: React.FC<HeaderProps> = ({
                   ) : appMode === 'penginput' ? (
                     <>
                       <QrCode className="w-2.5 h-2.5 text-sky-300" />
-                      <span>Mode Penginput</span>
+                      <span>Penginput</span>
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="w-2.5 h-2.5 text-amber-300" />
-                      <span>Mode Petugas</span>
+                      <span>Petugas / Admin</span>
                     </>
                   )}
                 </button>

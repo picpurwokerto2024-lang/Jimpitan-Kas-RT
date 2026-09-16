@@ -102,34 +102,55 @@ export default function App() {
   });
 
   const handleSwitchMode = (mode: AppMode, bypassPinCheck = false) => {
-    // If switching from warga to penginput, enforce PIN verification
-    if (!bypassPinCheck) {
-      if (mode === 'penginput' && appMode === 'warga' && !isAdminUnlocked) {
+    // Mode Warga: Lock admin & set read-only transparency mode
+    if (mode === 'warga') {
+      setIsAdminUnlocked(false);
+      setAppMode('warga');
+      try {
+        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+      } catch (e) {
+        // ignore
+      }
+      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+        setActiveTab('kas_rekap');
+      }
+      return;
+    }
+
+    // Mode Penginput (Operasional Ronda & Jimpitan)
+    if (mode === 'penginput') {
+      if (!bypassPinCheck && appMode === 'warga' && !isAdminUnlocked) {
         setModeSelectorTarget('penginput');
         setIsModeSelectorOpen(true);
         return;
       }
-      if (mode === 'petugas' && !isAdminUnlocked) {
-        setModeSelectorTarget('petugas');
-        setIsModeSelectorOpen(true);
-        return;
+      setAppMode('penginput');
+      try {
+        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'penginput');
+      } catch (e) {
+        // ignore
       }
-    }
-
-    setAppMode(mode);
-    try {
-      localStorage.setItem(STORAGE_KEYS.APP_MODE, mode);
-    } catch (e) {
-      // ignore
-    }
-    if (mode === 'warga') {
-      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
-        setActiveTab('kas_rekap');
-      }
-    } else if (mode === 'penginput') {
       if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'hitung_uang') {
         setActiveTab('scan');
       }
+      return;
+    }
+
+    // Mode Petugas / Pengurus RT / Admin (Akses Penuh):
+    // If not unlocked and not bypassed, prompt for PIN once
+    if (!bypassPinCheck && !isAdminUnlocked) {
+      setModeSelectorTarget('petugas');
+      setIsModeSelectorOpen(true);
+      return;
+    }
+
+    // Unlocked: Grant full access (Petugas == Pengurus RT == Admin)
+    setIsAdminUnlocked(true);
+    setAppMode('petugas');
+    try {
+      localStorage.setItem(STORAGE_KEYS.APP_MODE, 'petugas');
+    } catch (e) {
+      // ignore
     }
   };
 

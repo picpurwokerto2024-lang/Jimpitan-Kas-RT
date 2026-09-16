@@ -112,20 +112,20 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                   : appMode === 'penginput'
                     ? 'bg-sky-50 border-sky-300 text-sky-950'
-                    : `${currentTheme.badgeBg} ${currentTheme.badgeBorder} ${currentTheme.badgeText}`
+                    : 'bg-amber-50 border-amber-300 text-amber-950'
               }`}>
                 {appMode === 'warga' 
                   ? 'MODE WARGA RT' 
-                  : appMode === 'penginput' 
-                    ? 'MODE PENGINPUT' 
-                    : 'MENU & FITUR RT'}
+                  : appMode === 'penginput'
+                    ? 'MODE PENGINPUT'
+                    : 'MODE PETUGAS / PENGURUS RT'}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight font-sans">
               {appMode === 'warga' 
                 ? 'Transparansi & Menu' 
                 : appMode === 'penginput'
-                  ? 'Menu Operasional'
+                  ? 'Menu Operasional Ronda'
                   : 'Navigasi Lengkap'}
             </h2>
           </div>
@@ -400,7 +400,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                         <Lock className="w-3.5 h-3.5 text-sky-700" />
                       </h3>
                       <p className="text-xs text-sky-700 truncate">
-                        Akses Scan QR, Kas & Rekap, Hitung Uang (PIN Diperlukan)
+                        Akses Scan QR, Kas & Rekap, Hitung Uang (PIN Ronda)
                       </p>
                     </div>
                   </div>
@@ -408,7 +408,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 </button>
               )}
 
-              {/* 4. Switch to Mode Petugas (with PIN) */}
+              {/* 4. Switch to Mode Petugas / Pengurus RT / Admin */}
               {onSwitchMode && (
                 <button
                   onClick={() => {
@@ -428,7 +428,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                         <Lock className="w-3.5 h-3.5 text-amber-700" />
                       </h3>
                       <p className="text-xs text-amber-700 truncate">
-                        Kelola Master Warga & Pengaturan Lengkap (PIN)
+                        Akses Master Warga & Pengaturan Lengkap (1x PIN)
                       </p>
                     </div>
                   </div>
@@ -437,7 +437,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
               )}
             </>
           ) : appMode === 'penginput' ? (
-            /* Mode Penginput Menu (Scan QR, Kas & Rekap, Hitung Uang) */
+            /* Mode Penginput Menu (Scan QR, Kas & Rekap, Hitung Uang, Mutasi) */
             <>
               {/* 1. Scan & Input Jimpitan */}
               <button
@@ -538,6 +538,34 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 </div>
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-rose-600 transition-colors flex-shrink-0" />
               </button>
+
+              {/* 5. Switch to Petugas / Admin */}
+              {onSwitchMode && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onSwitchMode('petugas');
+                  }}
+                  className="w-full p-3 rounded-2xl bg-amber-50 border-2 border-amber-300 hover:border-amber-400 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group mt-2"
+                  id="menu-item-switch-to-petugas"
+                >
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-amber-950 text-sm tracking-tight flex items-center space-x-1.5">
+                        <span>Beralih ke Mode Petugas / Admin</span>
+                        <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      </h3>
+                      <p className="text-xs text-amber-700 truncate">
+                        Kelola data warga, rekap lengkap & pengaturan RT
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-amber-600 transition-colors flex-shrink-0" />
+                </button>
+              )}
             </>
           ) : (
             /* Mode Petugas / Admin Full Menu */

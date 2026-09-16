@@ -68,7 +68,6 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
     }
 
     if (mode === 'penginput') {
-      // If already in penginput or admin is unlocked, allow or require pin from warga
       if (currentMode === 'penginput') {
         onClose();
         return;
@@ -78,12 +77,11 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
     }
 
     if (mode === 'petugas') {
-      if (isAdminUnlocked) {
-        onSelectMode('petugas');
+      if (currentMode === 'petugas' && isAdminUnlocked) {
         onClose();
-      } else {
-        setSelectedTargetMode('petugas');
+        return;
       }
+      setSelectedTargetMode('petugas');
     }
   };
 
@@ -103,10 +101,9 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         onSelectMode('petugas');
         onClose();
       } else {
-        setErrorMessage('PIN Admin RT salah. Silakan coba lagi.');
+        setErrorMessage('PIN Petugas / Admin RT salah. Silakan coba lagi.');
       }
     } else if (selectedTargetMode === 'penginput') {
-      // Allowed if matches active penginput PIN OR active admin PIN
       if (cleanPin === activePenginputPin || cleanPin === activeAdminPin) {
         onSelectMode('penginput');
         onClose();
@@ -147,7 +144,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
               Mode Pengguna & Peran RT
             </h2>
             <p className="text-xs text-stone-500">
-              Sesuaikan tampilan menu dengan kebutuhan tugas Anda
+              Sesuaikan tampilan menu dengan kebutuhan operasional ronda atau manajemen RT
             </p>
           </div>
 
@@ -161,24 +158,28 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
           </button>
         </div>
 
-        {/* PIN Verification Section if a protected mode is selected */}
+        {/* PIN Verification Section if Petugas or Penginput mode is selected */}
         {selectedTargetMode && selectedTargetMode !== 'warga' && (
-          <form onSubmit={handleVerifyPinAndSwitch} className="bg-stone-50 border-2 border-stone-300 rounded-3xl p-4 space-y-3 animate-in fade-in zoom-in-95 shadow-sm">
+          <form onSubmit={handleVerifyPinAndSwitch} className={`bg-stone-50 border-2 rounded-3xl p-4 space-y-3 animate-in fade-in zoom-in-95 shadow-sm ${
+            selectedTargetMode === 'penginput' ? 'border-sky-300' : 'border-amber-300'
+          }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shadow-xs ${
-                  selectedTargetMode === 'penginput' ? 'bg-sky-600 text-white' : 'bg-amber-600 text-white'
+                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shadow-xs text-white ${
+                  selectedTargetMode === 'penginput' ? 'bg-sky-600' : 'bg-amber-600'
                 }`}>
                   <KeyRound className="w-4 h-4" />
                 </div>
                 <div>
                   <h4 className="font-extrabold text-stone-900 text-xs sm:text-sm">
-                    {selectedTargetMode === 'penginput' ? 'Masukkan PIN Mode Penginput' : 'Masukkan PIN Admin RT'}
+                    {selectedTargetMode === 'penginput'
+                      ? 'Masukkan PIN Mode Penginput'
+                      : 'Masukkan PIN Petugas / Admin RT'}
                   </h4>
                   <p className="text-[10px] text-stone-500">
                     {selectedTargetMode === 'penginput'
-                      ? 'Dikhususkan untuk petugas jimpitan & ronda'
-                      : 'Proteksi keamanan pengaturan & master data'}
+                      ? 'Operasional ronda: Scan QR, Kas & Hitung Uang'
+                      : 'Buka akses penuh: 5 Tab & Pengaturan RT (Cukup 1x isi PIN)'}
                   </p>
                 </div>
               </div>
@@ -227,7 +228,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                   onClick={() => setShowPin(!showPin)}
                   className="inline-flex items-center space-x-1 text-[11px] text-stone-500 hover:text-stone-800 font-semibold py-0.5 px-2 rounded-lg cursor-pointer"
                 >
-                  {showPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3 text-sky-600" />}
+                  {showPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3 text-stone-600" />}
                   <span>{showPin ? 'Sembunyikan' : 'Lihat Angka'}</span>
                 </button>
               </div>
@@ -273,12 +274,12 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
-                Masuk Mode
+                {selectedTargetMode === 'penginput' ? 'Masuk Penginput' : 'Buka Akses Penuh'}
               </button>
             </div>
 
             <p className="text-[10px] text-stone-400 text-center">
-              *PIN Default: <strong className="text-stone-600 font-bold">1234</strong> (Dapat diubah di Pengaturan RT)
+              *PIN Default: <strong className="text-stone-600 font-bold">{selectedTargetMode === 'penginput' ? activePenginputPin : activeAdminPin}</strong>
             </p>
           </form>
         )}
@@ -307,7 +308,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     </h3>
                     <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 font-extrabold text-[9.5px] flex items-center space-x-1">
                       <Lock className="w-2.5 h-2.5 text-sky-700" />
-                      <span>PIN Diperlukan</span>
+                      <span>Operasional Ronda (PIN)</span>
                     </span>
                     {currentMode === 'penginput' && (
                       <span className="px-1.5 py-0.5 rounded-md bg-sky-600 text-white font-bold text-[9px] flex items-center space-x-0.5">
@@ -317,7 +318,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-stone-600 font-medium mt-0.5">
-                    Dikhususkan untuk petugas jimpitan & ronda keliling.
+                    Dikhususkan untuk petugas jimpitan & ronda keliling jaga malam.
                   </p>
 
                   {/* Feature Tags for Penginput */}
@@ -350,7 +351,76 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
             </div>
           </div>
 
-          {/* OPTION 2: MODE WARGA (Transparansi Kas & Data Warga) */}
+          {/* OPTION 2: MODE PETUGAS / PENGURUS RT / ADMIN */}
+          <div
+            onClick={() => handleChooseMode('petugas')}
+            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative group ${
+              currentMode === 'petugas' && isAdminUnlocked
+                ? 'bg-amber-50/80 border-amber-500 shadow-xs'
+                : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50/30'
+            }`}
+            id="card-mode-petugas"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                    <h3 className="font-black text-stone-900 text-sm tracking-tight">
+                      Mode Petugas / Pengurus RT / Admin
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[9.5px] flex items-center space-x-1">
+                      <ShieldCheck className="w-2.5 h-2.5 text-amber-700" />
+                      <span>Akses Lengkap (1x PIN)</span>
+                    </span>
+                    {currentMode === 'petugas' && isAdminUnlocked && (
+                      <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white font-bold text-[9px] flex items-center space-x-0.5">
+                        <Check className="w-2.5 h-2.5" />
+                        <span>Aktif & Terbuka</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-600 font-medium mt-0.5">
+                    Akses operasional jimpitan, scan QR, kas & rekap, data warga, hitung uang, cetak QR, dan pengaturan RT.
+                  </p>
+
+                  {/* Feature Tags for Petugas / Admin */}
+                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 mt-2">
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 text-[10px] font-bold">
+                      <QrCode className="w-2.5 h-2.5" />
+                      <span>Scan QR</span>
+                    </span>
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 text-[10px] font-bold">
+                      <BarChart3 className="w-2.5 h-2.5" />
+                      <span>Kas & Rekap</span>
+                    </span>
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 text-[10px] font-bold">
+                      <Users className="w-2.5 h-2.5" />
+                      <span>Data Warga</span>
+                    </span>
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 text-[10px] font-bold">
+                      <Calculator className="w-2.5 h-2.5" />
+                      <span>Hitung Uang</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center flex-shrink-0 mt-1">
+                {currentMode === 'petugas' && isAdminUnlocked ? (
+                  <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                ) : (
+                  <Lock className="w-4 h-4 text-stone-300 group-hover:text-amber-600 transition-colors" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* OPTION 3: MODE WARGA (Transparansi Kas & Data Warga Publik) */}
           <div
             onClick={() => handleChooseMode('warga')}
             className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative group ${
@@ -371,7 +441,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                       Mode Warga
                     </h3>
                     <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 font-extrabold text-[9.5px]">
-                      Publik & Transparan
+                      Publik & Transparan (Tanpa PIN)
                     </span>
                     {currentMode === 'warga' && (
                       <span className="px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center space-x-0.5">
@@ -381,7 +451,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-stone-600 font-medium mt-0.5">
-                    Melihat saldo kas RT, transparansi setoran, dan status iuran rumah.
+                    Melihat saldo kas RT, transparansi setoran, dan status iuran rumah tanpa hak ubah.
                   </p>
 
                   {/* Feature Tags for Warga */}
@@ -409,68 +479,12 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
               </div>
             </div>
           </div>
-
-          {/* OPTION 3: MODE PETUGAS / PENGURUS (Admin Penuh + Pengaturan) */}
-          <div
-            onClick={() => handleChooseMode('petugas')}
-            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative group ${
-              currentMode === 'petugas'
-                ? 'bg-amber-50/70 border-amber-500 shadow-xs'
-                : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50/30'
-            }`}
-            id="card-mode-petugas"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                    <h3 className="font-black text-stone-900 text-sm tracking-tight">
-                      Mode Petugas / Pengurus RT
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[9.5px] flex items-center space-x-1">
-                      <Lock className="w-2.5 h-2.5" />
-                      <span>Admin Penuh</span>
-                    </span>
-                    {currentMode === 'petugas' && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white font-bold text-[9px] flex items-center space-x-0.5">
-                        <Check className="w-2.5 h-2.5" />
-                        <span>Aktif</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-stone-600 font-medium mt-0.5">
-                    Akses lengkap semua fitur: Scan, Kas, Master Warga, Cetak QR, & Pengaturan RT.
-                  </p>
-
-                  {/* Feature Tags for Petugas */}
-                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 mt-2">
-                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 text-[10px] font-bold">
-                      <span>Semua 5 Tab & Pengaturan</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center flex-shrink-0 mt-1">
-                {currentMode === 'petugas' ? (
-                  <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center">
-                    <Check className="w-3.5 h-3.5" />
-                  </div>
-                ) : (
-                  <Lock className="w-4 h-4 text-stone-300 group-hover:text-amber-600 transition-colors" />
-                )}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer info */}
         <div className="pt-2 border-t border-stone-100 text-center">
           <p className="text-[11px] text-stone-400">
-            PIN Default sistem: <span className="font-mono font-bold text-stone-600">1234</span> (Dapat diubah di Pengaturan RT)
+            PIN Default: <span className="font-mono font-bold text-stone-600">{activeAdminPin}</span> (Mode Petugas/Admin cukup masukkan PIN 1x untuk membuka seluruh menu)
           </p>
         </div>
       </div>
