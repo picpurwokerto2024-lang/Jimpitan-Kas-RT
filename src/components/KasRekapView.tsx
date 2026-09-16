@@ -965,8 +965,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
           </div>
         )}
 
-        {/* Action Pembersihan Data Arsip & Demo (Khusus Pengurus / Admin) */}
-        {isAuthorized && (
+        {/* Action Pembersihan Data Arsip & Demo (Khusus Pengurus RT / Admin SAJA, Dilarang untuk Mode Penginput) */}
+        {isAdmin && appMode === 'petugas' && (
           <div className="pt-2 border-t border-stone-100 flex items-center justify-between flex-wrap gap-2">
             <span className="text-[11px] text-stone-500 font-semibold">Pembersihan Data:</span>
             <div className="flex items-center space-x-3">
