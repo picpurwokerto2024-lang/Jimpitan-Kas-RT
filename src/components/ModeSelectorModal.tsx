@@ -108,7 +108,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         onSelectMode('penginput');
         onClose();
       } else {
-        setErrorMessage('PIN Penginput salah. Mode ini menggunakan PIN khusus penginput (default: 4321).');
+        setErrorMessage('PIN Penginput salah. Silakan coba kembali.');
       }
     }
   };
@@ -279,7 +279,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
             </div>
 
             <p className="text-[10px] text-stone-400 text-center">
-              *PIN Default: <strong className="text-stone-600 font-bold">{selectedTargetMode === 'penginput' ? activePenginputPin : activeAdminPin}</strong>
+              *Masukkan PIN keamanan yang telah ditentukan Pengurus RT
             </p>
           </form>
         )}

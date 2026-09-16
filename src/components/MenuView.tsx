@@ -882,7 +882,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       maxLength={8}
                       value={formData.pinPenginput ?? '4321'}
                       onChange={(e) => setFormData({ ...formData, pinPenginput: e.target.value })}
-                      placeholder="Default: 4321"
+                      placeholder="Masukkan PIN Penginput (4 - 8 digit)..."
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-stone-900 text-xs font-bold outline-none focus:ring-2 focus:ring-sky-400"
                     />
                     <p className="text-[10px] text-stone-500">

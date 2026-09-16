@@ -315,7 +315,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               </div>
 
               <p className="text-[11px] text-stone-500 text-center">
-                *PIN Default Sistem: <strong className="text-stone-700 font-bold">1234</strong> (atau PIN baru yang telah diubah)
+                *Masukkan PIN Pengurus RT untuk memverifikasi akses Anda.
               </p>
             </form>
           </div>
@@ -351,7 +351,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
                   setOldPin(e.target.value.replace(/\D/g, ''));
                   setChangeError('');
                 }}
-                placeholder="Masukkan PIN saat ini (Default: 1234)"
+                placeholder="Masukkan PIN saat ini..."
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 font-bold text-stone-900 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
