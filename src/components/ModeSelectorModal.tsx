@@ -44,7 +44,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const activeAdminPin = (settings.pinAdmin || '1234').trim();
-  const activePenginputPin = (settings.pinPenginput || settings.pinAdmin || '1234').trim();
+  const activePenginputPin = (settings.pinPenginput || '4321').trim();
 
   useEffect(() => {
     if (isOpen) {
@@ -101,14 +101,14 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         onSelectMode('petugas');
         onClose();
       } else {
-        setErrorMessage('PIN Petugas / Admin RT salah. Silakan coba lagi.');
+        setErrorMessage('PIN Petugas / Admin RT salah. Mode ini memerlukan PIN Admin.');
       }
     } else if (selectedTargetMode === 'penginput') {
-      if (cleanPin === activePenginputPin || cleanPin === activeAdminPin) {
+      if (cleanPin === activePenginputPin) {
         onSelectMode('penginput');
         onClose();
       } else {
-        setErrorMessage('PIN Penginput salah. Silakan coba lagi.');
+        setErrorMessage('PIN Penginput salah. Mode ini menggunakan PIN khusus penginput (default: 4321).');
       }
     }
   };

@@ -861,15 +861,15 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2 text-stone-800 font-bold text-xs">
                       <QrCode className="w-4 h-4 text-sky-600" />
-                      <span>PIN Mode Penginput (Juru Pungut / Ronda)</span>
+                      <span>PIN Khusus Mode Penginput (Ronda / Juru Pungut)</span>
                     </div>
                     <span className="text-[10px] font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
-                      Scan QR, Kas, Hitung
+                      Terpisah dari PIN Admin
                     </span>
                   </div>
 
                   <p className="text-[11px] text-stone-500 leading-relaxed">
-                    PIN khusus untuk petugas lapangan yang hanya bertugas menginput scan QR jimpitan, mutasi kas/rekap, dan hitung uang.
+                    PIN terpisah yang diberikan kepada petugas regu ronda untuk akses operasional (Scan QR, Kas/Rekap, dan Hitung Uang) tanpa memberikan akses ke pengaturan RT atau master data warga.
                   </p>
 
                   <div className="space-y-1.5 bg-stone-50 p-3 rounded-2xl border border-stone-200">
@@ -880,13 +880,13 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       type="text"
                       inputMode="numeric"
                       maxLength={8}
-                      value={formData.pinPenginput || ''}
+                      value={formData.pinPenginput ?? '4321'}
                       onChange={(e) => setFormData({ ...formData, pinPenginput: e.target.value })}
-                      placeholder="Default: 1234"
+                      placeholder="Default: 4321"
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-stone-900 text-xs font-bold outline-none focus:ring-2 focus:ring-sky-400"
                     />
-                    <p className="text-[10px] text-stone-400">
-                      * Kosongkan atau gunakan default (1234) jika ingin disamakan dengan PIN Admin.
+                    <p className="text-[10px] text-stone-500">
+                      * PIN Penginput saat ini: <strong className="text-sky-700 font-bold">{formData.pinPenginput || '4321'}</strong> (Berbeda dengan PIN Admin: <strong className="text-amber-700 font-bold">{formData.pinAdmin || '1234'}</strong>)
                     </p>
                   </div>
                 </div>

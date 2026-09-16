@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultNominal: 1000,
   saldoAwalKas: 0,
   pinAdmin: '1234',
+  pinPenginput: '4321',
   soundEnabled: true,
   speechEnabled: true,
   currencySymbol: 'Rp',

@@ -267,8 +267,15 @@ export default function App() {
     return {};
   });
 
-  // Admin lock toggle & PIN modal state
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  // Admin lock toggle & PIN modal state (Persist unlock if in Petugas mode)
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    try {
+      const savedMode = localStorage.getItem(STORAGE_KEYS.APP_MODE);
+      return savedMode === 'petugas';
+    } catch (e) {
+      return false;
+    }
+  });
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState<boolean>(false);
   const [adminPinModalMode, setAdminPinModalMode] = useState<'unlock' | 'change_pin'>('unlock');
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState<boolean>(false);

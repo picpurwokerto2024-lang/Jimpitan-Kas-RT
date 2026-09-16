@@ -237,6 +237,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 }) => {
   const liveToday = getTodayDateIso();
   const isPastDate = selectedDate !== liveToday;
+  // Authorized if admin is explicitly unlocked OR app is in Petugas or Penginput mode
+  const isAuthorized = isAdmin || appMode === 'petugas' || appMode === 'penginput';
   // Time period filter: 'hari_ini' | 'bulan_ini' | 'semua'
   const [periodFilter, setPeriodFilter] = useState<'hari_ini' | 'bulan_ini' | 'semua'>('hari_ini');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -382,8 +384,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   };
 
   const openEditMutation = (mut: KasMutation) => {
-    if (!isAdmin) {
-      alert('Akses Ditolak: Edit mutasi kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+    if (!isAuthorized) {
+      alert('Akses Ditolak: Edit mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
       return;
     }
     setEditingMutation(mut);
@@ -398,8 +400,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   };
 
   const openAddMutation = (initialCategory?: string) => {
-    if (!isAdmin) {
-      alert('Akses Ditolak: Pengeluaran dan pencatatan kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+    if (!isAuthorized) {
+      alert('Akses Ditolak: Pengeluaran dan pencatatan kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
       return;
     }
     setEditingMutation(null);
@@ -432,8 +434,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   const handleSaveMutation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) {
-      alert('Akses Ditolak: Pengeluaran dan mutasi kas RT hanya dapat dilakukan oleh Mode Pengurus RT.');
+    if (!isAuthorized) {
+      alert('Akses Ditolak: Pengeluaran dan mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
       return;
     }
     const finalCategory = (kategoriMutasi === 'Lain-lain' && customKategoriInput.trim()) 
@@ -577,7 +579,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             </div>
           </div>
 
-          {isAdmin && (
+          {isAuthorized && (
             <button
               onClick={() => openAddMutation('Konsumsi Ronda')}
               className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors"
@@ -826,7 +828,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                     </span>
                   </div>
 
-                  {isAdmin && (
+                  {isAuthorized && (
                     <div className="flex items-center space-x-1 pl-1 border-l border-stone-200">
                       <button
                         onClick={() => openEditRecord(record)}
@@ -868,7 +870,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             </p>
           </div>
 
-          {isAdmin && (
+          {isAuthorized && (
             <button
               onClick={() => openAddMutation('Konsumsi Ronda')}
               className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center space-x-1 shadow-2xs cursor-pointer"
@@ -933,7 +935,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                       {mut.jenis === 'masuk' ? '+' : '-'} {formatRupiah(mut.nominal)}
                     </span>
 
-                    {isAdmin && (
+                    {isAuthorized && (
                       <div className="flex items-center space-x-1 pl-1 border-l border-stone-200">
                         <button
                           onClick={() => openEditMutation(mut)}
@@ -964,7 +966,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         )}
 
         {/* Action Pembersihan Data Arsip & Demo (Khusus Pengurus / Admin) */}
-        {isAdmin && (
+        {isAuthorized && (
           <div className="pt-2 border-t border-stone-100 flex items-center justify-between flex-wrap gap-2">
             <span className="text-[11px] text-stone-500 font-semibold">Pembersihan Data:</span>
             <div className="flex items-center space-x-3">
