@@ -1135,6 +1135,7 @@ export default function App() {
             settings={settings}
             activeReguName={activeRegu.nama}
             theme={themeState.theme}
+            onBack={() => setIsModeSelectorOpen(true)}
           />
         )}
 
