@@ -582,7 +582,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     setInputPin(e.target.value);
                     setPinError('');
                   }}
-                  placeholder="Ketik PIN Admin (Default: 1234)..."
+                  placeholder="Ketik PIN Admin..."
                   className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-white border border-stone-300 font-bold text-stone-900 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-amber-500"
                   autoComplete="off"
                 />
@@ -668,7 +668,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       maxLength={8}
                       value={currentPinInput}
                       onChange={(e) => setCurrentPinInput(e.target.value)}
-                      placeholder="PIN Lama (1234)"
+                      placeholder="PIN Lama..."
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-bold text-stone-900 text-xs outline-none focus:ring-2 focus:ring-amber-500"
                       required
                     />
@@ -886,7 +886,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-stone-900 text-xs font-bold outline-none focus:ring-2 focus:ring-sky-400"
                     />
                     <p className="text-[10px] text-stone-500">
-                      * PIN Penginput saat ini: <strong className="text-sky-700 font-bold">{formData.pinPenginput || '4321'}</strong> (Berbeda dengan PIN Admin: <strong className="text-amber-700 font-bold">{formData.pinAdmin || '1234'}</strong>)
+                      * Pastikan PIN Penginput berbeda dengan PIN Admin demi keamanan dan pemisahan wewenang.
                     </p>
                   </div>
                 </div>

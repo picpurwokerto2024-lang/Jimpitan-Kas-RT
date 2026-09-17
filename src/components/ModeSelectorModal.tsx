@@ -101,7 +101,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         onSelectMode('petugas');
         onClose();
       } else {
-        setErrorMessage('PIN Petugas / Admin RT salah. Mode ini memerlukan PIN Admin.');
+        setErrorMessage('PIN Petugas / Admin RT salah. Silakan coba kembali.');
       }
     } else if (selectedTargetMode === 'penginput') {
       if (cleanPin === activePenginputPin) {
@@ -484,7 +484,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         {/* Footer info */}
         <div className="pt-2 border-t border-stone-100 text-center">
           <p className="text-[11px] text-stone-400">
-            PIN Default: <span className="font-mono font-bold text-stone-600">{activeAdminPin}</span> (Mode Petugas/Admin cukup masukkan PIN 1x untuk membuka seluruh menu)
+            Mode Petugas / Pengurus RT cukup memasukkan PIN 1x untuk membuka seluruh menu
           </p>
         </div>
       </div>
