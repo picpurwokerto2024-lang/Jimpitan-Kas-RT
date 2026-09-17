@@ -87,6 +87,12 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   // History Modal State
   const [selectedWargaForHistory, setSelectedWargaForHistory] = useState<Warga | null>(null);
 
+  // Print Card Modal State
+  const [selectedWargaForQr, setSelectedWargaForQr] = useState<Warga | null>(null);
+  const [isBatchPrintOpen, setIsBatchPrintOpen] = useState<boolean>(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [batchQrUrls, setBatchQrUrls] = useState<Record<string, string>>({});
+
   // Admin PIN Protection State for Add/Edit/Delete
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
   const [pinInput, setPinInput] = useState<string>('');
@@ -107,12 +113,6 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   const [alamat, setAlamat] = useState<string>('');
   const [nomorHp, setNomorHp] = useState<string>('');
   const [nominalDefault, setNominalDefault] = useState<number>(settings.defaultNominal || 1000);
-
-  // Print Card Modal State
-  const [selectedWargaForQr, setSelectedWargaForQr] = useState<Warga | null>(null);
-  const [isBatchPrintOpen, setIsBatchPrintOpen] = useState<boolean>(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [batchQrUrls, setBatchQrUrls] = useState<Record<string, string>>({});
 
   // Current year-month prefix
   const currentYearMonth = selectedDate ? selectedDate.substring(0, 7) : '';
@@ -554,6 +554,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
               return (
                 <div
                   key={warga.id}
+                  id={`warga-item-${warga.id}`}
                   className="p-3.5 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-sky-300 transition-all"
                 >
                   <div className="flex items-start sm:items-center space-x-3 min-w-0">

@@ -492,24 +492,40 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     <div className="w-full space-y-4 pb-10" id="kas-rekap-view-root">
       {/* 1. TOP CARD: KAS JIMPITAN RT / RW (DYNAMIC THEME) */}
       <div className={`w-full rounded-3xl ${theme.cardGradient} text-white border ${theme.cardBorder} shadow-lg p-4 sm:p-5 space-y-4 transition-all duration-300`}>
-        {/* RT/RW Badge & Date */}
-        <div className="flex items-center justify-between">
-          <span className={`inline-block px-3 py-1 rounded-xl ${theme.cardPillBg} backdrop-blur-xs border ${theme.cardPillBorder} text-white font-extrabold text-[11px] uppercase tracking-wider`}>
-            KAS JIMPITAN {settings.namaRt} / {settings.namaRw}
-          </span>
+        {/* Date Display */}
+        <div className="flex items-center justify-end">
           <span className={`text-xs font-bold ${theme.cardAccent}`}>
             {formatTanggalIndo(selectedDate)}
           </span>
         </div>
 
-        {/* Big Saldo Display */}
-        <div className="space-y-0.5">
-          <div className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-sans drop-shadow-xs">
-            Rp {saldoKasBersih.toLocaleString('id-ID')}
+        {/* Big Saldo Display in High-End Glassmorphism Container */}
+        <div className={`${theme.cardInnerBoxBg} backdrop-blur-md border ${theme.cardInnerBoxBorder} rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xs relative overflow-hidden`}>
+          {/* Subtle Ambient Glow */}
+          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-28 h-28 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+          {/* Micro Header / Label inside Bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider ${theme.cardAccent}`}>
+                Saldo Kas Bersih
+              </span>
+            </div>
+            <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-white/10 text-white/90 font-semibold backdrop-blur-xs">
+              Siap Pakai Lingkungan
+            </span>
           </div>
-          <p className={`text-xs sm:text-sm ${theme.cardSubText} font-medium`}>
-            Saldo Kas Bersih Siap Pakai Lingkungan
-          </p>
+
+          {/* Large Amount Display */}
+          <div className="flex items-baseline space-x-1.5 pt-0.5">
+            <span className="text-xl sm:text-2xl md:text-3xl font-black text-white/90 tracking-tight">
+              Rp
+            </span>
+            <span className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight font-sans drop-shadow-xs">
+              {saldoKasBersih.toLocaleString('id-ID')}
+            </span>
+          </div>
         </div>
 
         {/* FINANCIAL SUMMARY BOXES */}
