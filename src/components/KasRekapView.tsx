@@ -496,109 +496,111 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   return (
     <div className="w-full space-y-4 pb-10" id="kas-rekap-view-root">
       {/* 1. TOP CARD: KAS JIMPITAN RT / RW (DYNAMIC THEME) */}
-      <div className={`w-full rounded-3xl ${theme.cardGradient} text-white border ${theme.cardBorder} shadow-lg p-4 sm:p-5 space-y-4 transition-all duration-300`}>
+      <div className={`w-full rounded-3xl ${theme.cardGradient} text-white border ${theme.cardBorder} shadow-lg p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-all duration-300`}>
         {/* Date Display */}
         <div className="flex items-center justify-end">
           <div className="flex items-center space-x-1.5 text-white/90 text-xs font-semibold">
-            <Calendar className="w-4 h-4 text-white/80" />
-            <span>{formatTanggalIndo(selectedDate)}</span>
+            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/80" />
+            <span className="hidden sm:inline">{formatTanggalIndo(selectedDate)}</span>
+            <span className="inline sm:hidden">{formatTanggalSingkat(selectedDate)}</span>
           </div>
         </div>
 
         {/* Main Saldo Container */}
-        <div className={`${theme.cardInnerBoxBg} backdrop-blur-md border ${theme.cardInnerBoxBorder} rounded-2xl p-3.5 sm:p-4 shadow-xs`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-            <div className="flex items-center space-x-3">
+        <div className={`${theme.cardInnerBoxBg} backdrop-blur-md border ${theme.cardInnerBoxBorder} rounded-2xl p-3 sm:p-4 shadow-xs`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
               {/* Wallet Icon */}
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                <Wallet className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-[2.2]" />
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Wallet className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 stroke-[2.2]" />
               </div>
 
               <div className="min-w-0">
                 {/* Header Row with Green Dot */}
                 <div className="flex items-center space-x-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block flex-shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-white/90">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 inline-block shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/90">
                     SALDO KAS BERSIH
                   </span>
                 </div>
 
                 {/* Big Amount */}
-                <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5 font-sans">
+                <div className="text-xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5 font-sans truncate">
                   Rp {saldoKasBersih.toLocaleString('id-ID')}
                 </div>
               </div>
             </div>
 
             {/* Right Badge: Siap Pakai Lingkungan */}
-            <div className="flex items-center self-start sm:self-center">
-              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-600/80 border border-emerald-400/40 text-white text-[11px] font-semibold shadow-xs">
+            <div className="shrink-0">
+              <span className="inline-flex items-center space-x-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-600/80 border border-emerald-400/40 text-white text-[10px] sm:text-[11px] font-semibold shadow-xs whitespace-nowrap">
                 <Check className="w-3 h-3 text-emerald-200 stroke-[3]" />
-                <span>Siap Pakai Lingkungan</span>
+                <span className="hidden xs:inline sm:inline">Siap Pakai Lingkungan</span>
+                <span className="inline xs:hidden sm:hidden">Siap Pakai</span>
               </span>
             </div>
           </div>
         </div>
 
         {/* FINANCIAL SUMMARY BOXES */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
           {/* Box 1: SALDO AWAL */}
-          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-1`}>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
-                <Coins className="w-3.5 h-3.5 stroke-[2.5]" />
+          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2 sm:p-3 space-y-0.5 sm:space-y-1 overflow-hidden`}>
+            <div className="flex items-center space-x-1 sm:space-x-1.5">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
               </div>
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/90 truncate">
+              <span className="text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-wide text-white/90 whitespace-nowrap leading-tight">
                 SALDO AWAL
               </span>
             </div>
-            <div className="text-xs sm:text-sm md:text-base font-extrabold text-emerald-300 truncate pl-0.5">
+            <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-emerald-300 truncate pl-0.5">
               Rp {saldoAwalKas.toLocaleString('id-ID')}
             </div>
           </div>
 
           {/* Box 2: TOTAL MASUK */}
-          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-1`}>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-3.5 h-3.5 stroke-[2.5]" />
+          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2 sm:p-3 space-y-0.5 sm:space-y-1 overflow-hidden`}>
+            <div className="flex items-center space-x-1 sm:space-x-1.5">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
               </div>
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/90 truncate">
+              <span className="text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-wide text-white/90 whitespace-nowrap leading-tight">
                 TOTAL MASUK
               </span>
             </div>
-            <div className="text-xs sm:text-sm md:text-base font-extrabold text-amber-300 truncate pl-0.5">
+            <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-amber-300 truncate pl-0.5">
               +Rp {totalMasukAll.toLocaleString('id-ID')}
             </div>
           </div>
 
           {/* Box 3: PENGELUARAN */}
-          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-1`}>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-6 h-6 rounded-full bg-rose-400 text-white flex items-center justify-center flex-shrink-0">
-                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+          <div className={`${theme.cardInnerBoxBg} backdrop-blur-xs border ${theme.cardInnerBoxBorder} rounded-xl sm:rounded-2xl p-2 sm:p-3 space-y-0.5 sm:space-y-1 overflow-hidden`}>
+            <div className="flex items-center space-x-1 sm:space-x-1.5">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-rose-400 text-white flex items-center justify-center shrink-0">
+                <ArrowDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
               </div>
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/90 truncate">
+              <span className="text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-wide text-white/90 whitespace-nowrap leading-tight">
                 PENGELUARAN
               </span>
             </div>
-            <div className="text-xs sm:text-sm md:text-base font-extrabold text-rose-300 truncate pl-0.5">
+            <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-rose-300 truncate pl-0.5">
               -Rp {totalPengeluaranMutasi.toLocaleString('id-ID')}
             </div>
           </div>
         </div>
 
         {/* Small Accumulation Notice Pill */}
-        <div className="flex items-center justify-between text-[11px] text-white/80 pt-1.5 border-t border-white/10 flex-wrap gap-2">
-          <div className="flex items-center space-x-1.5 min-w-0">
-            <Info className="w-3.5 h-3.5 text-white/90 flex-shrink-0" />
+        <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-white/80 pt-1.5 border-t border-white/10 gap-1.5">
+          <div className="flex items-center space-x-1.5 min-w-0 flex-1">
+            <Info className="w-3.5 h-3.5 text-white/90 shrink-0" />
             <span className="truncate">
               {saldoAwalKas > 0 
-                ? `Termasuk Saldo Awal Rp ${saldoAwalKas.toLocaleString('id-ID')} yang diatur di Pengaturan.`
-                : 'Saldo awal kas Rp 0. Dapat diatur kapan saja di Menu > Pengaturan.'}
+                ? `Termasuk Saldo Awal Rp ${saldoAwalKas.toLocaleString('id-ID')}`
+                : 'Saldo awal kas Rp 0 (diatur di Pengaturan)'}
             </span>
           </div>
-          <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 text-[10px] font-bold flex-shrink-0">
+          <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 text-[9px] sm:text-[10px] font-bold shrink-0 shadow-2xs whitespace-nowrap">
             Akumulasi Aktif
           </span>
         </div>
