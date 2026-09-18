@@ -34,6 +34,7 @@ import { AdminPinModal } from './components/AdminPinModal';
 import { ThemeModal } from './components/ThemeModal';
 import { ModeSelectorModal } from './components/ModeSelectorModal';
 import { LaporanHubModal, LaporanTabKey } from './components/LaporanHubModal';
+import { OfflineBanner } from './components/OfflineBanner';
 import { AppTheme, initializeAppTheme } from './utils/themeManager';
 import { getTodayDateIso } from './utils/formatters';
 import { 
@@ -1112,6 +1113,9 @@ export default function App() {
         onOpenModeSelector={() => setIsModeSelectorOpen(true)}
         theme={themeState.theme}
       />
+
+      {/* Offline Connectivity & Restored Sync Indicator */}
+      <OfflineBanner />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-xl w-full mx-auto px-4 py-4 space-y-4 pb-20 overflow-x-hidden">

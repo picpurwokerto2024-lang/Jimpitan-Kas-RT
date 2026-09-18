@@ -173,8 +173,28 @@ Terima kasih atas kebersamaan dan kerukunan warga lingkungan kita! 🙏`;
                     Install Jimpitan RT di Layar Utama HP
                   </h4>
                   <p className="text-xs text-stone-600 mt-1 max-w-md mx-auto">
-                    Aplikasi ini menggunakan teknologi <strong>PWA (Progressive Web App)</strong> resmi dengan Splash Screen dan icon native. Cepat dibuka langsung dari layar HP.
+                    Aplikasi ini menggunakan teknologi <strong>PWA (Progressive Web App)</strong> resmi dengan Splash Screen dan ikon native. <strong>Bisa dibuka & digunakan meski offline tanpa kuota internet!</strong>
                   </p>
+                </div>
+
+                {/* Offline Feature Highlights Badge */}
+                <div className="grid grid-cols-2 gap-2 text-left pt-1">
+                  <div className="p-2.5 rounded-xl bg-white/90 border border-purple-200/80 shadow-2xs">
+                    <div className="text-[11px] font-extrabold text-purple-950 flex items-center gap-1.5">
+                      <span>📶 Tetap Aktif Offline</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500 mt-0.5">
+                      Bisa scan QR & catat jimpitan saat ronda malam tanpa sinyal.
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/90 border border-purple-200/80 shadow-2xs">
+                    <div className="text-[11px] font-extrabold text-emerald-950 flex items-center gap-1.5">
+                      <span>⚡ Auto-Sync Cloud</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500 mt-0.5">
+                      Data otomatis disinkronkan ke server begitu HP terhubung internet.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Instant 1-Click Install Button if supported */}

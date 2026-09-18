@@ -6,12 +6,15 @@ import {
   Users,
   ShieldCheck,
   Calendar,
-  QrCode
+  QrCode,
+  CloudOff,
+  WifiOff
 } from 'lucide-react';
 import { AppSettings, AppMode } from '../types';
 import { AppTheme, AVAILABLE_THEMES } from '../utils/themeManager';
 import { getTodayDateIso, formatTanggalSingkat } from '../utils/formatters';
 import { RtLogo } from './RtLogo';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 interface HeaderProps {
   settings: AppSettings;
@@ -44,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenModeSelector,
   theme = AVAILABLE_THEMES[0],
 }) => {
+  const isOnline = useOnlineStatus();
   const liveToday = getTodayDateIso();
   const isPastDate = selectedDate !== liveToday;
 
@@ -62,17 +66,24 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
               <h1 className="font-black text-white text-base sm:text-lg tracking-tight flex items-center font-sans">
                 <span>JIMPITAN RT</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 ml-1.5 inline-block animate-pulse" title="Cloud Real-time Sync Aktif" />
+                <span className={`w-2 h-2 rounded-full ml-1.5 inline-block ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} title={isOnline ? "Online & Sync Aktif" : "Offline (Tersimpan Lokal)"} />
               </h1>
-              {/* Cloud Sync indicator badge */}
-              <span className={`inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${theme.headerBadgeBg} border ${theme.headerBadgeBorder} text-emerald-300 text-[10px] font-bold`}>
-                {isSyncing ? (
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-emerald-400" />
-                ) : (
-                  <CloudCheck className="w-3 h-3 text-emerald-400" />
-                )}
-                <span>SYNC</span>
-              </span>
+              {/* Cloud Sync / Offline indicator badge */}
+              {isOnline ? (
+                <span className={`inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${theme.headerBadgeBg} border ${theme.headerBadgeBorder} text-emerald-300 text-[10px] font-bold`}>
+                  {isSyncing ? (
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-emerald-400" />
+                  ) : (
+                    <CloudCheck className="w-3 h-3 text-emerald-400" />
+                  )}
+                  <span>SYNC</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-500/30 border border-amber-400/50 text-amber-200 text-[10px] font-bold shadow-2xs">
+                  <CloudOff className="w-3 h-3 text-amber-300" />
+                  <span>OFFLINE</span>
+                </span>
+              )}
 
               {/* Mode Switcher Pill */}
               {(onOpenModeSelector || onSwitchMode) && (
