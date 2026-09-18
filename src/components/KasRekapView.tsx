@@ -531,12 +531,11 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
               </div>
             </div>
 
-            {/* Right Badge: Siap Pakai Lingkungan */}
+            {/* Right Badge: Dana Tersedia */}
             <div className="shrink-0">
-              <span className="inline-flex items-center space-x-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-600/80 border border-emerald-400/40 text-white text-[10px] sm:text-[11px] font-semibold shadow-xs whitespace-nowrap">
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-600/80 border border-emerald-400/40 text-white text-[10px] sm:text-[11px] font-semibold shadow-xs whitespace-nowrap">
                 <Check className="w-3 h-3 text-emerald-200 stroke-[3]" />
-                <span className="hidden xs:inline sm:inline">Siap Pakai Lingkungan</span>
-                <span className="inline xs:hidden sm:hidden">Siap Pakai</span>
+                <span>Dana Tersedia</span>
               </span>
             </div>
           </div>
