@@ -27,9 +27,23 @@ export default defineConfig(() => {
           theme_color: '#340d57',
           background_color: '#2b0f4a',
           display: 'standalone',
+          display_override: [
+            'window-controls-overlay',
+            'standalone',
+            'minimal-ui'
+          ],
           orientation: 'portrait-primary',
           start_url: '/',
           scope: '/',
+          lang: 'id-ID',
+          dir: 'ltr',
+          categories: [
+            'utilities',
+            'finance',
+            'productivity',
+            'social'
+          ],
+          prefer_related_applications: false,
           icons: [
             {
               src: '/pwa-192x192.svg',
@@ -60,6 +74,60 @@ export default defineConfig(() => {
               sizes: '64x64',
               type: 'image/svg+xml',
               purpose: 'any'
+            }
+          ],
+          shortcuts: [
+            {
+              name: 'Buku Kas & Transparansi',
+              short_name: 'Kas RT',
+              description: 'Cek rekap penerimaan kas dan transparansi keuangan RT',
+              url: '/?tab=kas_rekap',
+              icons: [
+                {
+                  src: '/pwa-192x192.svg',
+                  sizes: '192x192',
+                  type: 'image/svg+xml'
+                }
+              ]
+            },
+            {
+              name: 'Scan QR Jimpitan',
+              short_name: 'Scan QR',
+              description: 'Buka kamera scanner QR untuk ronda malam',
+              url: '/?tab=scan',
+              icons: [
+                {
+                  src: '/pwa-192x192.svg',
+                  sizes: '192x192',
+                  type: 'image/svg+xml'
+                }
+              ]
+            },
+            {
+              name: 'Data Warga & Rumah',
+              short_name: 'Warga RT',
+              description: 'Lihat direktori nomor rumah dan riwayat jimpitan',
+              url: '/?tab=data_warga',
+              icons: [
+                {
+                  src: '/pwa-192x192.svg',
+                  sizes: '192x192',
+                  type: 'image/svg+xml'
+                }
+              ]
+            },
+            {
+              name: 'Hitung Pecahan Uang',
+              short_name: 'Hitung Kas',
+              description: 'Kalkulator hitung fisik koin dan lembar kas ronda',
+              url: '/?tab=hitung_uang',
+              icons: [
+                {
+                  src: '/pwa-192x192.svg',
+                  sizes: '192x192',
+                  type: 'image/svg+xml'
+                }
+              ]
             }
           ]
         },

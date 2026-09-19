@@ -30,9 +30,11 @@ import {
   Coffee, 
   Wrench, 
   Lightbulb, 
-  HeartHandshake 
+  HeartHandshake,
+  Users,
+  Radio
 } from 'lucide-react';
-import { JimpitanRecord, KasMutation, ReguRonda, AppSettings, AppMode } from '../types';
+import { JimpitanRecord, KasMutation, ReguRonda, AppSettings, AppMode, UserPresence } from '../types';
 import { formatRupiah, formatTanggalIndo, formatTanggalSingkat, getTodayDateIso } from '../utils/formatters';
 import { AppTheme, AVAILABLE_THEMES } from '../utils/themeManager';
 import { PdfReportModal } from './PdfReportModal';
@@ -218,6 +220,7 @@ interface KasRekapViewProps {
   isAdmin?: boolean;
   appMode?: AppMode;
   theme?: AppTheme;
+  activePresences?: UserPresence[];
 }
 
 export const KasRekapView: React.FC<KasRekapViewProps> = ({
@@ -239,11 +242,21 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   isAdmin = true,
   appMode = 'warga',
   theme = AVAILABLE_THEMES[0],
+  activePresences = [],
 }) => {
   const liveToday = getTodayDateIso();
   const isPastDate = selectedDate !== liveToday;
   // Authorized if admin is explicitly unlocked OR app is in Petugas or Penginput mode
   const isAuthorized = isAdmin || appMode === 'petugas' || appMode === 'penginput';
+
+  // Online Warga Presence metrics
+  const onlineWargaList = useMemo(() => {
+    return activePresences.filter((p) => p.mode === 'warga');
+  }, [activePresences]);
+
+  const onlineWargaCount = onlineWargaList.length;
+  const isPetugasOrAdmin = isAdmin || appMode === 'petugas';
+
   // Time period filter: 'hari_ini' | 'bulan_ini' | 'semua'
   const [periodFilter, setPeriodFilter] = useState<'hari_ini' | 'bulan_ini' | 'semua'>('hari_ini');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -497,9 +510,37 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     <div className="w-full space-y-4 pb-10" id="kas-rekap-view-root">
       {/* 1. TOP CARD: KAS JIMPITAN RT / RW (DYNAMIC THEME) */}
       <div className={`w-full rounded-3xl ${theme.cardGradient} text-white border ${theme.cardBorder} shadow-lg p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-all duration-300`}>
-        {/* Date Display */}
-        <div className="flex items-center justify-end">
-          <div className="flex items-center space-x-1.5 text-white/90 text-xs font-semibold">
+        {/* Date Display & Admin Online Warga Indicator */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Left / Center Status: Indikator Warga Masuk (Khusus Mode Petugas / Admin) */}
+          {isPetugasOrAdmin ? (
+            <div 
+              id="indicator-online-warga-badge"
+              className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/15 backdrop-blur-xs text-white text-[10px] sm:text-[11px] shadow-xs"
+              title="Jumlah perangkat warga yang sedang membuka dan aktif di aplikasi PWA"
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                {onlineWargaCount > 0 && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                )}
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${onlineWargaCount > 0 ? 'bg-emerald-400 ring-2 ring-emerald-400/20' : 'bg-stone-400'}`}></span>
+              </span>
+              <span className="font-medium text-white truncate">
+                {onlineWargaCount > 0 ? (
+                  <>
+                    <strong className="text-emerald-300 font-bold">{onlineWargaCount} Warga</strong> aktif masuk
+                  </>
+                ) : (
+                  <span className="text-white/75">0 Warga aktif</span>
+                )}
+              </span>
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {/* Date Display */}
+          <div className="flex items-center space-x-1.5 text-white/90 text-xs font-semibold shrink-0">
             <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/80" />
             <span className="hidden sm:inline">{formatTanggalIndo(selectedDate)}</span>
             <span className="inline sm:hidden">{formatTanggalSingkat(selectedDate)}</span>

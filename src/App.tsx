@@ -8,7 +8,8 @@ import {
   AppSettings,
   MoneyDenomination,
   RondaSession,
-  AppMode
+  AppMode,
+  UserPresence
 } from './types';
 import { 
   DEFAULT_WARGA, 
@@ -61,7 +62,10 @@ import {
   deleteSeptemberDataCloud,
   purgeArchiveAndDemoDataCloud,
   deduplicateCloudWargaNow,
-  addBatchJimpitanRecordsCloud
+  addBatchJimpitanRecordsCloud,
+  sendPresenceHeartbeat,
+  removePresenceSession,
+  subscribeToActivePresences
 } from './services/firebaseService';
 import { checkWargaDuplicate, deduplicateWargaArray } from './utils/wargaDeduplicator';
 
@@ -277,6 +281,38 @@ export default function App() {
       return false;
     }
   });
+
+  // Active User Presences State (Real-time monitoring warga online)
+  const [activePresences, setActivePresences] = useState<UserPresence[]>([]);
+
+  // Heartbeat & Presence reporting
+  useEffect(() => {
+    sendPresenceHeartbeat(appMode);
+    const interval = setInterval(() => {
+      sendPresenceHeartbeat(appMode);
+    }, 30000);
+
+    const handleUnload = () => {
+      removePresenceSession();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [appMode]);
+
+  // Subscribe to real-time active presences from Firestore
+  useEffect(() => {
+    const unsub = subscribeToActivePresences((list) => {
+      setActivePresences(list);
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState<boolean>(false);
   const [adminPinModalMode, setAdminPinModalMode] = useState<'unlock' | 'change_pin'>('unlock');
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState<boolean>(false);
@@ -1193,6 +1229,7 @@ export default function App() {
               isAdmin={isAdminUnlocked}
               appMode={appMode}
               theme={themeState.theme}
+              activePresences={activePresences}
             />
           )}
 

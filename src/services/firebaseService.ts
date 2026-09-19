@@ -16,7 +16,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { AppSettings, Warga, JimpitanRecord, KasMutation, ReguRonda, MoneyDenomination, RondaSession } from '../types';
+import { AppSettings, Warga, JimpitanRecord, KasMutation, ReguRonda, MoneyDenomination, RondaSession, UserPresence, AppMode } from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_REGU, DEFAULT_WARGA, DEFAULT_MUTATIONS } from '../data/defaultData';
 import { deduplicateWargaArray } from '../utils/wargaDeduplicator';
 
@@ -791,4 +791,76 @@ export const restoreFullCloudBackup = async (backupData: {
   if (backupData.moneyCounts) {
     await saveMoneyCountsCloud(backupData.moneyCounts);
   }
+};
+
+// ==========================================
+// REAL-TIME USER PRESENCE TRACKING
+// ==========================================
+const PRESENCE_COL = 'active_presences';
+
+// Get or generate stable session ID for this browser tab session
+export const getSessionId = (): string => {
+  try {
+    let sId = sessionStorage.getItem('jimpitan_pwa_session_id');
+    if (!sId) {
+      sId = 'sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      sessionStorage.setItem('jimpitan_pwa_session_id', sId);
+    }
+    return sId;
+  } catch {
+    return 'sess_' + Math.random().toString(36).substring(2, 9);
+  }
+};
+
+// Send heartbeat to Cloud Firestore
+export const sendPresenceHeartbeat = async (mode: AppMode, label?: string) => {
+  try {
+    const sId = getSessionId();
+    const presenceRef = doc(db, PRESENCE_COL, sId);
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+    const data: UserPresence = {
+      id: sId,
+      mode,
+      label: label || (mode === 'warga' ? 'Warga (Akses Publik)' : mode === 'petugas' ? 'Petugas Ronda' : 'Penginput Data'),
+      device: isMobile ? 'HP / Mobile' : 'PC / Desktop',
+      lastSeen: Date.now(),
+    };
+    await setDoc(presenceRef, cleanFirestoreData(data), { merge: true });
+  } catch (e) {
+    console.warn('Presence heartbeat error:', e);
+  }
+};
+
+// Remove presence on leave/close
+export const removePresenceSession = async () => {
+  try {
+    const sId = getSessionId();
+    const presenceRef = doc(db, PRESENCE_COL, sId);
+    await deleteDoc(presenceRef);
+  } catch {
+    // Ignore on exit
+  }
+};
+
+// Real-time listener for active presences
+export const subscribeToActivePresences = (callback: (presences: UserPresence[]) => void): Unsubscribe => {
+  const presenceColRef = collection(db, PRESENCE_COL);
+  return onSnapshot(
+    presenceColRef,
+    (snap) => {
+      const now = Date.now();
+      const cutoff = now - 90 * 1000; // active in last 90 seconds
+      const activeList: UserPresence[] = [];
+      snap.forEach((docSnap) => {
+        const item = { id: docSnap.id, ...docSnap.data() } as UserPresence;
+        if (item.lastSeen && item.lastSeen > cutoff) {
+          activeList.push(item);
+        }
+      });
+      callback(activeList);
+    },
+    (err) => {
+      console.warn('Active presences subscription error:', err);
+    }
+  );
 };

@@ -29,6 +29,10 @@ service cloud.firestore {
     match /ronda_sessions/{document=**} {
       allow read, write: if true;
     }
+    // Kehadiran / Online Presence Warga & Petugas
+    match /active_presences/{document=**} {
+      allow read, write: if true;
+    }
     // Connection health check
     match /test/{document=**} {
       allow read, write: if true;

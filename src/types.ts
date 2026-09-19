@@ -88,3 +88,12 @@ export interface RondaSession {
   catatan?: string;
 }
 
+export interface UserPresence {
+  id: string;
+  mode: AppMode;
+  label?: string;
+  device?: string;
+  lastSeen: number;
+  joinedAt?: number;
+}
+
