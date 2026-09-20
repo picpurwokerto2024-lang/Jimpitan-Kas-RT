@@ -425,28 +425,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
 
               {/* Action buttons */}
               <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                {appMode === 'warga' ? (
-                  <div className="flex items-center space-x-2">
-                    <span className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
-                      <Users className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Mode Warga</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPendingAction(null);
-                        setPinInput('');
-                        setPinError('');
-                        setIsPinModalOpen(true);
-                      }}
-                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-[11px] font-bold transition-colors cursor-pointer"
-                      title="Masuk sebagai Pengurus RT"
-                    >
-                      <Lock className="w-3 h-3 text-sky-600" />
-                      <span>Akses Pengurus</span>
-                    </button>
-                  </div>
-                ) : (
+                {appMode !== 'warga' && (
                   <>
                     {/* Admin status indicator */}
                     {isAdminUnlocked ? (
