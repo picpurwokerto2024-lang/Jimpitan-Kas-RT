@@ -30,7 +30,8 @@ import {
   FileText,
   DollarSign,
   UserCheck,
-  Plus
+  Plus,
+  Edit3
 } from 'lucide-react';
 import { Warga, JimpitanRecord, AppSettings, KasMutation } from '../types';
 import {
@@ -44,6 +45,7 @@ import { LaporanWargaPdfModal } from './LaporanWargaPdfModal';
 import { LaporanTunggakanPdfModal } from './LaporanTunggakanPdfModal';
 import { InputJimpitanMingguanModal } from './InputJimpitanMingguanModal';
 import { BayarPelunasanTunggakanModal } from './BayarPelunasanTunggakanModal';
+import { EditSisaPiutangModal } from './EditSisaPiutangModal';
 import { calculateTunggakanRekap, WargaTunggakanDetail } from '../utils/tunggakanCalculator';
 
 interface LaporanBulananWargaViewProps {
@@ -55,6 +57,8 @@ interface LaporanBulananWargaViewProps {
   onOpenWargaDetail?: (warga: Warga) => void;
   onAddMutation?: (mut: Omit<KasMutation, 'id' | 'createdAt'>) => Promise<void>;
   onSaveBatchRecords?: (records: Omit<JimpitanRecord, 'id' | 'createdAt'>[]) => Promise<void>;
+  onUpdateWarga?: (w: Warga) => void;
+  isAdmin?: boolean;
   currentPetugas?: string;
   currentReguNama?: string;
   currentReguId?: string;
@@ -69,6 +73,8 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
   onOpenWargaDetail,
   onAddMutation,
   onSaveBatchRecords,
+  onUpdateWarga,
+  isAdmin = true,
   currentPetugas = 'Petugas Ronda',
   currentReguNama = 'Regu Ronda',
   currentReguId = 'regu-1',
@@ -98,6 +104,9 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
   const [isWeeklyInputOpen, setIsWeeklyInputOpen] = useState<boolean>(false);
   const [selectedWargaForWeeklyInput, setSelectedWargaForWeeklyInput] = useState<Warga | null>(null);
   const [selectedWargaForPelunasan, setSelectedWargaForPelunasan] = useState<WargaTunggakanDetail | null>(null);
+  const [selectedWargaForEditPiutang, setSelectedWargaForEditPiutang] = useState<WargaTunggakanDetail | null>(null);
+  const [tunggakanCalcMode, setTunggakanCalcMode] = useState<'all_history' | 'single_prev_month'>('all_history');
+  const [selectedTunggakanYearFilter, setSelectedTunggakanYearFilter] = useState<string>('semua');
 
   const [selectedDayForDaily, setSelectedDayForDaily] = useState<number>(() => {
     const today = new Date();
@@ -348,9 +357,10 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
       allRecords,
       kasMutations,
       activeYearMonth,
-      settings
+      settings,
+      tunggakanCalcMode
     );
-  }, [wargaList, allRecords, kasMutations, activeYearMonth, settings]);
+  }, [wargaList, allRecords, kasMutations, activeYearMonth, settings, tunggakanCalcMode]);
 
   // Filtered rows for Matrix & Cards
   const filteredData = useMemo(() => {
@@ -377,6 +387,35 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
     });
   }, [wargaMonthlyReportData, searchQuery, statusFilter, selectedBlokFilter]);
 
+  // Extract available distinct years for Tunggakan table filter
+  const availablePastYearsForTunggakan = useMemo(() => {
+    const set = new Set<string>();
+    tunggakanData.wargaListTunggakan.forEach((w) => {
+      w.rincianBulanLampau.forEach((b) => {
+        set.add(String(b.year));
+      });
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [tunggakanData.wargaListTunggakan]);
+
+  // Aggregate arrears breakdown per year for quick pills
+  const yearlyTunggakanBreakdownInReport = useMemo(() => {
+    const map = new Map<string, { year: string; totalKurang: number; countWarga: number }>();
+    tunggakanData.wargaListTunggakan.forEach((w) => {
+      w.rincianBulanLampau.forEach((b) => {
+        const yr = String(b.year);
+        if (!map.has(yr)) {
+          map.set(yr, { year: yr, totalKurang: 0, countWarga: 0 });
+        }
+        const entry = map.get(yr)!;
+        if (b.kurangNominal > 0) {
+          entry.totalKurang += b.kurangNominal;
+        }
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.year.localeCompare(a.year));
+  }, [tunggakanData.wargaListTunggakan]);
+
   // Filtered rows for Tunggakan View
   const filteredTunggakanList = useMemo(() => {
     return tunggakanData.wargaListTunggakan.filter((item) => {
@@ -391,6 +430,14 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
         return false;
       }
 
+      // Year Filter for Piutang
+      if (selectedTunggakanYearFilter !== 'semua') {
+        const hasArrearsInYear = item.rincianBulanLampau.some(
+          (b) => String(b.year) === selectedTunggakanYearFilter && b.kurangNominal > 0
+        );
+        if (!hasArrearsInYear) return false;
+      }
+
       if (statusFilter === 'underpaid') {
         return item.sisaTunggakanLalu > 0;
       }
@@ -403,7 +450,7 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
 
       return true;
     });
-  }, [tunggakanData.wargaListTunggakan, searchQuery, selectedBlokFilter, statusFilter]);
+  }, [tunggakanData.wargaListTunggakan, searchQuery, selectedBlokFilter, selectedTunggakanYearFilter, statusFilter]);
 
   // Daily recap data for the selected day
   const dailyRecapData = useMemo(() => {
@@ -482,22 +529,29 @@ _Terima kasih atas partisipasi dan kepedulian Bpk/Ibu dalam mendukung kas jimpit
     }
 
     const phone = cleanWhatsAppPhone(detail.warga.nomorHp);
+    const unpaidMonths = detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0);
+    const rincianBulanText = unpaidMonths.length > 0
+      ? unpaidMonths.map((b) => `  • ${b.monthLabel}: -${formatRupiah(b.kurangNominal)} (Kurang bayar target ${formatRupiah(b.targetNominal)})`).join('\n')
+      : `  • Bulan Lalu (${tunggakanData.prevMonthLabel}): -${formatRupiah(detail.tunggakanBulanLalu)}`;
+
     const text = `*RINCIAN TUNGGAKAN & TAGIHAN KAS JIMPITAN ${settings.namaRt.toUpperCase()}*
 *Periode Laporan:* ${activeMonthLabel}
 ----------------------------------
 *Nama Kepala Keluarga:* ${detail.warga.nama}
 *No. Rumah:* ${detail.warga.nomorRumah} ${detail.warga.blok ? `(${detail.warga.blok})` : ''}
 
-📌 *REKAP SALDO BULAN LALU (${tunggakanData.prevMonthLabel}):*
-• Tunggakan Lampau: ${detail.tunggakanBulanLalu > 0 ? `-${formatRupiah(detail.tunggakanBulanLalu)}` : 'Rp 0 (Lunas)'}
-• Pelunasan Diterima Bulan Ini: ${formatRupiah(detail.pelunasanBulanIni)}
-• Sisa Tunggakan Lampau: *${formatRupiah(detail.sisaTunggakanLalu)}*
+📌 *REKAP TUNGGAKAN BULAN & TAHUN SEBELUMNYA:*
+${rincianBulanText}
+
+💰 *Total Tunggakan Lampau:* ${formatRupiah(detail.totalTunggakanKumulatif || detail.tunggakanBulanLalu)}
+💵 *Pelunasan Diterima Bulan Ini:* ${formatRupiah(detail.pelunasanBulanIni)}
+⏳ *SISA HUTANG / KEWAJIBAN LAMPAU:* *${formatRupiah(detail.sisaTunggakanLalu)}*
 
 📅 *TAGIHAN BULAN BERJALAN (${activeMonthLabel}):*
 • Target Bulan Ini: ${formatRupiah(detail.targetBulanIni)}
 • Terbayar Bulan Ini: ${formatRupiah(detail.terbayarBulanIni)}
 
-💰 *TOTAL KEWAJIBAN BERSIH:* *${formatRupiah(detail.totalKewajibanBersih)}*
+💰 *TOTAL KEWAJIBAN BERSIH KESELURUHAN:* *${formatRupiah(detail.totalKewajibanBersih)}*
 
 _Mohon kerjasamanya untuk dapat melunasi sisa kewajiban jimpitan melalui Petugas Ronda atau Bendahara RT._
 _Terima kasih atas perhatian dan dukungannya demi ketertiban & kebersamaan warga._
@@ -1430,15 +1484,43 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
               </div>
               <div>
                 <h3 className="font-extrabold text-sm text-amber-900">
-                  Laporan Khusus: Rekapitulasi Tunggakan Lampau ({tunggakanData.prevMonthLabel}) & Pelunasan di Bulan Berjalan ({activeMonthLabel})
+                  Laporan Khusus: Rekapitulasi Tunggakan Lampau ({tunggakanCalcMode === 'all_history' ? 'Seluruh Bulan & Tahun Sebelumnya' : tunggakanData.prevMonthLabel}) & Pelunasan di Bulan Berjalan ({activeMonthLabel})
                 </h3>
                 <p className="text-xs text-amber-800/90 mt-0.5 leading-relaxed">
-                  Sistem otomatis menghitung sisa kewajiban dari bulan sebelumnya. Ketika warga melakukan pelunasan di bulan berjalan, saldo tunggakan akan berkurang dan tercatat dalam buku kas RT.
+                  Sistem otomatis menghitung sisa kewajiban dari bulan dan tahun sebelumnya. Ketika warga melakukan pelunasan di bulan berjalan, saldo tunggakan akan berkurang dan tercatat dalam buku kas RT.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 shrink-0">
+            <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-1">
+              {/* Mode Toggle: Semua Lampau vs 1 Bulan Lalu */}
+              <div className="flex items-center bg-amber-100/80 p-1 rounded-xl border border-amber-300 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setTunggakanCalcMode('all_history')}
+                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    tunggakanCalcMode === 'all_history'
+                      ? 'bg-amber-700 text-white shadow-2xs'
+                      : 'text-amber-900 hover:bg-amber-200'
+                  }`}
+                  title="Akumulasi seluruh tunggakan dari semua bulan & tahun sebelumnya"
+                >
+                  Semua Lampau
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTunggakanCalcMode('single_prev_month')}
+                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    tunggakanCalcMode === 'single_prev_month'
+                      ? 'bg-amber-700 text-white shadow-2xs'
+                      : 'text-amber-900 hover:bg-amber-200'
+                  }`}
+                  title="Hanya hitung 1 bulan sebelumnya"
+                >
+                  1 Bulan Lalu
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setIsTunggakanPdfModalOpen(true)}
@@ -1464,13 +1546,57 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
 
               <div className="flex items-center space-x-2 text-xs">
                 <span className="px-2.5 py-1 rounded-xl bg-rose-100 text-rose-800 font-black">
-                  {tunggakanData.summary.totalWargaTertunggakLalu} Rumah Tertunggak
+                  {filteredTunggakanList.filter(w => w.sisaTunggakanLalu > 0).length} Rumah Tertunggak
                 </span>
                 <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 font-black">
                   Capaian: {tunggakanData.summary.persenPelunasan}%
                 </span>
               </div>
             </div>
+
+            {/* Quick Filter Piutang Per Tahun */}
+            {availablePastYearsForTunggakan.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] px-4 py-2 bg-amber-50/70 border-b border-stone-200 scrollbar-none">
+                <div className="flex items-center space-x-1 text-amber-900 font-extrabold shrink-0 text-[10.5px] pr-1">
+                  <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Filter Tahun:</span>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setSelectedTunggakanYearFilter('semua')}
+                  className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    selectedTunggakanYearFilter === 'semua'
+                      ? 'bg-amber-800 text-white shadow-2xs'
+                      : 'bg-white text-stone-700 hover:bg-amber-100 border border-stone-200'
+                  }`}
+                >
+                  Semua Tahun
+                </button>
+
+                {yearlyTunggakanBreakdownInReport.map((yrData) => (
+                  <button
+                    key={yrData.year}
+                    type="button"
+                    onClick={() => setSelectedTunggakanYearFilter(selectedTunggakanYearFilter === yrData.year ? 'semua' : yrData.year)}
+                    className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center space-x-1.5 ${
+                      selectedTunggakanYearFilter === yrData.year
+                        ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-400 font-black'
+                        : 'bg-white text-stone-800 hover:bg-amber-100 border border-stone-200'
+                    }`}
+                  >
+                    <span>Tahun {yrData.year}</span>
+                    <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-black ${
+                      selectedTunggakanYearFilter === yrData.year
+                        ? 'bg-white text-amber-900'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {formatRupiah(yrData.totalKurang)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse min-w-[900px]">
@@ -1517,12 +1643,33 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                             </span>
                           </td>
 
-                          {/* Nama */}
+                          {/* Nama & Rincian Bulan Tertunggak */}
                           <td className="p-3 font-bold text-stone-900">
                             <div>{detail.warga.nama}</div>
                             <div className="text-[10px] text-stone-400 font-normal">
                               {detail.warga.blok || 'Blok A'} • RT {detail.warga.rt || settings.namaRt}
                             </div>
+                            {detail.rincianBulanLampau && detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0).map((b) => {
+                                  const isYearMatch = selectedTunggakanYearFilter !== 'semua' && String(b.year) === selectedTunggakanYearFilter;
+                                  return (
+                                    <span
+                                      key={b.yearMonth}
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
+                                        isYearMatch
+                                          ? 'bg-amber-300 border-amber-500 text-amber-950 font-black shadow-2xs'
+                                          : 'bg-amber-100/90 text-amber-900 border-amber-200'
+                                      }`}
+                                      title={`Target ${formatRupiah(b.targetNominal)}, terbayar ${formatRupiah(b.terbayarNominal)}`}
+                                    >
+                                      <span>{b.monthLabel}:</span>
+                                      <span className="text-rose-700 font-black ml-0.5">-{formatRupiah(b.kurangNominal)}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </td>
 
                           {/* Tunggakan Bulan Lalu */}
@@ -1595,6 +1742,17 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                           {/* Aksi */}
                           <td className="p-3 text-center">
                             <div className="flex items-center justify-center space-x-1.5">
+                              {isAdmin && onUpdateWarga && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedWargaForEditPiutang(detail)}
+                                  className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors cursor-pointer"
+                                  title="Edit Sisa Piutang / Koreksi Keringanan"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                                </button>
+                              )}
+
                               {detail.sisaTunggakanLalu > 0 && onAddMutation && (
                                 <button
                                   type="button"
@@ -1830,6 +1988,23 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
           onAddMutation={onAddMutation}
           currentPetugas={currentPetugas}
           settings={settings}
+        />
+      )}
+
+      {/* MODAL 5: Edit Sisa Piutang Modal (Admin) */}
+      {selectedWargaForEditPiutang && onUpdateWarga && (
+        <EditSisaPiutangModal
+          isOpen={!!selectedWargaForEditPiutang}
+          onClose={() => setSelectedWargaForEditPiutang(null)}
+          warga={selectedWargaForEditPiutang.warga}
+          detail={selectedWargaForEditPiutang}
+          onUpdateWarga={(updated) => {
+            onUpdateWarga(updated);
+            setSelectedWargaForEditPiutang(null);
+          }}
+          onAddMutation={onAddMutation}
+          settings={settings}
+          currentPetugas={currentPetugas}
         />
       )}
     </div>

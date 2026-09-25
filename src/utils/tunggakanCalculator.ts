@@ -1,19 +1,48 @@
 import { Warga, JimpitanRecord, KasMutation, AppSettings } from '../types';
 
+export interface MonthArrearsBreakdown {
+  yearMonth: string; // e.g. "2026-08"
+  year: number;
+  month: number;
+  monthLabel: string; // e.g. "Agustus 2026"
+  daysInMonth: number;
+  targetNominal: number;
+  terbayarNominal: number;
+  kurangNominal: number; // > 0 if unpaid
+  lebihNominal: number;
+  isLunas: boolean;
+}
+
 export interface WargaTunggakanDetail {
   warga: Warga;
-  // Saldo Lampau (Bulan-Bulan Sebelumnya)
+  
+  // Rincian per bulan lampau (Bulan & Tahun Sebelumnya)
+  rincianBulanLampau: MonthArrearsBreakdown[];
+  jumlahBulanTertunggak: number;
+  deskripsiBulanTertunggak: string;
+  
+  // Saldo Lampau Kumulatif (Semua Bulan & Tahun Sebelum Bulan Aktif)
+  totalTunggakanKumulatif: number; // Total kurang bayar dari seluruh bulan & tahun sebelumnya
+  totalDepositKumulatif: number;
+  
+  // Penyesuaian / Koreksi Manual Admin
+  isManualOverride: boolean;
+  saldoTunggakanAwal?: number;
+  koreksiPiutang?: number;
+  catatanKoreksiPiutang?: string;
+  
+  // Saldo Lampau 1 Bulan Terakhir (Immediate Previous Month)
   targetBulanLalu: number;
   terbayarBulanLalu: number;
-  tunggakanBulanLalu: number; // Kurang bayar dari bulan sebelumnya (>= 0)
-  depositBulanLalu: number; // Lebih bayar dari bulan sebelumnya (>= 0)
+  tunggakanBulanLalu: number; // Kurang bayar dari 1 bulan sebelumnya (>= 0)
+  depositBulanLalu: number; // Lebih bayar dari 1 bulan sebelumnya (>= 0)
   
   // Mutasi / Pelunasan di Bulan Berjalan
   pelunasanBulanIni: number; // Nominal yang dibayarkan khusus pelunasan tunggakan di bulan berjalan
   pelunasanRecords: KasMutation[];
   
   // Saldo Akhir Tunggakan Lampau
-  sisaTunggakanLalu: number; // tunggakanBulanLalu - pelunasanBulanIni (>= 0)
+  sisaTunggakanLalu: number; // totalTunggakanKumulatif - pelunasanBulanIni (>= 0)
   isTunggakanLunas: boolean; // sisaTunggakanLalu === 0
   
   // Tagihan & Pembayaran Bulan Berjalan Ini
@@ -28,15 +57,23 @@ export interface WargaTunggakanDetail {
 export interface TunggakanReportSummary {
   totalWarga: number;
   totalWargaTertunggakLalu: number;
-  totalTunggakanBulanLalu: number;
+  totalTunggakanBulanLalu: number; // Kumulatif atau 1 bulan sesuai mode
+  totalTunggakanKumulatifSemua: number;
   totalPelunasanBulanIni: number;
   totalSisaTunggakanLalu: number;
   totalDepositBulanLalu: number;
   persenPelunasan: number;
+  totalBulanTeridentifikasi: number;
 }
+
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
 
 /**
  * Calculates historical arrears and current month settlements for all residents
+ * Covers ALL previous months and years before activeYearMonth
  * @param activeYearMonth e.g. "2026-09"
  */
 export const calculateTunggakanRekap = (
@@ -44,16 +81,28 @@ export const calculateTunggakanRekap = (
   allRecords: JimpitanRecord[],
   kasMutations: KasMutation[],
   activeYearMonth: string,
-  settings: AppSettings
+  settings: AppSettings,
+  mode: 'all_history' | 'single_prev_month' = 'all_history'
 ): {
   wargaListTunggakan: WargaTunggakanDetail[];
   summary: TunggakanReportSummary;
   prevMonthLabel: string;
   activeMonthLabel: string;
+  allPastMonthLabels: string[];
 } => {
-  const [activeYear, activeMonth] = activeYearMonth.split('-').map(Number);
+  // Normalize and safely parse activeYearMonth
+  let safeYearMonth = typeof activeYearMonth === 'string' && activeYearMonth.includes('-')
+    ? activeYearMonth.substring(0, 7)
+    : '';
+
+  if (!safeYearMonth || safeYearMonth.length !== 7) {
+    const now = new Date();
+    safeYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  const [activeYear, activeMonth] = safeYearMonth.split('-').map(Number);
   
-  // Previous month calculation
+  // Immediate previous month calculation
   let prevYear = activeYear;
   let prevMonth = activeMonth - 1;
   if (prevMonth < 1) {
@@ -62,20 +111,44 @@ export const calculateTunggakanRekap = (
   }
   const prevYearMonth = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
 
-  const monthNames = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  const activeMonthLabel = `${monthNames[activeMonth - 1]} ${activeYear}`;
-  const prevMonthLabel = `${monthNames[prevMonth - 1]} ${prevYear}`;
+  const activeMonthLabel = `${MONTH_NAMES[activeMonth - 1]} ${activeYear}`;
+  const prevMonthLabel = `${MONTH_NAMES[prevMonth - 1]} ${prevYear}`;
 
   const daysInActiveMonth = new Date(activeYear, activeMonth, 0).getDate();
   const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
 
-  // 1. Group records by resident and by period
+  // 1. Discover all past year-months that have historical data or relevant periods
+  const historicalMonthSet = new Set<string>();
+  
+  // Always include immediate previous month
+  historicalMonthSet.add(prevYearMonth);
+
+  // Scan allRecords for past dates
+  allRecords.forEach((r) => {
+    if (!r.tanggal) return;
+    const ym = r.tanggal.substring(0, 7);
+    if (ym < safeYearMonth && ym.length === 7) {
+      historicalMonthSet.add(ym);
+    }
+  });
+
+  // Also include past months of current year up to activeMonth - 1
+  for (let m = 1; m < activeMonth; m++) {
+    const ym = `${activeYear}-${String(m).padStart(2, '0')}`;
+    historicalMonthSet.add(ym);
+  }
+
+  // Sort historical months descending (most recent first)
+  const sortedPastMonths = Array.from(historicalMonthSet).sort((a, b) => b.localeCompare(a));
+  const allPastMonthLabels = sortedPastMonths.map((ym) => {
+    const [y, m] = ym.split('-').map(Number);
+    return `${MONTH_NAMES[m - 1]} ${y}`;
+  });
+
+  // 2. Group records by resident and by period
   const recordsByWarga = new Map<string, JimpitanRecord[]>();
   allRecords.forEach((r) => {
-    if (r.status !== 'sukses') return;
+    if (r.status !== 'sukses' && r.status !== 'titip' && (!r.nominal || r.nominal <= 0)) return;
     const key = r.wargaId || `no_${r.nomorRumah}`;
     const list = recordsByWarga.get(key) || [];
     list.push(r);
@@ -90,21 +163,20 @@ export const calculateTunggakanRekap = (
     }
   });
 
-  // 2. Group KasMutations for "Pelunasan Tunggakan" in current month
-  // A mutation is considered a settlement in current month if:
-  // - jenis === 'masuk'
-  // - tanggal starts with activeYearMonth
-  // - kategori or keterangan includes "pelunasan" or "tunggakan" or "bulan lalu"
+  // 3. Group KasMutations for "Pelunasan Tunggakan" in current month / overall
   const pelunasanMutationsInActiveMonth = kasMutations.filter((m) => {
     if (m.jenis !== 'masuk') return false;
-    if (!m.tanggal || !m.tanggal.startsWith(activeYearMonth)) return false;
+    if (!m.tanggal || !m.tanggal.startsWith(safeYearMonth)) return false;
     const cat = (m.kategori || '').toLowerCase();
     const ket = (m.keterangan || '').toLowerCase();
     return (
       cat.includes('pelunasan') ||
       cat.includes('tunggakan') ||
+      cat.includes('hutang') ||
+      cat.includes('bulan lalu') ||
       ket.includes('pelunasan') ||
       ket.includes('tunggakan') ||
+      ket.includes('hutang') ||
       ket.includes('bulan lalu')
     );
   });
@@ -114,39 +186,92 @@ export const calculateTunggakanRekap = (
     const recs = recordsByWarga.get(warga.id) || recordsByWarga.get(`no_${warga.nomorRumah}`) || [];
 
     // All records prior to current month
-    const prevRecs = recs.filter((r) => r.tanggal && r.tanggal < `${activeYearMonth}-01`);
-    
-    // We calculate the historical targets and payments up to the previous month:
-    // If there are records in the previous month (prevYearMonth), we use prevMonth days;
-    // Otherwise calculate based on prevMonth.
-    const targetBulanLalu = nominalDefault * daysInPrevMonth;
-    
-    const terbayarBulanLalu = prevRecs
-      .filter((r) => r.tanggal && r.tanggal.startsWith(prevYearMonth))
-      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+    const prevRecs = recs.filter((r) => r.tanggal && r.tanggal < `${safeYearMonth}-01`);
 
-    const selisihBulanLalu = terbayarBulanLalu - targetBulanLalu;
-    const tunggakanBulanLalu = selisihBulanLalu < 0 ? Math.abs(selisihBulanLalu) : 0;
-    const depositBulanLalu = selisihBulanLalu > 0 ? selisihBulanLalu : 0;
+    // Calculate month-by-month breakdown for all past months
+    const rincianBulanLampau: MonthArrearsBreakdown[] = [];
+    let cumulativeTunggakan = 0;
+    let cumulativeDeposit = 0;
+
+    sortedPastMonths.forEach((ym) => {
+      const [y, m] = ym.split('-').map(Number);
+      const days = new Date(y, m, 0).getDate();
+      const target = nominalDefault * days;
+      
+      const monthRecs = prevRecs.filter((r) => r.tanggal && r.tanggal.startsWith(ym));
+      const terbayar = monthRecs.reduce((sum, r) => sum + (r.nominal || 0), 0);
+      const selisih = terbayar - target;
+      const kurang = selisih < 0 ? Math.abs(selisih) : 0;
+      const lebih = selisih > 0 ? selisih : 0;
+      const isLunas = kurang === 0;
+
+      if (kurang > 0) {
+        cumulativeTunggakan += kurang;
+      }
+      if (lebih > 0) {
+        cumulativeDeposit += lebih;
+      }
+
+      rincianBulanLampau.push({
+        yearMonth: ym,
+        year: y,
+        month: m,
+        monthLabel: `${MONTH_NAMES[m - 1]} ${y}`,
+        daysInMonth: days,
+        targetNominal: target,
+        terbayarNominal: terbayar,
+        kurangNominal: kurang,
+        lebihNominal: lebih,
+        isLunas,
+      });
+    });
+
+    // Unpaid months summary
+    const unpaidMonths = rincianBulanLampau.filter((b) => b.kurangNominal > 0);
+    const jumlahBulanTertunggak = unpaidMonths.length;
+    const deskripsiBulanTertunggak = unpaidMonths.length > 0
+      ? unpaidMonths.map((b) => `${b.monthLabel} (Rp ${b.kurangNominal.toLocaleString('id-ID')})`).join(', ')
+      : 'Tidak ada tunggakan';
+
+    // 1 immediate previous month values
+    const prevMonthDetail = rincianBulanLampau.find((b) => b.yearMonth === prevYearMonth);
+    const targetBulanLalu = prevMonthDetail ? prevMonthDetail.targetNominal : nominalDefault * daysInPrevMonth;
+    const terbayarBulanLalu = prevMonthDetail ? prevMonthDetail.terbayarNominal : 0;
+    const tunggakanBulanLalu = prevMonthDetail ? prevMonthDetail.kurangNominal : 0;
+    const depositBulanLalu = prevMonthDetail ? prevMonthDetail.lebihNominal : 0;
+
+    // Determine baseline historical arrears based on calculation mode
+    let totalTunggakanLampauEffective = mode === 'all_history' ? cumulativeTunggakan : tunggakanBulanLalu;
+    
+    // Check if admin has set a manual override on initial arrears or manual adjustment
+    const isManualOverride = typeof warga.saldoTunggakanAwal === 'number' || typeof warga.koreksiPiutang === 'number';
+    if (typeof warga.saldoTunggakanAwal === 'number') {
+      totalTunggakanLampauEffective = Math.max(0, warga.saldoTunggakanAwal);
+    }
+    if (typeof warga.koreksiPiutang === 'number') {
+      totalTunggakanLampauEffective = Math.max(0, totalTunggakanLampauEffective + warga.koreksiPiutang);
+    }
 
     // Pelunasan in current active month for this warga
     const matchingPelunasanRecords = pelunasanMutationsInActiveMonth.filter((m) => {
       const ket = (m.keterangan || '').toLowerCase();
+      const nama = warga.nama.toLowerCase();
+      const noRumah = warga.nomorRumah.toLowerCase();
       return (
-        ket.includes(warga.nama.toLowerCase()) ||
-        ket.includes(`no. ${warga.nomorRumah.toLowerCase()}`) ||
-        ket.includes(`rumah ${warga.nomorRumah.toLowerCase()}`) ||
-        ket.includes(`no ${warga.nomorRumah.toLowerCase()}`) ||
+        ket.includes(nama) ||
+        ket.includes(`no. ${noRumah}`) ||
+        ket.includes(`rumah ${noRumah}`) ||
+        ket.includes(`no ${noRumah}`) ||
         ket.includes(`warga-${warga.id}`)
       );
     });
 
     const pelunasanBulanIni = matchingPelunasanRecords.reduce((sum, m) => sum + (m.nominal || 0), 0);
-    const sisaTunggakanLalu = Math.max(0, tunggakanBulanLalu - pelunasanBulanIni);
-    const isTunggakanLunas = tunggakanBulanLalu > 0 && sisaTunggakanLalu === 0;
+    const sisaTunggakanLalu = Math.max(0, totalTunggakanLampauEffective - pelunasanBulanIni);
+    const isTunggakanLunas = totalTunggakanLampauEffective > 0 && sisaTunggakanLalu === 0;
 
     // Current month stats
-    const currentMonthRecs = recs.filter((r) => r.tanggal && r.tanggal.startsWith(activeYearMonth));
+    const currentMonthRecs = recs.filter((r) => r.tanggal && r.tanggal.startsWith(safeYearMonth));
     const targetBulanIni = nominalDefault * daysInActiveMonth;
     const terbayarBulanIni = currentMonthRecs.reduce((sum, r) => sum + (r.nominal || 0), 0);
     const selisihBulanIni = terbayarBulanIni - targetBulanIni;
@@ -157,10 +282,19 @@ export const calculateTunggakanRekap = (
 
     return {
       warga,
+      rincianBulanLampau,
+      jumlahBulanTertunggak,
+      deskripsiBulanTertunggak,
+      totalTunggakanKumulatif: cumulativeTunggakan,
+      totalDepositKumulatif: cumulativeDeposit,
+      isManualOverride,
+      saldoTunggakanAwal: warga.saldoTunggakanAwal,
+      koreksiPiutang: warga.koreksiPiutang,
+      catatanKoreksiPiutang: warga.catatanKoreksiPiutang,
       targetBulanLalu,
       terbayarBulanLalu,
-      tunggakanBulanLalu,
-      depositBulanLalu,
+      tunggakanBulanLalu: totalTunggakanLampauEffective,
+      depositBulanLalu: mode === 'all_history' ? cumulativeDeposit : depositBulanLalu,
       pelunasanBulanIni,
       pelunasanRecords: matchingPelunasanRecords,
       sisaTunggakanLalu,
@@ -174,6 +308,7 @@ export const calculateTunggakanRekap = (
 
   // KPI calculations
   let totalTunggakanBulanLalu = 0;
+  let totalTunggakanKumulatifSemua = 0;
   let totalPelunasanBulanIni = 0;
   let totalSisaTunggakanLalu = 0;
   let totalDepositBulanLalu = 0;
@@ -181,16 +316,18 @@ export const calculateTunggakanRekap = (
 
   wargaListTunggakan.forEach((item) => {
     totalTunggakanBulanLalu += item.tunggakanBulanLalu;
+    totalTunggakanKumulatifSemua += item.totalTunggakanKumulatif;
     totalPelunasanBulanIni += item.pelunasanBulanIni;
     totalSisaTunggakanLalu += item.sisaTunggakanLalu;
     totalDepositBulanLalu += item.depositBulanLalu;
-    if (item.tunggakanBulanLalu > 0) {
+    if (item.tunggakanBulanLalu > 0 || item.totalTunggakanKumulatif > 0) {
       totalWargaTertunggakLalu++;
     }
   });
 
-  const persenPelunasan = totalTunggakanBulanLalu > 0 
-    ? Math.min(100, Math.round((totalPelunasanBulanIni / totalTunggakanBulanLalu) * 100)) 
+  const baseTunggakanForPercent = totalTunggakanBulanLalu > 0 ? totalTunggakanBulanLalu : totalTunggakanKumulatifSemua;
+  const persenPelunasan = baseTunggakanForPercent > 0 
+    ? Math.min(100, Math.round((totalPelunasanBulanIni / baseTunggakanForPercent) * 100)) 
     : 100;
 
   return {
@@ -199,12 +336,15 @@ export const calculateTunggakanRekap = (
       totalWarga: wargaList.length,
       totalWargaTertunggakLalu,
       totalTunggakanBulanLalu,
+      totalTunggakanKumulatifSemua,
       totalPelunasanBulanIni,
       totalSisaTunggakanLalu,
       totalDepositBulanLalu,
       persenPelunasan,
+      totalBulanTeridentifikasi: sortedPastMonths.length,
     },
     prevMonthLabel,
     activeMonthLabel,
+    allPastMonthLabels,
   };
 };

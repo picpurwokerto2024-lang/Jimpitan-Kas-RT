@@ -9,7 +9,7 @@ import {
   Sparkles,
   Save,
   Cloud,
-  CloudCheck
+  ArrowLeft
 } from 'lucide-react';
 import { MoneyDenomination } from '../types';
 import { formatRupiah } from '../utils/formatters';
@@ -19,6 +19,7 @@ interface HitungUangViewProps {
   counts: MoneyDenomination;
   onUpdateCounts: (newCounts: MoneyDenomination) => void;
   isSyncing?: boolean;
+  onNavigateToMenu?: () => void;
 }
 
 export const HitungUangView: React.FC<HitungUangViewProps> = ({ 
@@ -26,6 +27,7 @@ export const HitungUangView: React.FC<HitungUangViewProps> = ({
   counts,
   onUpdateCounts,
   isSyncing = false,
+  onNavigateToMenu,
 }) => {
   const [localCounts, setLocalCounts] = useState<MoneyDenomination>(counts);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
@@ -122,6 +124,19 @@ export const HitungUangView: React.FC<HitungUangViewProps> = ({
     <div className="w-full space-y-4 pb-12" id="hitung-uang-view-root">
       {/* Header card */}
       <div className="bg-white rounded-3xl border border-sky-100 p-4 sm:p-5 shadow-xs space-y-4">
+        {onNavigateToMenu && (
+          <div className="pb-1 border-b border-stone-100">
+            <button
+              type="button"
+              onClick={onNavigateToMenu}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Menu</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">

@@ -21,6 +21,7 @@ import { Header } from './components/Header';
 import { DashboardSummaryCard } from './components/DashboardSummaryCard';
 import { ScannerSection } from './components/ScannerSection';
 import { KasRekapView } from './components/KasRekapView';
+import { RekapPiutangView } from './components/RekapPiutangView';
 import { DataWargaView } from './components/DataWargaView';
 import { HitungUangView } from './components/HitungUangView';
 import { MenuView } from './components/MenuView';
@@ -116,7 +117,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+      if (activeTab !== 'kas_rekap' && activeTab !== 'rekap_piutang' && activeTab !== 'data_warga') {
         setActiveTab('kas_rekap');
       }
       return;
@@ -135,7 +136,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'hitung_uang') {
+      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'rekap_piutang' && activeTab !== 'hitung_uang') {
         setActiveTab('scan');
       }
       return;
@@ -1213,6 +1214,7 @@ export default function App() {
             <KasRekapView
               allRecords={allRecords}
               kasMutations={kasMutations}
+              wargaList={wargaList}
               onAddMutation={handleAddMutation}
               onUpdateMutation={handleUpdateMutation}
               onDeleteMutation={handleDeleteMutation}
@@ -1220,6 +1222,7 @@ export default function App() {
               onDeleteRecord={handleDeleteRecord}
               onDeleteSeptemberData={handleDeleteSeptemberData}
               onPurgeArchiveAndDemoData={handlePurgeArchiveAndDemoData}
+              onUpdateWarga={handleUpdateWarga}
               reguList={reguList}
               settings={settings}
               selectedDate={selectedDate}
@@ -1230,6 +1233,27 @@ export default function App() {
               appMode={appMode}
               theme={themeState.theme}
               activePresences={activePresences}
+              currentPetugas={petugasNama}
+            />
+          )}
+
+          {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA */}
+          {activeTab === 'rekap_piutang' && (
+            <RekapPiutangView
+              allRecords={allRecords}
+              kasMutations={kasMutations}
+              wargaList={wargaList}
+              onAddMutation={handleAddMutation}
+              onUpdateMutation={handleUpdateMutation}
+              onUpdateRecord={handleUpdateRecord}
+              onUpdateWarga={handleUpdateWarga}
+              settings={settings}
+              selectedDate={selectedDate}
+              isAdmin={isAdminUnlocked}
+              appMode={appMode}
+              theme={themeState.theme}
+              currentPetugas={petugasNama}
+              onNavigateToKas={() => setActiveTab('kas_rekap')}
             />
           )}
 
@@ -1267,6 +1291,7 @@ export default function App() {
               counts={moneyCounts}
               onUpdateCounts={handleUpdateMoneyCounts}
               isSyncing={isSyncing}
+              onNavigateToMenu={() => setActiveTab('menu')}
             />
           )}
 

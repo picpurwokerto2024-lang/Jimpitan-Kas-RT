@@ -12,6 +12,10 @@ export interface Warga {
   nominalDefault: number;
   isActive: boolean;
   qrCodeData: string; // e.g. "JIMPITAN-RT01-RW01-NO05"
+  saldoTunggakanAwal?: number; // Saldo tunggakan/piutang awal manual yang ditetapkan admin
+  koreksiPiutang?: number; // Nominal koreksi/penyesuaian manual piutang (+ atau -)
+  catatanKoreksiPiutang?: string;
+  tanggalKoreksiPiutang?: string;
 }
 
 export interface JimpitanRecord {

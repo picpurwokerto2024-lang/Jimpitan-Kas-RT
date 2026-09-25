@@ -3,6 +3,7 @@ import {
   X, 
   QrCode, 
   BarChart3, 
+  Receipt,
   Users, 
   Calculator, 
   ShieldCheck, 
@@ -355,7 +356,32 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-purple-600 transition-colors flex-shrink-0" />
               </button>
 
-              {/* 2. Data Warga & Riwayat Jimpitan */}
+              {/* 2. Rekap Piutang & Tunggakan Warga */}
+              <button
+                onClick={() => {
+                  onNavigate('rekap_piutang');
+                  onClose();
+                }}
+                className="w-full p-3 rounded-2xl bg-white border border-stone-200 hover:border-amber-300 hover:bg-stone-50/80 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
+                id="menu-item-piutang-warga"
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                      Rekap Piutang & Tunggakan Warga
+                    </h3>
+                    <p className="text-xs text-stone-500 truncate">
+                      Cek status hutang periode lampau & filter per tahun
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
+              </button>
+
+              {/* 3. Data Warga & Riwayat Jimpitan */}
               <button
                 onClick={() => {
                   onNavigate('data_warga');
@@ -489,7 +515,32 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-purple-600 transition-colors flex-shrink-0" />
               </button>
 
-              {/* 3. Hitung Pecahan Uang */}
+              {/* 3. Rekap Piutang & Tunggakan */}
+              <button
+                onClick={() => {
+                  onNavigate('rekap_piutang');
+                  onClose();
+                }}
+                className="w-full p-3 rounded-2xl bg-white border border-stone-200 hover:border-amber-300 hover:bg-stone-50/80 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
+                id="menu-item-piutang-penginput"
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                      Rekap Piutang & Tunggakan
+                    </h3>
+                    <p className="text-xs text-stone-500 truncate">
+                      Daftar piutang warga, cicilan & penagihan WA
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
+              </button>
+
+              {/* 4. Hitung Pecahan Uang */}
               <button
                 onClick={() => {
                   onNavigate('hitung_uang');
@@ -750,7 +801,32 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-purple-600 transition-colors flex-shrink-0" />
               </button>
 
-              {/* 3. Data Warga & Rumah */}
+              {/* 3. Rekap Piutang & Tunggakan Warga */}
+              <button
+                onClick={() => {
+                  onNavigate('rekap_piutang');
+                  onClose();
+                }}
+                className="w-full p-3 rounded-2xl bg-white border border-stone-200 hover:border-amber-300 hover:bg-stone-50/80 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
+                id="menu-item-rekap-piutang-petugas"
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                      Rekap Piutang & Tunggakan Warga
+                    </h3>
+                    <p className="text-xs text-stone-500 truncate">
+                      Filter per tahun, pelunasan kas & penagihan WhatsApp
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
+              </button>
+
+              {/* 4. Data Warga & Rumah */}
               <button
                 onClick={() => {
                   onNavigate('data_warga');

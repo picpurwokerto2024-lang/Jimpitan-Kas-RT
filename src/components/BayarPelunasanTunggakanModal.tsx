@@ -33,15 +33,16 @@ export const BayarPelunasanTunggakanModal: React.FC<BayarPelunasanTunggakanModal
   isOpen,
   onClose,
   warga,
-  tunggakanBulanLalu,
-  sisaTunggakanLalu,
-  prevMonthLabel,
-  activeMonthLabel,
+  tunggakanBulanLalu = 0,
+  sisaTunggakanLalu = 0,
+  prevMonthLabel = 'Bulan Lalu',
+  activeMonthLabel = 'Bulan Ini',
   onAddMutation,
   currentPetugas,
   settings,
 }) => {
-  const [nominal, setNominal] = useState<number>(sisaTunggakanLalu > 0 ? sisaTunggakanLalu : 10000);
+  const safeSisa = typeof sisaTunggakanLalu === 'number' ? sisaTunggakanLalu : 0;
+  const [nominal, setNominal] = useState<number>(safeSisa > 0 ? safeSisa : 10000);
   const [tanggal, setTanggal] = useState<string>(new Date().toISOString().split('T')[0]);
   const [petugas, setPetugas] = useState<string>(currentPetugas || 'Bendahara RT');
   const [catatan, setCatatan] = useState<string>('');

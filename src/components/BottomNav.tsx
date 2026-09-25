@@ -3,13 +3,13 @@ import {
   QrCode, 
   BarChart3, 
   Users, 
-  Calculator, 
+  Receipt,
   Menu 
 } from 'lucide-react';
 import { AppMode } from '../types';
 import { AppTheme, AVAILABLE_THEMES } from '../utils/themeManager';
 
-export type TabType = 'scan' | 'kas_rekap' | 'data_warga' | 'hitung_uang' | 'menu';
+export type TabType = 'scan' | 'kas_rekap' | 'rekap_piutang' | 'data_warga' | 'hitung_uang' | 'menu';
 
 interface BottomNavProps {
   activeTab: TabType;
@@ -26,21 +26,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const allTabs = [
     { id: 'scan', label: 'Scan QR', icon: QrCode },
-    { id: 'kas_rekap', label: 'Kas & Rekap', icon: BarChart3 },
+    { id: 'kas_rekap', label: 'Kas RT', icon: BarChart3 },
+    { id: 'rekap_piutang', label: 'Rekap Piutang', icon: Receipt },
     { id: 'data_warga', label: 'Data Warga', icon: Users },
-    { id: 'hitung_uang', label: 'Hitung Uang', icon: Calculator },
     { id: 'menu', label: 'Menu', icon: Menu },
   ] as const;
 
   const wargaTabs = [
-    { id: 'kas_rekap', label: 'Kas & Rekap RT', icon: BarChart3 },
-    { id: 'data_warga', label: 'Data & Riwayat Warga', icon: Users },
+    { id: 'kas_rekap', label: 'Kas RT', icon: BarChart3 },
+    { id: 'rekap_piutang', label: 'Rekap Piutang', icon: Receipt },
+    { id: 'data_warga', label: 'Data Warga', icon: Users },
   ] as const;
 
   const penginputTabs = [
     { id: 'scan', label: 'Scan QR', icon: QrCode },
-    { id: 'kas_rekap', label: 'Kas & Rekap', icon: BarChart3 },
-    { id: 'hitung_uang', label: 'Hitung Uang', icon: Calculator },
+    { id: 'kas_rekap', label: 'Kas RT', icon: BarChart3 },
+    { id: 'rekap_piutang', label: 'Rekap Piutang', icon: Receipt },
+    { id: 'menu', label: 'Menu', icon: Menu },
   ] as const;
 
   const tabs = appMode === 'warga'
