@@ -271,8 +271,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const onlineWargaCount = onlineWargaList.length;
   const isPetugasOrAdmin = isAdmin || appMode === 'petugas';
 
-  // Time period filter: 'hari_ini' | 'bulan_ini' | 'semua'
-  const [periodFilter, setPeriodFilter] = useState<'hari_ini' | 'bulan_ini' | 'semua'>('hari_ini');
+  // Time period filter: 'hari_ini' | 'bulan_ini' | 'semua' (Default: 'bulan_ini' agar seluruh catatan bulan berjalan langsung muncul)
+  const [periodFilter, setPeriodFilter] = useState<'hari_ini' | 'bulan_ini' | 'semua'>('bulan_ini');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isAddMutationOpen, setIsAddMutationOpen] = useState<boolean>(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
@@ -340,14 +340,20 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   const totalFilteredNominal = filteredRecords.reduce((sum, r) => sum + r.nominal, 0);
 
-  // Period-aware Mutations
+  // Period-aware Mutations (Menampilkan seluruh catatan pengeluaran & mutasi kas dalam 1 bulan berjalan disemua mode)
   const periodMutations = useMemo(() => {
-    return kasMutations.filter((m) => {
-      if (periodFilter === 'hari_ini' && m.tanggal !== selectedDate) return false;
-      if (periodFilter === 'bulan_ini' && !m.tanggal.startsWith(currentYearMonth)) return false;
-      return true;
-    });
-  }, [kasMutations, periodFilter, selectedDate, currentYearMonth]);
+    return kasMutations
+      .filter((m) => {
+        if (periodFilter === 'semua') return true;
+        // Pada filter 'bulan_ini' maupun 'hari_ini', mutasi kas pengeluaran 1 bulan penuh tetap tampil lengkap
+        return m.tanggal && m.tanggal.startsWith(currentYearMonth);
+      })
+      .sort((a, b) => {
+        const dateCompare = b.tanggal.localeCompare(a.tanggal);
+        if (dateCompare !== 0) return dateCompare;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+  }, [kasMutations, periodFilter, currentYearMonth]);
 
   // Expenditure Category Breakdown calculation
   const expenseCategoryBreakdown = useMemo(() => {
@@ -672,7 +678,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 Pelabelan & Rincian Pengeluaran Kas
               </h3>
               <p className="text-[11px] text-stone-500">
-                Alokasi dana per kategori ({periodFilter === 'hari_ini' ? 'Hari Ini' : periodFilter === 'bulan_ini' ? 'Bulan Ini' : 'Semua Data'})
+                Alokasi dana per kategori • 1 Bulan ({new Date(Number(currYear), Number(currMonth) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })})
               </p>
             </div>
           </div>
@@ -965,7 +971,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
               Buku Mutasi Kas & Pengeluaran RT
             </h3>
             <p className="text-[11px] text-stone-500">
-              {displayedMutations.length} Transaksi ditampilkan {selectedCategoryFilter !== 'semua' && `(Filter Kategori: ${selectedCategoryFilter})`}
+              {displayedMutations.length} Transaksi terdata • 1 Bulan ({new Date(Number(currYear), Number(currMonth) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}) {selectedCategoryFilter !== 'semua' && `• Kategori: ${selectedCategoryFilter}`}
             </p>
           </div>
 
