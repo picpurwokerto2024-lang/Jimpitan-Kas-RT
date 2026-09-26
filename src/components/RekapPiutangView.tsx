@@ -26,7 +26,9 @@ import {
   ArrowUpRight,
   Coins,
   Wallet,
-  CheckSquare
+  CheckSquare,
+  Edit3,
+  Check
 } from 'lucide-react';
 import { JimpitanRecord, KasMutation, Warga, AppSettings, AppMode } from '../types';
 import { formatRupiah, formatTanggalIndo, cleanWhatsAppPhone, getTodayDateIso } from '../utils/formatters';
@@ -892,11 +894,25 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
                           LUNAS
                         </span>
                       )}
+                      {item.isManualOverride && (
+                        <span 
+                          className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[9.5px] font-black border border-amber-300 flex items-center space-x-1"
+                          title={item.catatanKoreksiPiutang || 'Piutang telah disesuaikan manual oleh Admin'}
+                        >
+                          <Edit3 className="w-3 h-3 text-amber-700" />
+                          <span>Koreksi Admin</span>
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex items-center space-x-2 text-[11px] text-stone-500 mt-0.5">
+                    <div className="flex items-center space-x-2 text-[11px] text-stone-500 mt-0.5 flex-wrap">
                       <span>Tarif: Rp {(item.warga.nominalDefault || settings.defaultNominal || 1000).toLocaleString('id-ID')}/hari</span>
                       {item.warga.nomorHp && <span className="text-emerald-700 font-semibold">• WA: {item.warga.nomorHp}</span>}
+                      {item.catatanKoreksiPiutang && (
+                        <span className="text-amber-800 text-[10.5px] font-medium italic block w-full mt-0.5">
+                          Ket: {item.catatanKoreksiPiutang}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -974,15 +990,18 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
                         </button>
                       )}
 
-                      {/* Tombol Koreksi / Edit Sisa Piutang */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedWargaForEditPiutang(item)}
-                        className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
-                        title="Koreksi manual saldo awal piutang warga"
-                      >
-                        Koreksi Sisa
-                      </button>
+                      {/* Tombol Edit / Koreksi Piutang (Admin) */}
+                      {onUpdateWarga && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWargaForEditPiutang(item)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center space-x-1 shadow-2xs transition-colors cursor-pointer"
+                          title="Edit, ubah nominal, beri diskon/keringanan, atau sesuaikan piutang warga"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Edit Piutang</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Tombol Kirim Tagihan WhatsApp */}

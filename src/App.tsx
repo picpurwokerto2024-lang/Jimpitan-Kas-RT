@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Receipt, Shield, Lock } from 'lucide-react';
 import { 
   Warga, 
   JimpitanRecord, 
@@ -117,7 +117,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'kas_rekap' && activeTab !== 'rekap_piutang' && activeTab !== 'data_warga') {
+      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
         setActiveTab('kas_rekap');
       }
       return;
@@ -136,7 +136,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'rekap_piutang' && activeTab !== 'hitung_uang') {
+      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'hitung_uang' && activeTab !== 'menu') {
         setActiveTab('scan');
       }
       return;
@@ -1237,24 +1237,60 @@ export default function App() {
             />
           )}
 
-          {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA */}
+          {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA (KHUSUS ADMIN / PETUGAS) */}
           {activeTab === 'rekap_piutang' && (
-            <RekapPiutangView
-              allRecords={allRecords}
-              kasMutations={kasMutations}
-              wargaList={wargaList}
-              onAddMutation={handleAddMutation}
-              onUpdateMutation={handleUpdateMutation}
-              onUpdateRecord={handleUpdateRecord}
-              onUpdateWarga={handleUpdateWarga}
-              settings={settings}
-              selectedDate={selectedDate}
-              isAdmin={isAdminUnlocked}
-              appMode={appMode}
-              theme={themeState.theme}
-              currentPetugas={petugasNama}
-              onNavigateToKas={() => setActiveTab('kas_rekap')}
-            />
+            isAdminUnlocked ? (
+              <RekapPiutangView
+                allRecords={allRecords}
+                kasMutations={kasMutations}
+                wargaList={wargaList}
+                onAddMutation={handleAddMutation}
+                onUpdateMutation={handleUpdateMutation}
+                onUpdateRecord={handleUpdateRecord}
+                onUpdateWarga={handleUpdateWarga}
+                settings={settings}
+                selectedDate={selectedDate}
+                isAdmin={isAdminUnlocked}
+                appMode={appMode}
+                theme={themeState.theme}
+                currentPetugas={petugasNama}
+                onNavigateToKas={() => setActiveTab('kas_rekap')}
+              />
+            ) : (
+              <div className="p-6 sm:p-8 bg-white rounded-3xl border border-stone-200 shadow-sm text-center space-y-4 max-w-md mx-auto my-8 animate-in fade-in zoom-in-95">
+                <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto shadow-xs">
+                  <Receipt className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider mb-1">
+                    <Shield className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Akses Khusus Admin RT</span>
+                  </div>
+                  <h3 className="text-lg font-black text-stone-900">Rekap Piutang Dikunci</h3>
+                  <p className="text-xs text-stone-500 leading-relaxed max-w-xs mx-auto">
+                    Data rincian piutang, pelunasan hutang lampau, dan tagihan warga hanya dapat diakses dalam Mode Pengurus RT / Admin.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setModeSelectorTarget('petugas');
+                      setIsModeSelectorOpen(true);
+                    }}
+                    className="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>Buka Kunci Admin (PIN)</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('kas_rekap')}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-xs transition-colors cursor-pointer"
+                  >
+                    Kembali ke Buku Kas RT
+                  </button>
+                </div>
+              </div>
+            )
           )}
 
           {/* TAB 3: DATA WARGA */}

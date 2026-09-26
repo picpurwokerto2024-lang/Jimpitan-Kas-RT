@@ -1091,8 +1091,9 @@ _Terima kasih banyak atas partisipasi dan kebersamaan Bpk/Ibu dalam menjaga keam
         selectedDate={selectedDate}
       />
 
-      {/* 2. REKAP DATA HUTANG & TUNGGAKAN WARGA (BULAN & TAHUN SEBELUMNYA) */}
-      <div className="bg-white rounded-3xl border border-amber-200 shadow-sm p-4 sm:p-5 space-y-3.5" id="section-rekap-hutang-warga">
+      {/* 2. REKAP DATA HUTANG & TUNGGAKAN WARGA (BULAN & TAHUN SEBELUMNYA - KHUSUS ADMIN) */}
+      {isAdmin && appMode !== 'warga' && (
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-sm p-4 sm:p-5 space-y-3.5" id="section-rekap-hutang-warga">
         {/* Header with Title, Mode Switcher, and Collapse Button */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-100 pb-3">
           <div className="flex items-center space-x-2.5">
@@ -1756,6 +1757,7 @@ _Terima kasih banyak atas partisipasi dan kebersamaan Bpk/Ibu dalam menjaga keam
           </div>
         )}
       </div>
+      )}
 
       {/* 3. SEGMENTED FILTER BUTTONS: Hari Ini | Bulan Ini | Semua Waktu */}
 

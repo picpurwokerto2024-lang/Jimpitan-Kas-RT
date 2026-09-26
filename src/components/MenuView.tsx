@@ -402,27 +402,29 @@ export const MenuView: React.FC<MenuViewProps> = ({
           <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-sky-600 transition-colors flex-shrink-0" />
         </button>
 
-        {/* 3. Rekap Piutang & Tunggakan Warga */}
-        <button
-          onClick={() => onNavigate('rekap_piutang')}
-          className="w-full p-3.5 rounded-2xl bg-white border border-stone-200/80 hover:border-amber-300 hover:bg-amber-50/40 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
-          id="menu-item-rekap-piutang"
-        >
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-              <Receipt className="w-5 h-5" />
+        {/* 3. Rekap Piutang & Tunggakan Warga (Khusus Mode Admin) */}
+        {isAdminUnlocked && (
+          <button
+            onClick={() => onNavigate('rekap_piutang')}
+            className="w-full p-3.5 rounded-2xl bg-white border border-stone-200/80 hover:border-amber-300 hover:bg-amber-50/40 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
+            id="menu-item-rekap-piutang"
+          >
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                  Rekap Piutang & Tunggakan Warga
+                </h3>
+                <p className="text-xs text-stone-500 truncate">
+                  Filter per tahun, status hutang lampau & penagihan WA
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-stone-900 text-sm tracking-tight">
-                Rekap Piutang & Tunggakan Warga
-              </h3>
-              <p className="text-xs text-stone-500 truncate">
-                Filter per tahun, status hutang lampau & penagihan WA
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
-        </button>
+            <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
+          </button>
+        )}
 
         {/* 4. Data Warga & Rumah */}
         <button
