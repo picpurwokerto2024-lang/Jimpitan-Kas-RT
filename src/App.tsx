@@ -38,7 +38,7 @@ import { ModeSelectorModal } from './components/ModeSelectorModal';
 import { LaporanHubModal, LaporanTabKey } from './components/LaporanHubModal';
 import { OfflineBanner } from './components/OfflineBanner';
 import { AppTheme, initializeAppTheme } from './utils/themeManager';
-import { getTodayDateIso } from './utils/formatters';
+import { getTodayDateIso, formatTanggalIndo } from './utils/formatters';
 import { 
   subscribeSettings,
   saveSettingsCloud,
@@ -840,6 +840,32 @@ export default function App() {
     }
   };
 
+  // Reset / Pemutihan Piutang Massal: Hapus data piutang lampau & setel default 0 Rupiah
+  const handleResetAllPiutangToZero = async () => {
+    if (!window.confirm('KONFIRMASI PENGURUS RT: Hapus seluruh data piutang lampau dan buat default 0 Rupiah (pemutihan piutang) untuk SEMUA warga?')) {
+      return;
+    }
+    const today = getTodayDateIso();
+    const updatedList = wargaList.map((w) => ({
+      ...w,
+      saldoTunggakanAwal: 0,
+      koreksiPiutang: 0,
+      catatanKoreksiPiutang: `Pemutihan piutang (Default Rp 0) pada ${formatTanggalIndo(today)} oleh ${petugasNama}`,
+      tanggalKoreksiPiutang: today,
+    }));
+
+    setWargaList(updatedList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
+      for (const w of updatedList) {
+        await saveWargaCloud(w);
+      }
+      alert('✅ Berhasil! Seluruh data piutang warga telah direset menjadi 0 Rupiah.');
+    } catch (err) {
+      console.error('Failed to reset all piutang to zero:', err);
+    }
+  };
+
   // Handlers for Mutations (Cloud Synchronized)
   const handleAddMutation = async (mut: Omit<KasMutation, 'id' | 'createdAt'>) => {
     const newMut: KasMutation = {
@@ -1248,6 +1274,7 @@ export default function App() {
                 onUpdateMutation={handleUpdateMutation}
                 onUpdateRecord={handleUpdateRecord}
                 onUpdateWarga={handleUpdateWarga}
+                onResetAllPiutangToZero={handleResetAllPiutangToZero}
                 settings={settings}
                 selectedDate={selectedDate}
                 isAdmin={isAdminUnlocked}

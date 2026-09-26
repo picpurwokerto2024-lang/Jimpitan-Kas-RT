@@ -117,26 +117,17 @@ export const calculateTunggakanRekap = (
   const daysInActiveMonth = new Date(activeYear, activeMonth, 0).getDate();
   const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
 
-  // 1. Discover all past year-months that have historical data or relevant periods
+  // 1. Discover all past year-months that ACTUALLY have recorded jimpitan data
   const historicalMonthSet = new Set<string>();
   
-  // Always include immediate previous month
-  historicalMonthSet.add(prevYearMonth);
-
-  // Scan allRecords for past dates
+  // Scan allRecords for past dates that have real recorded jimpitan entries
   allRecords.forEach((r) => {
     if (!r.tanggal) return;
     const ym = r.tanggal.substring(0, 7);
-    if (ym < safeYearMonth && ym.length === 7) {
+    if (ym < safeYearMonth && ym.length === 7 && r.status === 'sukses' && r.nominal > 0) {
       historicalMonthSet.add(ym);
     }
   });
-
-  // Also include past months of current year up to activeMonth - 1
-  for (let m = 1; m < activeMonth; m++) {
-    const ym = `${activeYear}-${String(m).padStart(2, '0')}`;
-    historicalMonthSet.add(ym);
-  }
 
   // Sort historical months descending (most recent first)
   const sortedPastMonths = Array.from(historicalMonthSet).sort((a, b) => b.localeCompare(a));
