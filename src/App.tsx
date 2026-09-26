@@ -136,7 +136,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'hitung_uang' && activeTab !== 'menu') {
+      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'hitung_uang') {
         setActiveTab('scan');
       }
       return;
