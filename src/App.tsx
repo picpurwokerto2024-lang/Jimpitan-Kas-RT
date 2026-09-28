@@ -580,8 +580,22 @@ export default function App() {
     });
 
     const unsubMutations = subscribeKasMutations((cloudMutations) => {
-      setKasMutations(cloudMutations);
-      localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(cloudMutations));
+      setKasMutations((prevLocal) => {
+        // Merge cloud mutations with any local mutations that were recently added and haven't synced yet
+        const cloudIds = new Set(cloudMutations.map((m) => m.id));
+        const pendingLocal = prevLocal.filter((m) => !cloudIds.has(m.id) && Date.now() - (m.createdAt || 0) < 120000);
+        
+        // If there are pending local mutations not in cloud yet, trigger background sync
+        if (pendingLocal.length > 0) {
+          pendingLocal.forEach((mut) => {
+            addKasMutationCloud(mut).catch(console.error);
+          });
+        }
+        
+        const merged = [...pendingLocal, ...cloudMutations].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(merged));
+        return merged;
+      });
       setIsSyncing(false);
     });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   FileText, 
   Download, 
@@ -75,12 +75,46 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   const totalPemasukanAll = totalJimpitan + totalPemasukanLain;
   const saldoPeriode = totalPemasukanAll - totalPengeluaran;
 
-  // Overall Kas balance for settings
-  const saldoAwalKas = Number(settings.saldoAwalKas) || 0;
+  // Overall Kas balance & Monthly Rollover Calculations
+  const masterSaldoAwal = Number(settings.saldoAwalKas) || 0;
   const allTimeJimpitan = allRecords.reduce((sum, r) => sum + r.nominal, 0);
   const allTimePemasukan = kasMutations.filter((m) => m.jenis === 'masuk').reduce((sum, m) => sum + m.nominal, 0);
   const allTimePengeluaran = kasMutations.filter((m) => m.jenis === 'keluar').reduce((sum, m) => sum + m.nominal, 0);
-  const totalSaldoKasAllTime = saldoAwalKas + allTimeJimpitan + allTimePemasukan - allTimePengeluaran;
+  const totalSaldoKasAllTime = masterSaldoAwal + allTimeJimpitan + allTimePemasukan - allTimePengeluaran;
+
+  // Monthly Rollover Calculation for 'bulan' filter
+  const pastJimpitanBulan = useMemo(() => {
+    if (filterType !== 'bulan') return 0;
+    return allRecords
+      .filter((r) => r.tanggal && r.tanggal < `${selectedMonth}-01`)
+      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+  }, [allRecords, selectedMonth, filterType]);
+
+  const pastMutasiMasukBulan = useMemo(() => {
+    if (filterType !== 'bulan') return 0;
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${selectedMonth}-01` && m.jenis === 'masuk';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, selectedMonth, filterType]);
+
+  const pastMutasiKeluarBulan = useMemo(() => {
+    if (filterType !== 'bulan') return 0;
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${selectedMonth}-01` && m.jenis === 'keluar';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, selectedMonth, filterType]);
+
+  const saldoAwalBulanIni = masterSaldoAwal + pastJimpitanBulan + pastMutasiMasukBulan - pastMutasiKeluarBulan;
+  const saldoKasBersihAkhirBulan = saldoAwalBulanIni + totalPemasukanAll - totalPengeluaran;
+
+  const displaySaldoAwal = filterType === 'bulan' ? saldoAwalBulanIni : masterSaldoAwal;
+  const displaySaldoKasBersih = filterType === 'bulan' ? saldoKasBersihAkhirBulan : totalSaldoKasAllTime;
 
   // Period label text
   let periodText = '';
@@ -102,7 +136,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         mutations: filteredMutations,
         settings,
         periodText,
-        totalSaldoKas: totalSaldoKasAllTime,
+        totalSaldoKas: displaySaldoKasBersih,
+        saldoAwalPeriode: filterType === 'bulan' ? displaySaldoAwal : undefined,
       });
     } catch (err) {
       console.error('Error generating PDF:', err);
@@ -285,9 +320,11 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                 <div className="p-2.5 rounded-lg bg-sky-50/80 border border-sky-200">
                   <span className="block text-[10px] font-bold text-sky-900 uppercase">Saldo Kas Bersih</span>
                   <span className="text-xs sm:text-sm font-black text-sky-700">
-                    {formatRupiah(totalSaldoKasAllTime)}
+                    {formatRupiah(displaySaldoKasBersih)}
                   </span>
-                  <span className="block text-[9px] text-emerald-600 font-bold">Kas Terverifikasi</span>
+                  <span className="block text-[9px] text-emerald-600 font-bold">
+                    {filterType === 'bulan' ? `Saldo Awal: ${formatRupiah(displaySaldoAwal)}` : 'Kas Terverifikasi'}
+                  </span>
                 </div>
               </div>
             </div>

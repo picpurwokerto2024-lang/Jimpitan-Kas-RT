@@ -146,13 +146,41 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const totalPemasukanLain = filteredMutationsMasuk.reduce((sum, m) => sum + (m.nominal || 0), 0);
   const totalPemasukanAll = totalJimpitanPeriod + totalPemasukanLain;
   const totalPengeluaranPeriod = filteredMutationsKeluar.reduce((sum, m) => sum + (m.nominal || 0), 0);
-  const saldoAwalKas = settings?.saldoAwalKas || 0;
+  const masterSaldoAwal = settings?.saldoAwalKas || 0;
+
+  // Monthly Rollover Calculation
+  const pastJimpitanBulan = useMemo(() => {
+    return safeRecords
+      .filter((r) => r.tanggal && r.tanggal < `${selectedYearMonth}-01`)
+      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+  }, [safeRecords, selectedYearMonth]);
+
+  const pastMutasiMasukBulan = useMemo(() => {
+    return safeMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${selectedYearMonth}-01` && (m.jenis === 'masuk' || (m as any).tipe === 'masuk');
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [safeMutations, selectedYearMonth]);
+
+  const pastMutasiKeluarBulan = useMemo(() => {
+    return safeMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${selectedYearMonth}-01` && (m.jenis === 'keluar' || (m as any).tipe === 'keluar');
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [safeMutations, selectedYearMonth]);
+
+  const saldoAwalBulanIni = masterSaldoAwal + pastJimpitanBulan + pastMutasiMasukBulan - pastMutasiKeluarBulan;
+  const saldoKasBersihAkhirBulan = saldoAwalBulanIni + totalPemasukanAll - totalPengeluaranPeriod;
 
   // Global total calculations (All Time)
   const totalAllJimpitan = safeRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
   const totalAllMutMasuk = safeMutations.filter(m => m.jenis === 'masuk' || (m as any).tipe === 'masuk').reduce((sum, m) => sum + (m.nominal || 0), 0);
   const totalAllMutKeluar = safeMutations.filter(m => m.jenis === 'keluar' || (m as any).tipe === 'keluar').reduce((sum, m) => sum + (m.nominal || 0), 0);
-  const totalKasSaatIni = saldoKas !== undefined ? saldoKas : (saldoAwalKas + totalAllJimpitan + totalAllMutMasuk - totalAllMutKeluar);
+  const totalKasSaatIni = saldoKas !== undefined ? saldoKas : (masterSaldoAwal + totalAllJimpitan + totalAllMutMasuk - totalAllMutKeluar);
 
   // Expense Category breakdown
   const categoryMap: Record<string, { total: number; count: number }> = {};
@@ -649,14 +677,14 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
                   <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Saldo Kas Bersih</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Saldo Bersih Bulan Ini</span>
                     <Wallet className="w-4 h-4 text-sky-600" />
                   </div>
                   <div className="text-lg sm:text-xl font-black text-stone-900">
-                    {formatRupiah(totalKasSaatIni)}
+                    {formatRupiah(saldoKasBersihAkhirBulan)}
                   </div>
                   <div className="text-[10px] text-stone-500 mt-1">
-                    Saldo Awal: {formatRupiah(saldoAwalKas)}
+                    Saldo Awal: {formatRupiah(saldoAwalBulanIni)}
                   </div>
                 </div>
 

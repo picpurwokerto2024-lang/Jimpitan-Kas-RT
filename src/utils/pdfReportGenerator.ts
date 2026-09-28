@@ -10,6 +10,7 @@ interface GeneratePdfOptions {
   periodText: string;
   selectedMonthYear?: string;
   totalSaldoKas: number;
+  saldoAwalPeriode?: number;
 }
 
 export const generateKasReportPdf = ({
@@ -18,6 +19,7 @@ export const generateKasReportPdf = ({
   settings,
   periodText,
   totalSaldoKas,
+  saldoAwalPeriode,
 }: GeneratePdfOptions) => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -124,7 +126,7 @@ export const generateKasReportPdf = ({
   doc.text(formatRupiah(totalSaldoKas), margin + colWidth * 3 + 2, topY + 5.5);
   doc.setFontSize(7);
   doc.setTextColor(16, 185, 129);
-  doc.text('Status: Kas Aktif', margin + colWidth * 3 + 2, topY + 10);
+  doc.text(saldoAwalPeriode !== undefined ? `Saldo Awal: ${formatRupiah(saldoAwalPeriode)}` : 'Status: Kas Aktif', margin + colWidth * 3 + 2, topY + 10);
 
   let currentY = 78;
 

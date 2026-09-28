@@ -297,23 +297,89 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const [editRecPetugas, setEditRecPetugas] = useState<string>('');
   const [editRecCatatan, setEditRecCatatan] = useState<string>('');
 
-  // Total Kas Calculation (Akumulasi Saldo Awal + Total Masuk - Total Pengeluaran)
-  const saldoAwalKas = Number(settings.saldoAwalKas) || 0;
-  const totalPemasukanMutasi = kasMutations
-    .filter((m) => m.jenis === 'masuk')
-    .reduce((sum, m) => sum + m.nominal, 0);
-
-  const totalPengeluaranMutasi = kasMutations
-    .filter((m) => m.jenis === 'keluar')
-    .reduce((sum, m) => sum + m.nominal, 0);
-
-  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + r.nominal, 0);
-  const totalMasukAll = totalPemasukanMutasi + totalJimpitanAllTime;
-  const saldoKasBersih = saldoAwalKas + totalMasukAll - totalPengeluaranMutasi;
-
-  // Selected date components
+  // Total Kas & Monthly Rollover Calculations
   const [currYear, currMonth] = selectedDate.split('-');
   const currentYearMonth = `${currYear}-${currMonth}`;
+  const currMonthName = new Date(Number(currYear), Number(currMonth) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+  // 1. Master Base Saldo Awal from Settings
+  const masterSaldoAwal = Number(settings.saldoAwalKas) || 0;
+
+  // 2. Akumulasi Seluruh Transaksi Lampau Sebelum Bulan Aktif (< currentYearMonth)
+  const pastJimpitan = useMemo(() => {
+    return allRecords
+      .filter((r) => r.tanggal && r.tanggal < `${currentYearMonth}-01`)
+      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+  }, [allRecords, currentYearMonth]);
+
+  const pastMutasiMasuk = useMemo(() => {
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'masuk';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, currentYearMonth]);
+
+  const pastMutasiKeluar = useMemo(() => {
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'keluar';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, currentYearMonth]);
+
+  // Saldo Awal Bulan Ini (Otomatis ditarik dari Saldo Bersih Akhir Bulan Lalu / seluruh akumulasi lampau)
+  const saldoAwalBulanIni = masterSaldoAwal + pastJimpitan + pastMutasiMasuk - pastMutasiKeluar;
+
+  // 3. Transaksi Bulan Ini (=== currentYearMonth)
+  const thisMonthJimpitan = useMemo(() => {
+    return allRecords
+      .filter((r) => r.tanggal && r.tanggal.startsWith(currentYearMonth))
+      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+  }, [allRecords, currentYearMonth]);
+
+  const thisMonthMutasiMasuk = useMemo(() => {
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
+        return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'masuk';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, currentYearMonth]);
+
+  const thisMonthMutasiKeluar = useMemo(() => {
+    return kasMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
+        return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'keluar';
+      })
+      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+  }, [kasMutations, currentYearMonth]);
+
+  const thisMonthMasukAll = thisMonthJimpitan + thisMonthMutasiMasuk;
+  // Saldo Bersih Bulan Ini (yang otomatis menjadi Saldo Awal di bulan berikutnya!)
+  const saldoKasBersihBulanIni = saldoAwalBulanIni + thisMonthMasukAll - thisMonthMutasiKeluar;
+
+  // 4. Global All-Time Calculations
+  const totalPemasukanMutasiAllTime = kasMutations
+    .filter((m) => m.jenis === 'masuk')
+    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+
+  const totalPengeluaranMutasiAllTime = kasMutations
+    .filter((m) => m.jenis === 'keluar')
+    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+
+  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalMasukAllTime = totalPemasukanMutasiAllTime + totalJimpitanAllTime;
+  const saldoKasBersihAllTime = masterSaldoAwal + totalMasukAllTime - totalPengeluaranMutasiAllTime;
+
+  // Dynamic values depending on active periodFilter
+  const displaySaldoAwal = periodFilter === 'semua' ? masterSaldoAwal : saldoAwalBulanIni;
+  const displayTotalMasuk = periodFilter === 'semua' ? totalMasukAllTime : thisMonthMasukAll;
+  const displayPengeluaran = periodFilter === 'semua' ? totalPengeluaranMutasiAllTime : thisMonthMutasiKeluar;
+  const displaySaldoKasBersih = periodFilter === 'semua' ? saldoKasBersihAllTime : saldoKasBersihBulanIni;
 
   // Filter records based on selected period
   const filteredRecords = allRecords.filter((record) => {
@@ -345,11 +411,18 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     return kasMutations
       .filter((m) => {
         if (periodFilter === 'semua') return true;
-        // Pada filter 'bulan_ini' maupun 'hari_ini', mutasi kas pengeluaran 1 bulan penuh tetap tampil lengkap
-        return m.tanggal && m.tanggal.startsWith(currentYearMonth);
+        // Check standard YYYY-MM prefix or ISO string format
+        if (m.tanggal) {
+          const cleanDate = m.tanggal.split('T')[0];
+          if (cleanDate.startsWith(currentYearMonth)) return true;
+        } else if (m.createdAt) {
+          const createdMonth = new Date(m.createdAt).toISOString().slice(0, 7);
+          if (createdMonth === currentYearMonth) return true;
+        }
+        return false;
       })
       .sort((a, b) => {
-        const dateCompare = b.tanggal.localeCompare(a.tanggal);
+        const dateCompare = (b.tanggal || '').localeCompare(a.tanggal || '');
         if (dateCompare !== 0) return dateCompare;
         return (b.createdAt || 0) - (a.createdAt || 0);
       });
@@ -581,13 +654,15 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 <div className="flex items-center space-x-1.5">
                   <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 inline-block shrink-0" />
                   <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/90">
-                    SALDO KAS BERSIH
+                    {periodFilter === 'semua'
+                      ? 'SALDO KAS BERSIH (KUMULATIF)'
+                      : `SALDO KAS BERSIH (${currMonthName.toUpperCase()})`}
                   </span>
                 </div>
 
                 {/* Big Amount */}
                 <div className="text-xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5 font-sans truncate">
-                  Rp {saldoKasBersih.toLocaleString('id-ID')}
+                  Rp {displaySaldoKasBersih.toLocaleString('id-ID')}
                 </div>
               </div>
             </div>
@@ -611,11 +686,11 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
               </div>
               <span className="text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-wide text-white/90 whitespace-nowrap leading-tight">
-                SALDO AWAL
+                {periodFilter === 'semua' ? 'SALDO AWAL MASTER' : 'SALDO AWAL'}
               </span>
             </div>
             <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-emerald-300 truncate pl-0.5">
-              Rp {saldoAwalKas.toLocaleString('id-ID')}
+              Rp {displaySaldoAwal.toLocaleString('id-ID')}
             </div>
           </div>
 
@@ -630,7 +705,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
               </span>
             </div>
             <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-amber-300 truncate pl-0.5">
-              +Rp {totalMasukAll.toLocaleString('id-ID')}
+              +Rp {displayTotalMasuk.toLocaleString('id-ID')}
             </div>
           </div>
 
@@ -645,23 +720,23 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
               </span>
             </div>
             <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-rose-300 truncate pl-0.5">
-              -Rp {totalPengeluaranMutasi.toLocaleString('id-ID')}
+              -Rp {displayPengeluaran.toLocaleString('id-ID')}
             </div>
           </div>
         </div>
 
-        {/* Small Accumulation Notice Pill */}
+        {/* Small Accumulation / Monthly Rollover Notice Pill */}
         <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-white/80 pt-1.5 border-t border-white/10 gap-1.5">
           <div className="flex items-center space-x-1.5 min-w-0 flex-1">
             <Info className="w-3.5 h-3.5 text-white/90 shrink-0" />
             <span className="truncate">
-              {saldoAwalKas > 0 
-                ? `Termasuk Saldo Awal Rp ${saldoAwalKas.toLocaleString('id-ID')}`
-                : 'Saldo awal kas Rp 0 (diatur di Pengaturan)'}
+              {periodFilter === 'semua'
+                ? (masterSaldoAwal > 0 ? `Termasuk Saldo Awal Master Rp ${masterSaldoAwal.toLocaleString('id-ID')}` : 'Saldo awal master Rp 0')
+                : `Saldo bersih akhir bulan (${formatRupiah(saldoKasBersihBulanIni)}) otomatis menjadi Saldo Awal di bulan depan.`}
             </span>
           </div>
           <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 text-[9px] sm:text-[10px] font-bold shrink-0 shadow-2xs whitespace-nowrap">
-            Akumulasi Aktif
+            {periodFilter === 'semua' ? 'Akumulasi Aktif' : 'Rollover Otomatis'}
           </span>
         </div>
       </div>
@@ -987,9 +1062,23 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         </div>
 
         {displayedMutations.length === 0 ? (
-          <p className="text-xs text-stone-400 py-3 text-center font-medium">
-            Belum ada catatan mutasi kas pada filter kategori ini.
-          </p>
+          <div className="py-5 text-center space-y-2">
+            <p className="text-xs text-stone-400 font-medium">
+              Belum ada catatan mutasi kas pada filter kategori ini.
+            </p>
+            {kasMutations.length > 0 && periodFilter !== 'semua' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodFilter('semua');
+                  setSelectedCategoryFilter('semua');
+                }}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-bold border border-sky-200 transition-colors cursor-pointer"
+              >
+                <span>Lihat Semua Riwayat Mutasi ({kasMutations.length} Transaksi)</span>
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
             {displayedMutations.map((mut) => {

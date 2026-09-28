@@ -309,11 +309,17 @@ export const deleteJimpitanRecordCloud = async (recordId: string) => {
 export const seedCleanMutations = async (initialList?: KasMutation[]) => {
   try {
     const listToSeed = initialList && initialList.length > 0 ? initialList : DEFAULT_MUTATIONS;
+    if (!listToSeed || listToSeed.length === 0) return;
     const batch = writeBatch(db);
     listToSeed.forEach((m) => {
       const mutRef = doc(db, MUTATIONS_COL, m.id);
       const { id, ...data } = m;
-      batch.set(mutRef, cleanFirestoreData(data), { merge: true });
+      batch.set(mutRef, cleanFirestoreData({
+        ...data,
+        nominal: Number(data.nominal) || 0,
+        createdAt: data.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      }), { merge: true });
     });
     await batch.commit();
     console.log('✅ Kas mutations seeded to Firestore');
@@ -326,7 +332,23 @@ export const subscribeKasMutations = (callback: (mutations: KasMutation[]) => vo
   const colRef = collection(db, MUTATIONS_COL);
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
-      callback([]);
+      // Check if localStorage has existing mutations before declaring empty
+      let localList: KasMutation[] = [];
+      try {
+        const saved = localStorage.getItem('jimpitan_rt_kas_mutations');
+        if (saved) localList = JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse local mutations during empty snapshot', e);
+      }
+
+      if (Array.isArray(localList) && localList.length > 0) {
+        console.log(`📦 Found ${localList.length} local kas mutations. Syncing to empty cloud collection...`);
+        seedCleanMutations(localList).then(() => {
+          callback(localList);
+        });
+      } else {
+        callback([]);
+      }
     } else {
       const list: KasMutation[] = [];
       snapshot.forEach((docSnap) => {
@@ -357,10 +379,13 @@ export const addKasMutationCloud = async (mutation: KasMutation) => {
     await setDoc(mutRef, cleanFirestoreData({
       ...data,
       nominal: Number(data.nominal) || 0,
+      createdAt: data.createdAt || Date.now(),
       updatedAt: Date.now(),
-    }));
+    }), { merge: true });
+    console.log(`✅ Kas mutation synchronized to cloud: ${mutation.id} (${mutation.keterangan})`);
   } catch (err) {
     console.error('Failed to add kas mutation to cloud:', err);
+    throw err;
   }
 };
 
@@ -368,8 +393,10 @@ export const deleteKasMutationCloud = async (mutationId: string) => {
   try {
     const mutRef = doc(db, MUTATIONS_COL, mutationId);
     await deleteDoc(mutRef);
+    console.log(`🗑️ Kas mutation deleted from cloud: ${mutationId}`);
   } catch (err) {
     console.error('Failed to delete kas mutation from cloud:', err);
+    throw err;
   }
 };
 
