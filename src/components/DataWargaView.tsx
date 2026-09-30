@@ -281,7 +281,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
       | { type: 'delete'; warga: Warga }
       | { type: 'monthly_report' }
   ) => {
-    if (isAdminUnlocked || appMode !== 'warga') {
+    if (isAdminUnlocked && appMode === 'petugas') {
       if (action.type === 'add') executeOpenAddModal();
       else if (action.type === 'edit') executeOpenEditModal(action.warga);
       else if (action.type === 'delete') executeDeleteWarga(action.warga);
@@ -413,19 +413,26 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                 </div>
                 <div>
                   <h2 className="font-extrabold text-stone-900 text-base sm:text-lg tracking-tight">
-                    {appMode === 'warga' ? 'Direktori & Riwayat Warga' : `Data Warga ${settings.namaRt} / ${settings.namaRw}`}
+                    {appMode === 'warga' 
+                      ? 'Direktori & Riwayat Warga' 
+                      : appMode === 'penginput'
+                        ? 'Data Warga (Hanya Lihat)'
+                        : `Data Warga ${settings.namaRt} / ${settings.namaRw}`}
                   </h2>
                   <p className="text-xs text-stone-500">
                     {appMode === 'warga' 
                       ? `Transparansi status jimpitan • Total ${wargaList.length} Rumah`
-                      : `Total ${wargaList.length} Rumah Terdaftar`}
+                      : appMode === 'penginput'
+                        ? `Mode Penginput Scanner • Total ${wargaList.length} Rumah Terdaftar (Read-Only)`
+                        : `Total ${wargaList.length} Rumah Terdaftar`}
                   </p>
                 </div>
               </div>
 
               {/* Action buttons */}
               <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                {appMode !== 'warga' && (
+                {/* Mode Petugas: Full Admin Actions */}
+                {appMode === 'petugas' && (
                   <>
                     {/* Admin status indicator */}
                     {isAdminUnlocked ? (
@@ -508,6 +515,18 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                       <span>Tambah Warga</span>
                     </button>
                   </>
+                )}
+
+                {/* Mode Penginput: Read-Only Actions */}
+                {appMode === 'penginput' && (
+                  <button
+                    onClick={() => setIsBatchPrintOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                    title="Cetak Semua Kartu QR Warga"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Cetak Kartu QR</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -618,8 +637,8 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                       <span>Riwayat</span>
                     </button>
 
-                    {/* Weekly Input Button */}
-                    {onSaveBatchRecords && appMode !== 'warga' && (
+                    {/* Weekly Input Button (Only in Petugas Mode) */}
+                    {onSaveBatchRecords && appMode === 'petugas' && (
                       <button
                         type="button"
                         onClick={() => {
@@ -644,7 +663,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                     </button>
 
                     {/* Edit & Delete Buttons (Only in Petugas Mode) */}
-                    {appMode !== 'warga' && (
+                    {appMode === 'petugas' && (
                       <>
                         <button
                           type="button"

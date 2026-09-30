@@ -39,7 +39,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const penginputTabs = [
     { id: 'scan', label: 'Scan QR', icon: QrCode },
-    { id: 'kas_rekap', label: 'Kas RT', icon: BarChart3 },
     { id: 'data_warga', label: 'Data Warga', icon: Users },
   ] as const;
 

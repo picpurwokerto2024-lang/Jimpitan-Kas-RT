@@ -136,7 +136,7 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      if (activeTab !== 'scan' && activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'hitung_uang') {
+      if (activeTab !== 'scan' && activeTab !== 'data_warga') {
         setActiveTab('scan');
       }
       return;
@@ -506,21 +506,6 @@ export default function App() {
     };
   }, []);
 
-  // Automatic one-time cleanup of archive & demo transactions in cloud & local storage
-  useEffect(() => {
-    const hasPurged = localStorage.getItem('purged_archive_and_demo_v2');
-    if (!hasPurged) {
-      purgeArchiveAndDemoDataCloud()
-        .then((res) => {
-          localStorage.setItem('purged_archive_and_demo_v2', 'true');
-          console.log('✅ Archive and demo transactions cleaned successfully:', res);
-        })
-        .catch((err) => {
-          console.warn('Archive cleanup note:', err);
-        });
-    }
-  }, []);
-
   // Dynamic Theme state (Initialized with auto-rotation on every app open)
   const [themeState, setThemeState] = useState<{ theme: AppTheme; isAutoRotate: boolean }>(() => {
     return initializeAppTheme();
@@ -574,26 +559,62 @@ export default function App() {
     });
 
     const unsubRecords = subscribeJimpitanRecords((cloudRecords) => {
-      setAllRecords(cloudRecords);
-      localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(cloudRecords));
+      setAllRecords((prevLocal) => {
+        const cloudIds = new Set(cloudRecords.map((r) => r.id));
+        const pendingLocal = prevLocal.filter((r) => !cloudIds.has(r.id));
+        
+        // Auto background-sync any local records not in cloud yet
+        if (pendingLocal.length > 0) {
+          console.log(`📡 Syncing ${pendingLocal.length} pending local jimpitan records to cloud...`);
+          pendingLocal.forEach((rec) => {
+            addJimpitanRecordCloud(rec).catch((err) => console.warn('Retrying record sync later:', err));
+          });
+        }
+
+        const merged = [...pendingLocal, ...cloudRecords].sort(
+          (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+        );
+        try {
+          localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(merged));
+        } catch (e) {
+          console.warn('Storage save failed:', e);
+        }
+        return merged;
+      });
       setIsSyncing(false);
     });
 
     const unsubMutations = subscribeKasMutations((cloudMutations) => {
       setKasMutations((prevLocal) => {
-        // Merge cloud mutations with any local mutations that were recently added and haven't synced yet
-        const cloudIds = new Set(cloudMutations.map((m) => m.id));
-        const pendingLocal = prevLocal.filter((m) => !cloudIds.has(m.id) && Date.now() - (m.createdAt || 0) < 120000);
+        // Read explicitly deleted mutation IDs to prevent zombie items
+        let deletedIds = new Set<string>();
+        try {
+          const deletedSaved = localStorage.getItem('jimpitan_rt_deleted_mutations');
+          if (deletedSaved) deletedIds = new Set(JSON.parse(deletedSaved));
+        } catch (e) {
+          // ignore
+        }
+
+        const validCloud = cloudMutations.filter((m) => !deletedIds.has(m.id));
+        const cloudIds = new Set(validCloud.map((m) => m.id));
+
+        // Keep all local mutations that haven't synced to cloud yet and weren't explicitly deleted
+        const pendingLocal = prevLocal.filter((m) => !cloudIds.has(m.id) && !deletedIds.has(m.id));
         
-        // If there are pending local mutations not in cloud yet, trigger background sync
+        // Background sync any pending local mutations to Firestore
         if (pendingLocal.length > 0) {
+          console.log(`📡 Syncing ${pendingLocal.length} pending local mutations to cloud...`);
           pendingLocal.forEach((mut) => {
-            addKasMutationCloud(mut).catch(console.error);
+            addKasMutationCloud(mut).catch((err) => console.warn('Retrying mutation sync later:', err));
           });
         }
         
-        const merged = [...pendingLocal, ...cloudMutations].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(merged));
+        const merged = [...pendingLocal, ...validCloud].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        try {
+          localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(merged));
+        } catch (e) {
+          console.warn('Failed to cache mutations in localStorage:', e);
+        }
         return merged;
       });
       setIsSyncing(false);
@@ -887,9 +908,26 @@ export default function App() {
       id: `mut-${Date.now()}`,
       createdAt: Date.now(),
     };
+
+    // Remove from deleted tracking if re-added
+    try {
+      const deletedSaved = localStorage.getItem('jimpitan_rt_deleted_mutations');
+      if (deletedSaved) {
+        const list: string[] = JSON.parse(deletedSaved);
+        const filtered = list.filter(dId => dId !== newMut.id);
+        localStorage.setItem('jimpitan_rt_deleted_mutations', JSON.stringify(filtered));
+      }
+    } catch (e) {
+      // ignore
+    }
+
     setKasMutations((prev) => {
-      const next = [newMut, ...prev];
-      localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      const next = [newMut, ...prev.filter(m => m.id !== newMut.id)];
+      try {
+        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Storage save error:', e);
+      }
       return next;
     });
     try {
@@ -902,7 +940,11 @@ export default function App() {
   const handleUpdateMutation = async (updated: KasMutation) => {
     setKasMutations((prev) => {
       const next = prev.map((m) => (m.id === updated.id ? updated : m));
-      localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Storage save error:', e);
+      }
       return next;
     });
     try {
@@ -913,9 +955,26 @@ export default function App() {
   };
 
   const handleDeleteMutation = async (id: string) => {
+    // Record in deleted set so snapshot doesn't resurrect it
+    try {
+      let deletedList: string[] = [];
+      const saved = localStorage.getItem('jimpitan_rt_deleted_mutations');
+      if (saved) deletedList = JSON.parse(saved);
+      if (!deletedList.includes(id)) {
+        deletedList.push(id);
+        localStorage.setItem('jimpitan_rt_deleted_mutations', JSON.stringify(deletedList));
+      }
+    } catch (e) {
+      // ignore
+    }
+
     setKasMutations((prev) => {
       const next = prev.filter((m) => m.id !== id);
-      localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Storage save error:', e);
+      }
       return next;
     });
     try {

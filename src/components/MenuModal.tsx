@@ -465,25 +465,25 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-sky-600 transition-colors flex-shrink-0" />
               </button>
 
-              {/* 2. Rekap Kas & Laporan */}
+              {/* 2. Direktori Data Warga (Read-Only) */}
               <button
                 onClick={() => {
-                  onNavigate('kas_rekap');
+                  onNavigate('data_warga');
                   onClose();
                 }}
                 className="w-full p-3 rounded-2xl bg-white border border-stone-200 hover:border-sky-300 hover:bg-stone-50/80 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
-                id="menu-item-kas-penginput"
+                id="menu-item-warga-penginput"
               >
                 <div className="flex items-center space-x-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <BarChart3 className="w-5 h-5" />
+                    <Users className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-stone-900 text-sm tracking-tight">
-                      Kas & Rekap Laporan
+                      Data Warga (Lihat & QR)
                     </h3>
                     <p className="text-xs text-stone-500 truncate">
-                      Buku kas, mutasi & rekap jimpitan
+                      Cari warga, lihat riwayat jimpitan & cetak QR
                     </p>
                   </div>
                 </div>
@@ -513,31 +513,6 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
-              </button>
-
-              {/* 4. Pengeluaran Kas Modal */}
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenPengeluaranKas();
-                }}
-                className="w-full p-3 rounded-2xl bg-white border border-stone-200 hover:border-rose-300 hover:bg-rose-50/40 flex items-center justify-between gap-3 text-left transition-all shadow-2xs cursor-pointer group"
-                id="menu-item-pengeluaran-kas-penginput"
-              >
-                <div className="flex items-center space-x-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
-                      Catat Pengeluaran Kas
-                    </h3>
-                    <p className="text-xs text-stone-500 truncate">
-                      Input belanja operasional ronda / fasum
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-rose-600 transition-colors flex-shrink-0" />
               </button>
 
               {/* 5. Switch to Petugas / Admin */}
