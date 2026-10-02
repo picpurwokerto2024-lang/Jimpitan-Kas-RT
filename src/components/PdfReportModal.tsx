@@ -35,7 +35,10 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   selectedDate,
 }) => {
   // Period filter state
-  const [currYear, currMonth] = selectedDate.split('-');
+  const safeDate = selectedDate || new Date().toISOString().split('T')[0];
+  const dateParts = safeDate.includes('-') ? safeDate.split('-') : [String(new Date().getFullYear()), String(new Date().getMonth() + 1).padStart(2, '0')];
+  const currYear = dateParts[0] || String(new Date().getFullYear());
+  const currMonth = dateParts[1] || String(new Date().getMonth() + 1).padStart(2, '0');
   const [selectedMonth, setSelectedMonth] = useState<string>(`${currYear}-${currMonth}`);
   const [filterType, setFilterType] = useState<'bulan' | 'hari' | 'semua'>('bulan');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);

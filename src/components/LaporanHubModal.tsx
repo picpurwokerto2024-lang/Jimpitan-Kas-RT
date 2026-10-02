@@ -80,15 +80,19 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     }
   }, [isOpen, initialTab]);
 
+  // Safe settings
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
+
   // Safe mutations list
   const safeMutations: KasMutation[] = useMemo(() => {
-    if (Array.isArray(allMutations)) return allMutations;
-    if (Array.isArray(kasMutations)) return kasMutations;
+    if (Array.isArray(allMutations)) return allMutations.filter(Boolean);
+    if (Array.isArray(kasMutations)) return kasMutations.filter(Boolean);
     return [];
   }, [allMutations, kasMutations]);
 
-  const safeWarga: Warga[] = useMemo(() => Array.isArray(allWarga) ? allWarga : [], [allWarga]);
-  const safeRecords: JimpitanRecord[] = useMemo(() => Array.isArray(allRecords) ? allRecords : [], [allRecords]);
+  const safeWarga: Warga[] = useMemo(() => Array.isArray(allWarga) ? allWarga.filter(Boolean) : [], [allWarga]);
+  const safeRecords: JimpitanRecord[] = useMemo(() => Array.isArray(allRecords) ? allRecords.filter(Boolean) : [], [allRecords]);
 
   // Selected Month & Year filter
   const today = new Date();
@@ -109,11 +113,11 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   if (!isOpen) return null;
 
   // Month label calculation
-  const [yearStr, monthStr] = selectedYearMonth.split('-');
-  const yearNum = parseInt(yearStr, 10) || today.getFullYear();
-  const monthNum = parseInt(monthStr, 10) || (today.getMonth() + 1);
-  const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
-  const monthName = new Date(yearNum, monthNum - 1, 1).toLocaleDateString('id-ID', { month: 'long' });
+  const ymParts = (selectedYearMonth || defaultYearMonth).split('-');
+  const yearNum = parseInt(ymParts[0], 10) || today.getFullYear();
+  const monthNum = parseInt(ymParts[1], 10) || (today.getMonth() + 1);
+  const daysInMonth = new Date(yearNum, monthNum, 0).getDate() || 30;
+  const monthName = new Date(yearNum, Math.max(0, monthNum - 1), 1).toLocaleDateString('id-ID', { month: 'long' });
   const activeMonthLabel = `${monthName} ${yearNum}`;
 
   // Previous month calculation
@@ -258,10 +262,14 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
 
   // Filtered warga list based on search & status filter
   const displayedWargaList = wargaAnalysisList.filter((item) => {
+    if (!item || !item.warga) return false;
+    const wNama = item.warga.nama || '';
+    const wNo = item.warga.nomorRumah || '';
+    const wBlok = item.warga.blok || '';
     const matchesSearch = 
-      item.warga.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.warga.nomorRumah.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.warga.blok && item.warga.blok.toLowerCase().includes(searchQuery.toLowerCase()));
+      wNama.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      wNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      wBlok.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
     if (statusFilter === 'underpaid') return item.status === 'underpaid';
@@ -270,107 +278,132 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     return true;
   });
 
-  // Export PDF Handlers
+  // Export PDF Handlers with safe try-catch
   const handleExportKasPdf = () => {
-    generateKasReportPdf({
-      records: filteredRecords,
-      mutations: filteredMutations,
-      settings,
-      periodText: activeMonthLabel,
-      totalSaldoKas: totalKasSaatIni,
-    });
+    try {
+      generateKasReportPdf({
+        records: filteredRecords,
+        mutations: filteredMutations,
+        settings,
+        periodText: activeMonthLabel,
+        totalSaldoKas: totalKasSaatIni,
+      });
+    } catch (e) {
+      console.error('Failed to generate Kas PDF:', e);
+      alert('Terjadi kendala saat membuat PDF. Pastikan browser mengizinkan unduhan file.');
+    }
   };
 
   const handleExportTunggakanPdf = () => {
-    const wargaTunggakanList = wargaAnalysisList.map((item) => ({
-      warga: item.warga,
-      tunggakanBulanLalu: item.nominalKurang,
-      depositBulanLalu: item.nominalLebih,
-      pelunasanBulanIni: item.totalTerbayar,
-      sisaTunggakanLalu: item.nominalKurang,
-      targetBulanIni: item.targetBulan,
-      terbayarBulanIni: item.totalTerbayar,
-      totalKewajibanBersih: item.nominalKurang > 0 ? item.nominalKurang : 0,
-    }));
+    try {
+      const wargaTunggakanList = wargaAnalysisList.map((item) => ({
+        warga: item.warga,
+        tunggakanBulanLalu: item.nominalKurang,
+        depositBulanLalu: item.nominalLebih,
+        pelunasanBulanIni: item.totalTerbayar,
+        sisaTunggakanLalu: item.nominalKurang,
+        targetBulanIni: item.targetBulan,
+        terbayarBulanIni: item.totalTerbayar,
+        totalKewajibanBersih: item.nominalKurang > 0 ? item.nominalKurang : 0,
+      }));
 
-    generateLaporanTunggakanPdf({
-      wargaTunggakanList,
-      summary: {
-        totalWarga: safeWarga.length,
-        totalWargaTertunggakLalu: countUnderpaid,
-        totalTunggakanBulanLalu: totalKurangBayarSemua,
-        totalPelunasanBulanIni: totalTerkumpulWarga,
-        totalSisaTunggakanLalu: totalKurangBayarSemua,
-        totalDepositBulanLalu: totalLebihBayarSemua,
-        persenPelunasan: totalTargetSemuaWarga > 0 ? Math.round((totalTerkumpulWarga / totalTargetSemuaWarga) * 100) : 0,
-      },
-      settings,
-      activeMonthLabel,
-      prevMonthLabel,
-      petugasName,
-      bendaharaName,
-      ketuaRtName,
-    });
+      generateLaporanTunggakanPdf({
+        wargaTunggakanList,
+        summary: {
+          totalWarga: safeWarga.length,
+          totalWargaTertunggakLalu: countUnderpaid,
+          totalTunggakanBulanLalu: totalKurangBayarSemua,
+          totalPelunasanBulanIni: totalTerkumpulWarga,
+          totalSisaTunggakanLalu: totalKurangBayarSemua,
+          totalDepositBulanLalu: totalLebihBayarSemua,
+          persenPelunasan: totalTargetSemuaWarga > 0 ? Math.round((totalTerkumpulWarga / totalTargetSemuaWarga) * 100) : 0,
+        },
+        settings,
+        activeMonthLabel,
+        prevMonthLabel,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Tunggakan PDF:', e);
+      alert('Terjadi kendala saat membuat PDF Tunggakan.');
+    }
   };
 
   const handleExportPemasukanPdf = () => {
-    generateLaporanPemasukanPdf({
-      records: filteredRecords,
-      mutationsMasuk: filteredMutationsMasuk,
-      settings,
-      periodText: activeMonthLabel,
-      totalJimpitan: totalJimpitanPeriod,
-      totalPemasukanLain,
-      totalPemasukanAll,
-      petugasName,
-      bendaharaName,
-      ketuaRtName,
-    });
+    try {
+      generateLaporanPemasukanPdf({
+        records: filteredRecords,
+        mutationsMasuk: filteredMutationsMasuk,
+        settings,
+        periodText: activeMonthLabel,
+        totalJimpitan: totalJimpitanPeriod,
+        totalPemasukanLain,
+        totalPemasukanAll,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Pemasukan PDF:', e);
+      alert('Terjadi kendala saat membuat PDF Pemasukan.');
+    }
   };
 
   const handleExportPengeluaranPdf = () => {
-    generateLaporanPengeluaranPdf({
-      mutationsKeluar: filteredMutationsKeluar,
-      settings,
-      periodText: activeMonthLabel,
-      totalPengeluaran: totalPengeluaranPeriod,
-      categoryBreakdown: expenseCategories,
-      petugasName,
-      bendaharaName,
-      ketuaRtName,
-    });
+    try {
+      generateLaporanPengeluaranPdf({
+        mutationsKeluar: filteredMutationsKeluar,
+        settings,
+        periodText: activeMonthLabel,
+        totalPengeluaran: totalPengeluaranPeriod,
+        categoryBreakdown: expenseCategories,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Pengeluaran PDF:', e);
+      alert('Terjadi kendala saat membuat PDF Pengeluaran.');
+    }
   };
 
   const handleExportBulananMatriksPdf = () => {
-    generateWargaMonthlyReportPdf({
-      wargaData: wargaAnalysisList,
-      activeYearMonth: selectedYearMonth,
-      activeMonthLabel,
-      settings,
-      daysInMonth,
-      summaryKpis: {
-        totalTarget: totalTargetSemuaWarga,
-        totalTerkumpul: totalTerkumpulWarga,
-        percentTerkumpul: totalTargetSemuaWarga > 0 ? Math.round((totalTerkumpulWarga / totalTargetSemuaWarga) * 100) : 0,
-        totalKurangBayar: totalKurangBayarSemua,
-        totalLebihBayar: totalLebihBayarSemua,
-        totalWarga: safeWarga.length,
-        countLunasAtauLebih: countExact + countOverpaid,
-        countExact,
-        countUnderpaid,
-        countOverpaid,
-      },
-      matrixCellDisplay: 'nominal_k',
-      includeMatrixTable: true,
-      petugasName,
-      bendaharaName,
-      ketuaRtName,
-    });
+    try {
+      generateWargaMonthlyReportPdf({
+        wargaData: wargaAnalysisList,
+        activeYearMonth: selectedYearMonth,
+        activeMonthLabel,
+        settings,
+        daysInMonth,
+        summaryKpis: {
+          totalTarget: totalTargetSemuaWarga,
+          totalTerkumpul: totalTerkumpulWarga,
+          percentTerkumpul: totalTargetSemuaWarga > 0 ? Math.round((totalTerkumpulWarga / totalTargetSemuaWarga) * 100) : 0,
+          totalKurangBayar: totalKurangBayarSemua,
+          totalLebihBayar: totalLebihBayarSemua,
+          totalWarga: safeWarga.length,
+          countLunasAtauLebih: countExact + countOverpaid,
+          countExact,
+          countUnderpaid,
+          countOverpaid,
+        },
+        matrixCellDisplay: 'nominal_k',
+        includeMatrixTable: true,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Bulanan Matriks PDF:', e);
+      alert('Terjadi kendala saat membuat PDF Matriks Bulanan.');
+    }
   };
 
   // WhatsApp broadcast template generator
   const handleShareWaSummary = () => {
-    let text = `*📊 LAPORAN RESMI KAS & JIMPITAN ${settings.namaRt} / ${settings.namaRw}*\n`;
+    let text = `*📊 LAPORAN RESMI KAS & JIMPITAN ${safeRt} / ${safeRw}*\n`;
     text += `*Periode:* ${activeMonthLabel}\n`;
     text += `*Desa Pliken, Kec. Kembaran*\n\n`;
 
@@ -407,7 +440,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[92vh] my-auto">
+      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col h-[94vh] max-h-[94vh] sm:h-auto sm:max-h-[92vh] my-auto">
         
         {/* HEADER */}
         <div className="px-5 py-4 bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white flex items-center justify-between border-b border-sky-800/40">
@@ -425,7 +458,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-sky-200/80 font-medium">
-                {settings.namaRt} / {settings.namaRw} Desa Pliken, Kembaran
+                {safeRt} / {safeRw} Desa Pliken, Kembaran
               </p>
             </div>
           </div>

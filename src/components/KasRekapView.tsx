@@ -298,12 +298,15 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const [editRecCatatan, setEditRecCatatan] = useState<string>('');
 
   // Total Kas & Monthly Rollover Calculations
-  const [currYear, currMonth] = selectedDate.split('-');
+  const safeDate = selectedDate || liveToday || getTodayDateIso();
+  const dateParts = safeDate.includes('-') ? safeDate.split('-') : getTodayDateIso().split('-');
+  const currYear = dateParts[0] || String(new Date().getFullYear());
+  const currMonth = dateParts[1] || String(new Date().getMonth() + 1).padStart(2, '0');
   const currentYearMonth = `${currYear}-${currMonth}`;
-  const currMonthName = new Date(Number(currYear), Number(currMonth) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const currMonthName = new Date(Number(currYear) || new Date().getFullYear(), Math.max(0, (Number(currMonth) || 1) - 1), 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
   // 1. Master Base Saldo Awal from Settings
-  const masterSaldoAwal = Number(settings.saldoAwalKas) || 0;
+  const masterSaldoAwal = Number(settings?.saldoAwalKas) || 0;
 
   // 2. Akumulasi Seluruh Transaksi Lampau Sebelum Bulan Aktif (< currentYearMonth)
   const pastJimpitan = useMemo(() => {
