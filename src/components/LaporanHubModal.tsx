@@ -287,6 +287,9 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         settings,
         periodText: activeMonthLabel,
         totalSaldoKas: totalKasSaatIni,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
       });
     } catch (e) {
       console.error('Failed to generate Kas PDF:', e);

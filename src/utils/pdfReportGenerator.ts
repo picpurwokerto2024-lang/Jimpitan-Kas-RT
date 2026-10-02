@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Warga, JimpitanRecord, KasMutation, AppSettings } from '../types';
 import { formatRupiah, formatTanggalIndo, formatCompactNominal, formatMatrixNominalFull } from './formatters';
 
-interface GeneratePdfOptions {
+export interface GeneratePdfOptions {
   records: JimpitanRecord[];
   mutations: KasMutation[];
   settings: AppSettings;
@@ -11,6 +11,9 @@ interface GeneratePdfOptions {
   selectedMonthYear?: string;
   totalSaldoKas: number;
   saldoAwalPeriode?: number;
+  petugasName?: string;
+  bendaharaName?: string;
+  ketuaRtName?: string;
 }
 
 export const generateKasReportPdf = ({
@@ -20,6 +23,9 @@ export const generateKasReportPdf = ({
   periodText,
   totalSaldoKas,
   saldoAwalPeriode,
+  petugasName,
+  bendaharaName,
+  ketuaRtName,
 }: GeneratePdfOptions) => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -248,34 +254,50 @@ export const generateKasReportPdf = ({
   const signColWidth = (pageWidth - margin * 2) / 3;
   const signTop = signY + 6;
 
-  // Sign 1: Ketua RT 08
+  // Sign 1: Petugas / Penarik Jimpitan (Kiri)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('Ketua RT 08 RW 06', margin + signColWidth / 2, signTop, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+  doc.text('Petugas / Penarik Jimpitan', margin + signColWidth / 2, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Desa Pliken, Kembaran', margin + signColWidth / 2, signTop + 4, { align: 'center' });
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Koordinator Lapangan ${settings.namaRt} / ${settings.namaRw}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+  const displayPetugas = (petugasName || '').trim() ? `( ${petugasName!.trim()} )` : '( ....................................... )';
+  doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-  // Sign 2: Bendahara RT
+  // Sign 2: Bendahara RT (Tengah)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
   doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
   doc.text('Pengelola Kas Jimpitan', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+  const displayBendahara = (bendaharaName || settings.namaBendahara || '').trim() ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` : '( ....................................... )';
+  doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
-  // Sign 3: Koordinator Petugas
-  doc.text('Koordinator Petugas', margin + signColWidth * 2.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text('Petugas Lapangan', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+  // Sign 3: Ketua RT (Kanan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('( ....................................... )', margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  const displayKetua = (ketuaRtName || settings.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` : '( ....................................... )';
+  doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
 
   // Footer on all pages
   const totalPages = doc.getNumberOfPages();

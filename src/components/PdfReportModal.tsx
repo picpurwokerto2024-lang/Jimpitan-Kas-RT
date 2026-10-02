@@ -443,8 +443,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
 
               <div className="grid grid-cols-3 text-center text-xs">
                 <div>
-                  <p className="font-bold text-stone-800">Ketua RT 08 RW 06</p>
-                  <p className="text-[10px] text-stone-500">Desa Pliken Kembaran</p>
+                  <p className="font-bold text-stone-800">Petugas / Penarik Jimpitan</p>
+                  <p className="text-[10px] text-stone-500">Petugas Lapangan RT</p>
                   <div className="h-16"></div>
                   <p className="font-bold text-stone-900 border-b border-stone-400 inline-block px-4">
                     ( .................................... )
@@ -461,8 +461,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                 </div>
 
                 <div>
-                  <p className="font-bold text-stone-800">Koordinator Petugas</p>
-                  <p className="text-[10px] text-stone-500">Petugas Lapangan</p>
+                  <p className="font-bold text-stone-800">Ketua RT 08 RW 06</p>
+                  <p className="text-[10px] text-stone-500">Mengetahui & Menyetujui</p>
                   <div className="h-16"></div>
                   <p className="font-bold text-stone-900 border-b border-stone-400 inline-block px-4">
                     ( .................................... )
