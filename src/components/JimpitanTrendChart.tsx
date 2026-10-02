@@ -106,6 +106,7 @@ export const JimpitanTrendChart: React.FC<JimpitanTrendChartProps> = ({
     // Sort by day number
     return Array.from(map.entries())
       .map(([name, val]) => ({
+        key: name,
         name,
         total: val.total,
         count: val.count,

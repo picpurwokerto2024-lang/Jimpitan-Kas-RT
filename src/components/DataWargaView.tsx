@@ -547,7 +547,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
           {/* List of Residents */}
           <div className="space-y-2.5">
             {filtered.map((warga) => {
-              const stats = residentMonthlyStatsMap.get(warga.id) || residentMonthlyStatsMap.get(`no_${warga.nomorRumah}`) || { totalThisMonth: 0, countThisMonth: 0, paidToday: false };
+              const stats = residentMonthlyStatsMap.get(warga.id) || residentMonthlyStatsMap.get(`no_${warga.nomorRumah}`) || { totalThisMonth: 0, countThisMonth: 0, paidToday: false, isMonthlyLunas: false, isWeeklyLunas: false };
 
               return (
                 <div

@@ -57,6 +57,8 @@ export interface AppSettings {
   namaRt: string; // e.g. "RT 01"
   namaRw: string; // e.g. "RW 01"
   lingkungan: string; // e.g. "Kelurahan Purwokerto"
+  namaKetuaRt?: string;
+  namaBendahara?: string;
   defaultNominal: number; // e.g. 1000
   saldoAwalKas?: number; // Saldo awal kas RT (Rp)
   pinAdmin: string; // e.g. "1234"

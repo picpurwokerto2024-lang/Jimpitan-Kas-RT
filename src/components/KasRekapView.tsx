@@ -293,7 +293,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   // Form for editing Jimpitan Record
   const [editRecNominal, setEditRecNominal] = useState<number>(1000);
-  const [editRecStatus, setEditRecStatus] = useState<string>('sukses');
+  const [editRecStatus, setEditRecStatus] = useState<'sukses' | 'kosong' | 'titip' | 'lewat'>('sukses');
   const [editRecPetugas, setEditRecPetugas] = useState<string>('');
   const [editRecCatatan, setEditRecCatatan] = useState<string>('');
 
@@ -396,10 +396,10 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = record.namaWarga.toLowerCase().includes(q);
-      const matchNum = record.nomorRumah.toLowerCase().includes(q);
-      const matchPetugas = record.petugas.toLowerCase().includes(q);
-      const matchRegu = record.reguNama.toLowerCase().includes(q);
+      const matchName = (record.namaWarga || '').toLowerCase().includes(q);
+      const matchNum = (record.nomorRumah || '').toLowerCase().includes(q);
+      const matchPetugas = (record.petugas || '').toLowerCase().includes(q);
+      const matchRegu = (record.reguNama || '').toLowerCase().includes(q);
       if (!matchName && !matchNum && !matchPetugas && !matchRegu) {
         return false;
       }
@@ -407,7 +407,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     return true;
   });
 
-  const totalFilteredNominal = filteredRecords.reduce((sum, r) => sum + r.nominal, 0);
+  const totalFilteredNominal = filteredRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
 
   // Period-aware Mutations (Menampilkan seluruh catatan pengeluaran & mutasi kas dalam 1 bulan berjalan disemua mode)
   const periodMutations = useMemo(() => {
@@ -1418,7 +1418,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 </label>
                 <select
                   value={editRecStatus}
-                  onChange={(e) => setEditRecStatus(e.target.value)}
+                  onChange={(e) => setEditRecStatus(e.target.value as 'sukses' | 'kosong' | 'titip' | 'lewat')}
                   className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-300 text-stone-800 text-xs font-bold outline-none"
                 >
                   <option value="sukses">Sukses (Ada Uang)</option>

@@ -37,6 +37,7 @@ import { ThemeModal } from './components/ThemeModal';
 import { ModeSelectorModal } from './components/ModeSelectorModal';
 import { LaporanHubModal, LaporanTabKey } from './components/LaporanHubModal';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppTheme, initializeAppTheme } from './utils/themeManager';
 import { getTodayDateIso, formatTanggalIndo } from './utils/formatters';
 import { 
@@ -1310,30 +1311,32 @@ export default function App() {
 
           {/* TAB 2: KAS & REKAP */}
           {activeTab === 'kas_rekap' && (
-            <KasRekapView
-              allRecords={allRecords}
-              kasMutations={kasMutations}
-              wargaList={wargaList}
-              onAddMutation={handleAddMutation}
-              onUpdateMutation={handleUpdateMutation}
-              onDeleteMutation={handleDeleteMutation}
-              onUpdateRecord={handleUpdateRecord}
-              onDeleteRecord={handleDeleteRecord}
-              onDeleteSeptemberData={handleDeleteSeptemberData}
-              onPurgeArchiveAndDemoData={handlePurgeArchiveAndDemoData}
-              onUpdateWarga={handleUpdateWarga}
-              reguList={reguList}
-              settings={settings}
-              selectedDate={selectedDate}
-              onOpenShareModal={() => handleOpenShareModal('laporan')}
-              onSelectDate={setSelectedDate}
-              onResetToToday={handleResetToTodayDate}
-              isAdmin={isAdminUnlocked}
-              appMode={appMode}
-              theme={themeState.theme}
-              activePresences={activePresences}
-              currentPetugas={petugasNama}
-            />
+            <ErrorBoundary fallbackTitle="Kendala Memuat Buku Kas RT">
+              <KasRekapView
+                allRecords={allRecords}
+                kasMutations={kasMutations}
+                wargaList={wargaList}
+                onAddMutation={handleAddMutation}
+                onUpdateMutation={handleUpdateMutation}
+                onDeleteMutation={handleDeleteMutation}
+                onUpdateRecord={handleUpdateRecord}
+                onDeleteRecord={handleDeleteRecord}
+                onDeleteSeptemberData={handleDeleteSeptemberData}
+                onPurgeArchiveAndDemoData={handlePurgeArchiveAndDemoData}
+                onUpdateWarga={handleUpdateWarga}
+                reguList={reguList}
+                settings={settings}
+                selectedDate={selectedDate}
+                onOpenShareModal={() => handleOpenShareModal('laporan')}
+                onSelectDate={setSelectedDate}
+                onResetToToday={handleResetToTodayDate}
+                isAdmin={isAdminUnlocked}
+                appMode={appMode}
+                theme={themeState.theme}
+                activePresences={activePresences}
+                currentPetugas={petugasNama}
+              />
+            </ErrorBoundary>
           )}
 
           {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA (KHUSUS ADMIN / PETUGAS) */}
@@ -1630,20 +1633,24 @@ export default function App() {
       />
 
       {/* Pusat Laporan & Rekapitulasi RT Modal */}
-      <LaporanHubModal
-        isOpen={isLaporanHubOpen}
-        onClose={() => setIsLaporanHubOpen(false)}
-        initialTab={laporanHubInitialTab}
-        allWarga={wargaList}
-        allRecords={allRecords}
-        kasMutations={kasMutations}
-        settings={settings}
-        selectedDate={selectedDate}
-        reguList={reguList}
-        activeReguId={selectedReguId}
-        saldoKas={saldoKas}
-        onOpenShareModal={() => handleOpenShareModal('laporan')}
-      />
+      {isLaporanHubOpen && (
+        <ErrorBoundary fallbackTitle="Kendala Membuka Pusat Laporan RT">
+          <LaporanHubModal
+            isOpen={isLaporanHubOpen}
+            onClose={() => setIsLaporanHubOpen(false)}
+            initialTab={laporanHubInitialTab}
+            allWarga={wargaList}
+            allRecords={allRecords}
+            kasMutations={kasMutations}
+            settings={settings}
+            selectedDate={selectedDate}
+            reguList={reguList}
+            activeReguId={selectedReguId}
+            saldoKas={saldoKas}
+            onOpenShareModal={() => handleOpenShareModal('laporan')}
+          />
+        </ErrorBoundary>
+      )}
 
       {/* Exit Toast Notification (Tekan kembali 2 kali pada HP untuk keluar) */}
       {showExitToast && (
