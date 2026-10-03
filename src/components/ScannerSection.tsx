@@ -80,6 +80,51 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
   const [activeTab, setActiveTab] = useState<'camera' | 'pilih_rumah' | 'log'>('camera');
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Live real-time clock state (Hours:Minutes:Seconds WIB)
+  const [liveClock, setLiveClock] = useState<string>(() => {
+    const now = new Date();
+    return now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  });
+
+  const [liveDateFormatted, setLiveDateFormatted] = useState<string>(() => {
+    const now = new Date();
+    return now.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setLiveClock(
+        now.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+      setLiveDateFormatted(
+        now.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
   
   // Search & Filter in "Pilih Rumah"
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -334,6 +379,41 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
 
   return (
     <div className="w-full space-y-4" id="scanner-section-root">
+      {/* Live Digital Clock & Patrol Status Widget */}
+      <div className="p-3.5 sm:p-4 bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 rounded-3xl border border-sky-800/40 text-white shadow-md flex items-center justify-between gap-3 relative overflow-hidden">
+        <div className="flex items-center space-x-3 min-w-0 z-10">
+          <div className="w-11 h-11 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300 flex-shrink-0 shadow-inner">
+            <Clock className="w-5 h-5 animate-pulse text-sky-300" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="text-lg sm:text-xl font-black font-mono tracking-tight text-white">
+                {liveClock}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/20 border border-sky-400/30 text-[10px] font-black text-sky-300 uppercase tracking-wider">
+                WIB
+              </span>
+            </div>
+            <p className="text-[11px] text-sky-200/80 font-medium truncate capitalize">
+              {liveDateFormatted}
+            </p>
+          </div>
+        </div>
+
+        <div className="text-right z-10 flex flex-col items-end flex-shrink-0">
+          <div className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block mr-0.5" />
+            <span>Ronda Aktif</span>
+          </div>
+          <p className="text-[10px] text-stone-300 font-semibold mt-1 truncate max-w-[140px] sm:max-w-[180px]">
+            {currentReguNama || 'Regu Ronda'} • {currentPetugas || 'Petugas'}
+          </p>
+        </div>
+
+        {/* Subtle background glow */}
+        <div className="absolute -right-6 -top-6 w-24 h-24 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+      </div>
+
       {/* Alert banner when scanning / recording for past date */}
       {isPastDate && (
         <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
@@ -425,6 +505,12 @@ export const ScannerSection: React.FC<ScannerSectionProps> = ({
             <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-sky-400 rounded-tr-md pointer-events-none" />
             <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-sky-400 rounded-bl-md pointer-events-none" />
             <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-sky-400 rounded-br-md pointer-events-none" />
+
+            {/* Live HUD Timestamp */}
+            <div className="absolute top-3.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-950/80 border border-sky-500/40 text-[10px] font-mono font-bold text-sky-300 flex items-center space-x-1.5 shadow-md pointer-events-none z-20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{liveClock} WIB</span>
+            </div>
 
             {!isCameraActive ? (
               <div className="space-y-4 max-w-sm mx-auto z-10 flex flex-col items-center">
