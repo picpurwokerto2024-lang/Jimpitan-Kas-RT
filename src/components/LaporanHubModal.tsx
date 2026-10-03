@@ -33,6 +33,7 @@ import {
   generateLaporanPemasukanPdf,
   generateLaporanPengeluaranPdf
 } from '../utils/pdfReportGenerator';
+import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
 
 export type LaporanTabKey = 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan';
 
@@ -278,7 +279,26 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     return true;
   });
 
-  // Export PDF Handlers with safe try-catch
+  // Export Handlers with safe try-catch
+  const handleExportKasExcel = async () => {
+    try {
+      await generateKasReportExcel({
+        records: filteredRecords,
+        mutations: filteredMutations,
+        settings,
+        periodText: activeMonthLabel,
+        totalSaldoKas: totalKasSaatIni,
+        saldoAwalPeriode: 0,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Kas Excel:', e);
+      alert('Terjadi kendala saat membuat file Excel.');
+    }
+  };
+
   const handleExportKasPdf = () => {
     try {
       generateKasReportPdf({
@@ -369,6 +389,23 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     } catch (e) {
       console.error('Failed to generate Pengeluaran PDF:', e);
       alert('Terjadi kendala saat membuat PDF Pengeluaran.');
+    }
+  };
+
+  const handleExportBulananMatriksExcel = async () => {
+    try {
+      await generateWargaMonthlyReportExcel({
+        wargaData: wargaAnalysisList,
+        settings,
+        activeMonthLabel,
+        daysInMonth,
+        petugasName,
+        bendaharaName,
+        ketuaRtName,
+      });
+    } catch (e) {
+      console.error('Failed to generate Bulanan Matriks Excel:', e);
+      alert('Terjadi kendala saat membuat file Excel Matriks Bulanan.');
     }
   };
 
@@ -650,13 +687,23 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
             </button>
 
             {activeTab === 'kas' && (
-              <button
-                onClick={handleExportKasPdf}
-                className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF Kas</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={handleExportKasExcel}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Unduh Lembar Kerja Excel (.xlsx) Lengkap Kop Surat & 3 TTD"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Excel Kas (.xlsx)</span>
+                </button>
+                <button
+                  onClick={handleExportKasPdf}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak PDF Kas</span>
+                </button>
+              </div>
             )}
 
             {activeTab === 'tunggakan' && (
@@ -690,13 +737,23 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
             )}
 
             {activeTab === 'bulanan' && (
-              <button
-                onClick={handleExportBulananMatriksPdf}
-                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF Matriks (1-31)</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={handleExportBulananMatriksExcel}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Unduh Lembar Kerja Excel (.xlsx) Matriks 1-31 Lengkap Kop Surat & 3 TTD"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Excel Matriks (.xlsx)</span>
+                </button>
+                <button
+                  onClick={handleExportBulananMatriksPdf}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak PDF Matriks (1-31)</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

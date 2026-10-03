@@ -11,11 +11,13 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Users,
-  ShieldCheck
+  ShieldCheck,
+  FileSpreadsheet
 } from 'lucide-react';
 import { JimpitanRecord, KasMutation, AppSettings } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
 import { generateKasReportPdf } from '../utils/pdfReportGenerator';
+import { generateKasReportExcel } from '../utils/excelReportGenerator';
 
 interface PdfReportModalProps {
   isOpen: boolean;
@@ -131,6 +133,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
     periodText = 'Semua Waktu (Kumulatif Keseluruhan)';
   }
 
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState<boolean>(false);
+
   const handleDownloadPdf = () => {
     setIsGenerating(true);
     try {
@@ -147,6 +151,25 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       alert('Gagal membuat PDF. Silakan gunakan tombol Cetak Langsung.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsGeneratingExcel(true);
+    try {
+      await generateKasReportExcel({
+        records: filteredRecords,
+        mutations: filteredMutations,
+        settings,
+        periodText,
+        totalSaldoKas: displaySaldoKasBersih,
+        saldoAwalPeriode: filterType === 'bulan' ? displaySaldoAwal : 0,
+      });
+    } catch (err) {
+      console.error('Error generating Excel:', err);
+      alert('Gagal membuat file Excel.');
+    } finally {
+      setIsGeneratingExcel(false);
     }
   };
 
@@ -480,12 +503,21 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
             Kop Surat: <strong>RT 08 RW 06 Desa Pliken, Kembaran</strong>
           </p>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 text-xs font-bold hover:bg-stone-100 transition-colors cursor-pointer"
             >
               Tutup
+            </button>
+            <button
+              onClick={handleDownloadExcel}
+              disabled={isGeneratingExcel}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+              title="Unduh Lembar Kerja Excel (.xlsx) Rapi Lengkap dengan Kop Surat & 3 Tanda Tangan"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+              <span>{isGeneratingExcel ? 'Menyiapkan...' : 'Download Excel (.xlsx)'}</span>
             </button>
             <button
               onClick={handleDownloadPdf}

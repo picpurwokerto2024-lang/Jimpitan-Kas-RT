@@ -1328,6 +1328,7 @@ export default function App() {
                 settings={settings}
                 selectedDate={selectedDate}
                 onOpenShareModal={() => handleOpenShareModal('laporan')}
+                onOpenLaporanHub={handleOpenLaporanHub}
                 onSelectDate={setSelectedDate}
                 onResetToToday={handleResetToTodayDate}
                 isAdmin={isAdminUnlocked}
