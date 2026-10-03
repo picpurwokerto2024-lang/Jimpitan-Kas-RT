@@ -34,6 +34,7 @@ import { formatRupiah } from '../utils/formatters';
 import { WargaDetailHistoryModal } from './WargaDetailHistoryModal';
 import { LaporanBulananWargaView } from './LaporanBulananWargaView';
 import { InputJimpitanMingguanModal } from './InputJimpitanMingguanModal';
+import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
 import { checkWargaDuplicate } from '../utils/wargaDeduplicator';
 
 interface DataWargaViewProps {
@@ -899,69 +900,13 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 3: BATCH PRINT ALL QR CARDS (GRID A4) */}
-      {isBatchPrintOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-4xl w-full p-6 space-y-5 my-auto max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-              <div>
-                <h3 className="font-bold text-stone-900 text-lg">
-                  Cetak Lembar Kartu QR Seluruh Warga
-                </h3>
-                <p className="text-xs text-stone-500">
-                  Siap dicetak di kertas A4 untuk dipotong dan ditempel di depan rumah warga.
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak Lembar A4</span>
-                </button>
-                <button
-                  onClick={() => setIsBatchPrintOpen(false)}
-                  className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Grid of QR cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-2 bg-stone-50 rounded-2xl border border-stone-200">
-              {wargaList.map((w) => (
-                <div
-                  key={w.id}
-                  className="bg-white p-3 rounded-xl border-2 border-sky-500 text-center space-y-1.5 shadow-2xs"
-                >
-                  <div className="border-b border-sky-100 pb-1">
-                    <span className="text-[8px] font-extrabold uppercase tracking-wider text-sky-800 block">
-                      JIMPITAN {settings.namaRt}
-                    </span>
-                  </div>
-
-                  <div className="w-24 h-24 mx-auto bg-white p-1 rounded-lg border border-sky-200 flex items-center justify-center">
-                    {batchQrUrls[w.id] ? (
-                      <img src={batchQrUrls[w.id]} alt={`QR ${w.nomorRumah}`} className="w-full h-full object-contain" />
-                    ) : (
-                      <div className="w-full h-full bg-stone-100 animate-pulse rounded" />
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="text-xl font-extrabold text-stone-900 leading-none">
-                      NO. {w.nomorRumah}
-                    </div>
-                    <p className="text-[10px] font-bold text-stone-700 truncate">{w.nama}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL 3: BATCH PRINT & DOWNLOAD ALL QR CARDS (WITH SIZE CUSTOMIZATION & PDF) */}
+      <CetakQrBarcodeModal
+        isOpen={isBatchPrintOpen}
+        onClose={() => setIsBatchPrintOpen(false)}
+        wargaList={wargaList}
+        settings={settings}
+      />
 
       {/* MODAL 4: DETAIL RIWAYAT & STATUS PEMBAYARAN JIMPITAN WARGA */}
       <WargaDetailHistoryModal

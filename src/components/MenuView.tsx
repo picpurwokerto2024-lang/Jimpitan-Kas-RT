@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
 import { PdfReportModal } from './PdfReportModal';
+import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
 
 interface MenuViewProps {
   settings: AppSettings;
@@ -101,6 +102,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   // PDF Preview & Excel Export states
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [isCetakQrModalOpen, setIsCetakQrModalOpen] = useState<boolean>(false);
   const [isExportingKasExcel, setIsExportingKasExcel] = useState<boolean>(false);
   const [isExportingMatriksExcel, setIsExportingMatriksExcel] = useState<boolean>(false);
 
@@ -532,6 +534,28 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-indigo-300" />
+            </button>
+
+            {/* 6. Cetak & Unduh QR Barcode Warga (Bisa Edit Ukuran) */}
+            <button
+              onClick={() => setIsCetakQrModalOpen(true)}
+              className="w-full p-3 rounded-2xl bg-sky-500/25 hover:bg-sky-500/35 border border-sky-400/40 flex items-center justify-between text-left transition-all cursor-pointer group"
+              id="btn-menu-cetak-qr-barcode"
+            >
+              <div className="flex items-center space-x-2.5 text-sky-200">
+                <div className="p-1.5 rounded-xl bg-sky-400/20 text-sky-300 group-hover:scale-110 transition-transform">
+                  <QrCode className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-white block leading-tight">
+                    Cetak & Unduh QR Barcode Warga (Siap Cetak A4)
+                  </span>
+                  <span className="text-[10px] text-sky-200/80">
+                    Bisa atur ukuran barcode (Kecil/Sedang/Besar), pilih rumah & unduh PDF
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-sky-300" />
             </button>
           </div>
         )}
@@ -1225,6 +1249,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
         kasMutations={allMutations}
         settings={settings}
         selectedDate={new Date().toISOString().split('T')[0]}
+      />
+
+      {/* CETAK & UNDUH LEMBAR QR BARCODE WARGA (MODAL DENGAN PENGATURAN UKURAN) */}
+      <CetakQrBarcodeModal
+        isOpen={isCetakQrModalOpen}
+        onClose={() => setIsCetakQrModalOpen(false)}
+        wargaList={allWarga}
+        settings={settings}
       />
     </div>
   );
