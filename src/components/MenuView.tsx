@@ -36,8 +36,11 @@ import {
   TrendingUp, 
   TrendingDown, 
   Calendar as CalendarIcon, 
-  FileSpreadsheet
+  FileSpreadsheet,
+  Share2
 } from 'lucide-react';
+import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
+import { PdfReportModal } from './PdfReportModal';
 
 interface MenuViewProps {
   settings: AppSettings;
@@ -57,6 +60,7 @@ interface MenuViewProps {
   onOpenPanduan: () => void;
   onOpenInstallModal?: () => void;
   onOpenLaporanHub?: (tab?: LaporanTabKey) => void;
+  onOpenShareModal?: (tab?: 'laporan' | 'pengingat') => void;
   onLockApp: () => void;
   isAdminUnlocked?: boolean;
   onUnlockAdmin?: (pin: string) => boolean;
@@ -81,6 +85,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onOpenPanduan,
   onOpenInstallModal,
   onOpenLaporanHub,
+  onOpenShareModal,
   onLockApp,
   isAdminUnlocked = false,
   onUnlockAdmin,
@@ -93,6 +98,98 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [inputPin, setInputPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [showPin, setShowPin] = useState<boolean>(false);
+
+  // PDF Preview & Excel Export states
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [isExportingKasExcel, setIsExportingKasExcel] = useState<boolean>(false);
+  const [isExportingMatriksExcel, setIsExportingMatriksExcel] = useState<boolean>(false);
+
+  const handleExportKasExcel = async () => {
+    setIsExportingKasExcel(true);
+    try {
+      const now = new Date();
+      const currMonthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      const filteredRecs = allRecords.filter((r) => r.tanggal && r.tanggal.startsWith(currentYearMonth));
+      const filteredMuts = allMutations.filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        return tgl.startsWith(currentYearMonth);
+      });
+
+      const totalKas = (Number(settings.saldoAwalKas) || 0) + 
+        allRecords.reduce((s, r) => s + (r.nominal || 0), 0) + 
+        allMutations.filter((m) => m.jenis === 'masuk').reduce((s, m) => s + (m.nominal || 0), 0) - 
+        allMutations.filter((m) => m.jenis === 'keluar').reduce((s, m) => s + (m.nominal || 0), 0);
+
+      await generateKasReportExcel({
+        records: filteredRecs.length > 0 ? filteredRecs : allRecords,
+        mutations: filteredMuts.length > 0 ? filteredMuts : allMutations,
+        settings,
+        periodText: currMonthLabel,
+        totalSaldoKas: totalKas,
+        saldoAwalPeriode: Number(settings.saldoAwalKas) || 0,
+      });
+    } catch (err) {
+      console.error('Error generating Excel in Menu:', err);
+      alert('Terjadi kendala saat mengunduh Excel.');
+    } finally {
+      setIsExportingKasExcel(false);
+    }
+  };
+
+  const handleExportMatriksExcel = async () => {
+    setIsExportingMatriksExcel(true);
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const currMonthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      const currentYearMonth = `${year}-${String(month).padStart(2, '0')}`;
+
+      const targetPerDay = Number(settings.defaultNominal) || 1000;
+      const targetBulanPerWarga = targetPerDay * daysInMonth;
+
+      const wargaData = allWarga.map((warga) => {
+        const wargaRecs = allRecords.filter((r) => r.nomorRumah === warga.nomorRumah && r.tanggal.startsWith(currentYearMonth));
+        const dailyAmounts: { [day: number]: number } = {};
+        let total = 0;
+        let countDays = 0;
+
+        wargaRecs.forEach((r) => {
+          const d = parseInt(r.tanggal.split('-')[2], 10);
+          if (d >= 1 && d <= daysInMonth) {
+            dailyAmounts[d] = (dailyAmounts[d] || 0) + r.nominal;
+            total += r.nominal;
+            if (r.status === 'sukses') countDays++;
+          }
+        });
+
+        return {
+          warga,
+          totalAmount: total,
+          countDays,
+          dailyAmounts,
+          isTargetMet: total >= targetBulanPerWarga,
+          isOverTarget: total > targetBulanPerWarga,
+          difference: total - targetBulanPerWarga,
+        };
+      });
+
+      await generateWargaMonthlyReportExcel({
+        wargaData,
+        settings,
+        activeMonthLabel: currMonthLabel,
+        daysInMonth,
+      });
+    } catch (err) {
+      console.error('Error generating Matriks Excel in Menu:', err);
+      alert('Terjadi kendala saat mengunduh Excel Matriks.');
+    } finally {
+      setIsExportingMatriksExcel(false);
+    }
+  };
 
   // Quick Dedicated Change PIN state
   const [currentPinInput, setCurrentPinInput] = useState<string>('');
@@ -247,112 +344,197 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
       {/* 2. Menu Item Cards */}
       <div className="space-y-3">
-        {/* === PROMINENT LAPORAN & REKAPITULASI RT SECTION === */}
-        <div className="p-4 rounded-3xl bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white border border-sky-800/40 shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-            <div className="flex items-center space-x-2.5">
-              <div className="p-2 rounded-xl bg-sky-500/20 text-sky-300">
-                <FileText className="w-5 h-5" />
+        {/* === PROMINENT LAPORAN & REKAPITULASI RT SECTION (KHUSUS MODE ADMIN / PETUGAS) === */}
+        {isAdminUnlocked && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white border border-sky-800/40 shadow-md space-y-3.5 animate-in fade-in" id="menu-laporan-admin-section">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-sky-500/20 text-sky-300">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-black text-base text-white tracking-tight">
+                      Laporan & Rekapitulasi RT
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-extrabold">
+                      Mode Admin
+                    </span>
+                  </div>
+                  <p className="text-xs text-sky-200/70">
+                    Cetak PDF 3 Tanda Tangan, Unduh Excel (.xlsx) & Bagikan WA
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-base text-white tracking-tight">
-                  Laporan & Rekapitulasi RT
-                </h3>
-                <p className="text-xs text-sky-200/70">
-                  Pusat cetak PDF & rincian pertanggungjawaban
-                </p>
-              </div>
+
+              {onOpenLaporanHub && (
+                <button
+                  onClick={() => onOpenLaporanHub('kas')}
+                  className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-extrabold text-xs flex items-center space-x-1 shadow-xs transition-colors cursor-pointer"
+                  title="Buka Pusat Hub Laporan RT"
+                >
+                  <span>Pusat Hub</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {onOpenLaporanHub && (
+            {/* BAR MENU CEPAT: PRATINJAU PDF, UNDUH EXCEL, KIRIM WA, PUSAT HUB */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+              {/* Button 1: Pratinjau & Cetak PDF (3 TTD) */}
               <button
-                onClick={() => onOpenLaporanHub('kas')}
-                className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-extrabold text-xs flex items-center space-x-1 shadow-xs transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setIsPdfModalOpen(true)}
+                className="p-2.5 rounded-2xl bg-sky-600/90 hover:bg-sky-500 text-white border border-sky-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
+                title="Buka Pratinjau Dokumen PDF Resmi Lengkap 3 Tanda Tangan"
+                id="btn-menu-preview-pdf"
               >
-                <span>Buka Hub</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <div className="p-1.5 rounded-xl bg-sky-400/20 text-sky-200 group-hover:scale-110 transition-transform shrink-0">
+                  <Printer className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black block text-white leading-tight truncate">Pratinjau PDF</span>
+                  <span className="text-[9px] text-sky-200/80 block leading-tight">3 TTD Resmi</span>
+                </div>
               </button>
-            )}
-          </div>
 
-          {/* 4 Direct Report Triggers Grid */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* 1. Laporan Kas */}
-            <button
-              onClick={() => onOpenLaporanHub && onOpenLaporanHub('kas')}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
-            >
-              <div className="flex items-center space-x-2 text-sky-300 mb-1">
-                <Wallet className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-extrabold text-white">Laporan Kas</span>
-              </div>
-              <p className="text-[10px] text-slate-300 leading-tight">
-                Buku kas & saldo RT
-              </p>
-            </button>
+              {/* Button 2: Unduh Excel Kas (.xlsx) */}
+              <button
+                type="button"
+                onClick={handleExportKasExcel}
+                disabled={isExportingKasExcel}
+                className="p-2.5 rounded-2xl bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
+                title="Unduh Lembar Kerja Excel (.xlsx) Kas RT dengan Kop Surat & 3 TTD"
+                id="btn-menu-excel-kas"
+              >
+                <div className="p-1.5 rounded-xl bg-emerald-400/20 text-emerald-200 group-hover:scale-110 transition-transform shrink-0">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black block text-white leading-tight truncate">
+                    {isExportingKasExcel ? 'Menyiapkan...' : 'Excel Kas'}
+                  </span>
+                  <span className="text-[9px] text-emerald-200/80 block leading-tight">Format .xlsx Rapi</span>
+                </div>
+              </button>
 
-            {/* 2. Laporan Kurang/Lebih Bayar Warga */}
-            <button
-              onClick={() => onOpenLaporanHub && onOpenLaporanHub('tunggakan')}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
-            >
-              <div className="flex items-center space-x-2 text-amber-300 mb-1">
-                <Users className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-extrabold text-white">Kurang/Lebih Bayar</span>
-              </div>
-              <p className="text-[10px] text-slate-300 leading-tight">
-                Status tunggakan & deposit
-              </p>
-            </button>
+              {/* Button 3: Unduh Excel Matriks (1-31) */}
+              <button
+                type="button"
+                onClick={handleExportMatriksExcel}
+                disabled={isExportingMatriksExcel}
+                className="p-2.5 rounded-2xl bg-indigo-600/90 hover:bg-indigo-500 text-white border border-indigo-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
+                title="Unduh Tabel Matriks Jimpitan Bulanan Format Excel .xlsx"
+                id="btn-menu-excel-matriks"
+              >
+                <div className="p-1.5 rounded-xl bg-indigo-400/20 text-indigo-200 group-hover:scale-110 transition-transform shrink-0">
+                  <CalendarIcon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black block text-white leading-tight truncate">
+                    {isExportingMatriksExcel ? 'Menyiapkan...' : 'Excel Matriks'}
+                  </span>
+                  <span className="text-[9px] text-indigo-200/80 block leading-tight">Matriks 1-31 Warga</span>
+                </div>
+              </button>
 
-            {/* 3. Laporan Pemasukan */}
-            <button
-              onClick={() => onOpenLaporanHub && onOpenLaporanHub('pemasukan')}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
-            >
-              <div className="flex items-center space-x-2 text-emerald-300 mb-1">
-                <TrendingUp className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-extrabold text-white">Laporan Pemasukan</span>
-              </div>
-              <p className="text-[10px] text-slate-300 leading-tight">
-                Jimpitan & donasi masuk
-              </p>
-            </button>
-
-            {/* 4. Laporan Pengeluaran */}
-            <button
-              onClick={() => onOpenLaporanHub && onOpenLaporanHub('pengeluaran')}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
-            >
-              <div className="flex items-center space-x-2 text-rose-300 mb-1">
-                <TrendingDown className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-extrabold text-white">Laporan Pengeluaran</span>
-              </div>
-              <p className="text-[10px] text-slate-300 leading-tight">
-                Rincian nota belanja RT
-              </p>
-            </button>
-          </div>
-
-          {/* 5. Laporan Bulanan Pertanggal (1-31 Hari) */}
-          <button
-            onClick={() => onOpenLaporanHub && onOpenLaporanHub('bulanan')}
-            className="w-full p-3 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-between text-left transition-all cursor-pointer"
-          >
-            <div className="flex items-center space-x-2.5 text-indigo-200">
-              <CalendarIcon className="w-4.5 h-4.5 text-indigo-300" />
-              <div>
-                <span className="text-xs font-black text-white block leading-tight">
-                  Laporan Bulanan Pertanggal (Matriks 1-31)
-                </span>
-                <span className="text-[10px] text-indigo-200/80">
-                  Matriks presensi & setoran seluruh rumah A4 Landscape
-                </span>
-              </div>
+              {/* Button 4: Kirim WA Rekap RT */}
+              <button
+                type="button"
+                onClick={() => onOpenShareModal && onOpenShareModal('laporan')}
+                className="p-2.5 rounded-2xl bg-teal-600/90 hover:bg-teal-500 text-white border border-teal-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
+                title="Bagikan Ringkasan Laporan ke WhatsApp Grup Warga"
+                id="btn-menu-share-wa"
+              >
+                <div className="p-1.5 rounded-xl bg-teal-400/20 text-teal-200 group-hover:scale-110 transition-transform shrink-0">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black block text-white leading-tight truncate">Kirim WA</span>
+                  <span className="text-[9px] text-teal-200/80 block leading-tight">Grup Warga RT</span>
+                </div>
+              </button>
             </div>
-            <ChevronRight className="w-4 h-4 text-indigo-300" />
-          </button>
-        </div>
+
+            {/* 4 Direct Report Triggers Grid */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              {/* 1. Laporan Kas */}
+              <button
+                onClick={() => onOpenLaporanHub && onOpenLaporanHub('kas')}
+                className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 text-sky-300 mb-1">
+                  <Wallet className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-extrabold text-white">Laporan Kas</span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-tight">
+                  Buku kas & saldo RT
+                </p>
+              </button>
+
+              {/* 2. Laporan Kurang/Lebih Bayar Warga */}
+              <button
+                onClick={() => onOpenLaporanHub && onOpenLaporanHub('tunggakan')}
+                className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 text-amber-300 mb-1">
+                  <Users className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-extrabold text-white">Kurang/Lebih Bayar</span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-tight">
+                  Status tunggakan & deposit
+                </p>
+              </button>
+
+              {/* 3. Laporan Pemasukan */}
+              <button
+                onClick={() => onOpenLaporanHub && onOpenLaporanHub('pemasukan')}
+                className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 text-emerald-300 mb-1">
+                  <TrendingUp className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-extrabold text-white">Laporan Pemasukan</span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-tight">
+                  Jimpitan & donasi masuk
+                </p>
+              </button>
+
+              {/* 4. Laporan Pengeluaran */}
+              <button
+                onClick={() => onOpenLaporanHub && onOpenLaporanHub('pengeluaran')}
+                className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 text-rose-300 mb-1">
+                  <TrendingDown className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-extrabold text-white">Laporan Pengeluaran</span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-tight">
+                  Rincian nota belanja RT
+                </p>
+              </button>
+            </div>
+
+            {/* 5. Laporan Bulanan Pertanggal (1-31 Hari) */}
+            <button
+              onClick={() => onOpenLaporanHub && onOpenLaporanHub('bulanan')}
+              className="w-full p-3 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-between text-left transition-all cursor-pointer"
+            >
+              <div className="flex items-center space-x-2.5 text-indigo-200">
+                <CalendarIcon className="w-4.5 h-4.5 text-indigo-300" />
+                <div>
+                  <span className="text-xs font-black text-white block leading-tight">
+                    Laporan Bulanan Pertanggal (Matriks 1-31)
+                  </span>
+                  <span className="text-[10px] text-indigo-200/80">
+                    Matriks presensi & setoran seluruh rumah A4 Landscape
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-indigo-300" />
+            </button>
+          </div>
+        )}
 
         <div className="text-[10px] font-extrabold uppercase tracking-wider text-stone-500 pt-1">
           Operasional & Fitur Utama
@@ -1034,6 +1216,16 @@ export const MenuView: React.FC<MenuViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* PDF REPORT & CETAK LAPORAN RESMI RT (MODAL) */}
+      <PdfReportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        allRecords={allRecords}
+        kasMutations={allMutations}
+        settings={settings}
+        selectedDate={new Date().toISOString().split('T')[0]}
+      />
     </div>
   );
 };

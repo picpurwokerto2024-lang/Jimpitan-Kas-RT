@@ -1455,6 +1455,7 @@ export default function App() {
               onOpenPanduan={() => setIsPanduanOpen(true)}
               onOpenInstallModal={() => setIsInstallModalOpen(true)}
               onOpenLaporanHub={handleOpenLaporanHub}
+              onOpenShareModal={() => handleOpenShareModal('laporan')}
               onLockApp={() => {
                 setIsAdminUnlocked(false);
               }}

@@ -776,69 +776,71 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         </div>
       </div>
 
-      {/* QUICK ACTION BAR: PRATINJAU & CETAK PDF, PUSAT LAPORAN HUB, EKSPOR CSV, KIRIM WA */}
-      <div className="flex items-center gap-2 flex-wrap" id="kas-rekap-quick-actions">
-        <button
-          type="button"
-          onClick={() => setIsPdfModalOpen(true)}
-          className="flex-1 min-w-[170px] py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white font-extrabold text-xs flex items-center justify-center space-x-2 shadow-md hover:shadow-lg transition-all active:scale-98 cursor-pointer"
-          title="Buka Pratinjau Dokumen & Cetak Laporan Resmi PDF (3 Tanda Tangan)"
-          id="btn-open-preview-pdf"
-        >
-          <Printer className="w-4 h-4 text-sky-200 shrink-0" />
-          <span>Pratinjau & Cetak PDF (3 TTD)</span>
-        </button>
-
-        {onOpenLaporanHub && (
+      {/* QUICK ACTION BAR: PRATINJAU & CETAK PDF, PUSAT LAPORAN HUB, EKSPOR CSV, KIRIM WA (KHUSUS MODE ADMIN) */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 flex-wrap" id="kas-rekap-quick-actions">
           <button
             type="button"
-            onClick={() => onOpenLaporanHub('kas')}
-            className="py-2.5 px-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
-            title="Buka Pusat Hub Laporan RT Lengkap"
-            id="btn-open-laporan-hub"
+            onClick={() => setIsPdfModalOpen(true)}
+            className="flex-1 min-w-[170px] py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white font-extrabold text-xs flex items-center justify-center space-x-2 shadow-md hover:shadow-lg transition-all active:scale-98 cursor-pointer"
+            title="Buka Pratinjau Dokumen & Cetak Laporan Resmi PDF (3 Tanda Tangan)"
+            id="btn-open-preview-pdf"
           >
-            <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">Pusat Laporan Hub</span>
-            <span className="inline sm:hidden">Laporan Hub</span>
+            <Printer className="w-4 h-4 text-sky-200 shrink-0" />
+            <span>Pratinjau & Cetak PDF (3 TTD)</span>
           </button>
-        )}
 
-        <button
-          type="button"
-          onClick={handleDownloadExcel}
-          disabled={isExportingExcel}
-          className="py-2.5 px-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
-          title="Unduh Lembar Kerja Excel (.xlsx) Rapi Lengkap dengan Kop Surat & 3 Tanda Tangan"
-          id="btn-export-excel-kas"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-200 shrink-0" />
-          <span>{isExportingExcel ? 'Menyiapkan...' : 'Unduh Excel (.xlsx)'}</span>
-        </button>
+          {onOpenLaporanHub && (
+            <button
+              type="button"
+              onClick={() => onOpenLaporanHub('kas')}
+              className="py-2.5 px-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+              title="Buka Pusat Hub Laporan RT Lengkap"
+              id="btn-open-laporan-hub"
+            >
+              <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">Pusat Laporan Hub</span>
+              <span className="inline sm:hidden">Laporan Hub</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          className="py-2.5 px-3 rounded-2xl bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
-          title="Unduh Data Mentah Format Excel / CSV"
-          id="btn-export-csv-kas"
-        >
-          <Download className="w-4 h-4 text-stone-500 shrink-0" />
-          <span className="hidden sm:inline">CSV</span>
-        </button>
-
-        {onOpenShareModal && (
           <button
             type="button"
-            onClick={() => onOpenShareModal('laporan')}
+            onClick={handleDownloadExcel}
+            disabled={isExportingExcel}
             className="py-2.5 px-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
-            title="Bagikan Ringkasan Laporan ke WhatsApp Warga"
-            id="btn-share-wa-kas"
+            title="Unduh Lembar Kerja Excel (.xlsx) Rapi Lengkap dengan Kop Surat & 3 Tanda Tangan"
+            id="btn-export-excel-kas"
           >
-            <Share2 className="w-4 h-4 shrink-0" />
-            <span>Kirim WA</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200 shrink-0" />
+            <span>{isExportingExcel ? 'Menyiapkan...' : 'Unduh Excel (.xlsx)'}</span>
           </button>
-        )}
-      </div>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="py-2.5 px-3 rounded-2xl bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
+            title="Unduh Data Mentah Format Excel / CSV"
+            id="btn-export-csv-kas"
+          >
+            <Download className="w-4 h-4 text-stone-500 shrink-0" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+
+          {onOpenShareModal && (
+            <button
+              type="button"
+              onClick={() => onOpenShareModal('laporan')}
+              className="py-2.5 px-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+              title="Bagikan Ringkasan Laporan ke WhatsApp Warga"
+              id="btn-share-wa-kas"
+            >
+              <Share2 className="w-4 h-4 shrink-0" />
+              <span>Kirim WA</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 2. RINCIAN PENGELUARAN PER KATEGORI (NEW FEATURE) */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-4 sm:p-5 space-y-3">
