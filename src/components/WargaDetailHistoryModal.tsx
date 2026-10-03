@@ -27,6 +27,7 @@ import {
   cleanWhatsAppPhone, 
   generateWhatsAppWargaMonthlyRecap 
 } from '../utils/formatters';
+import { calculateWargaMonthDistribution, DailyStatus } from '../utils/jimpitanCalculations';
 
 interface WargaDetailHistoryModalProps {
   isOpen: boolean;
@@ -130,68 +131,40 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
     return residentRecords.filter((r) => r.tanggal.startsWith(activeYearMonth));
   }, [residentRecords, activeYearMonth]);
 
-  const totalPaidThisMonth = useMemo(() => {
-    return monthRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
-  }, [monthRecords]);
+  // Calculated accurate monthly distribution
+  const monthDistribution = useMemo(() => {
+    return calculateWargaMonthDistribution(warga, allRecords, activeYearMonth, settings);
+  }, [warga, allRecords, activeYearMonth, settings]);
 
-  // Days in selected month
-  const daysInMonth = useMemo(() => {
-    return new Date(activeYear, activeMonth, 0).getDate();
-  }, [activeYear, activeMonth]);
-
-  const nominalDefault = warga.nominalDefault || 1000;
-
-  // Detect advance / multi-day records in this month
-  const advanceRecords = useMemo(() => {
-    return monthRecords.filter(
-      (r) =>
-        r.status === 'sukses' &&
-        ((r.nominal && r.nominal >= nominalDefault * 5) ||
-          (r.catatan &&
-            (r.catatan.toLowerCase().includes('lunas 1 bulan') ||
-              r.catatan.toLowerCase().includes('lunas bulan') ||
-              r.catatan.toLowerCase().includes('bayar dimuka') ||
-              r.catatan.toLowerCase().includes('lunas dimuka') ||
-              r.catatan.toLowerCase().includes('pelunasan') ||
-              r.catatan.toLowerCase().includes('lunas 1 minggu') ||
-              r.catatan.toLowerCase().includes('7 hari'))))
-    );
-  }, [monthRecords, nominalDefault]);
+  const {
+    daysInMonth,
+    tarifHarian: nominalDefault,
+    targetBulan,
+    totalTerbayar: totalPaidThisMonth,
+    countPaidDays: distinctDaysPaidThisMonth,
+    hariKurang,
+    nominalKurang,
+    nominalLebih,
+    isLunas: isMonthlyLunas,
+    status: monthlyStatus,
+    dailyList: dailyDistributionList,
+  } = monthDistribution;
 
   // Primary 1-Month advance record if any
   const monthlyAdvanceRecord = useMemo(() => {
-    return advanceRecords.find(
+    return monthRecords.find(
       (r) =>
-        (r.nominal && r.nominal >= nominalDefault * 20) ||
+        (r.nominal && r.nominal >= targetBulan) ||
         (r.catatan &&
           (r.catatan.toLowerCase().includes('lunas 1 bulan') ||
             r.catatan.toLowerCase().includes('lunas bulan') ||
-            r.catatan.toLowerCase().includes('30 hari')))
-    ) || advanceRecords[0];
-  }, [advanceRecords, nominalDefault]);
-
-  const isMonthlyLunas = useMemo(() => {
-    const hasFullMonthRecord = advanceRecords.some(
-      (r) =>
-        (r.nominal && r.nominal >= nominalDefault * 25) ||
-        (r.catatan &&
-          (r.catatan.toLowerCase().includes('lunas 1 bulan') ||
-            r.catatan.toLowerCase().includes('lunas bulan') ||
-            r.catatan.toLowerCase().includes('30 hari')))
-    );
-    return Boolean(
-      hasFullMonthRecord ||
-      totalPaidThisMonth >= nominalDefault * (daysInMonth - 2)
-    );
-  }, [advanceRecords, totalPaidThisMonth, nominalDefault, daysInMonth]);
+            r.catatan.toLowerCase().includes('30 hari') ||
+            r.catatan.toLowerCase().includes('31 hari')))
+    ) || monthRecords[0];
+  }, [monthRecords, targetBulan]);
 
   // Daily allocation amount
-  const dailyAllocatedNominal = useMemo(() => {
-    if (isMonthlyLunas && totalPaidThisMonth > 0 && daysInMonth > 0) {
-      return nominalDefault || Math.round(totalPaidThisMonth / daysInMonth);
-    }
-    return nominalDefault;
-  }, [isMonthlyLunas, totalPaidThisMonth, daysInMonth, nominalDefault]);
+  const dailyAllocatedNominal = nominalDefault;
 
   // Map raw records by date string (e.g. '2026-09-01')
   const rawRecordsByDateMap = useMemo(() => {
@@ -204,153 +177,13 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
     return map;
   }, [monthRecords]);
 
-  // Comprehensive Daily Breakdown for every day (1 .. daysInMonth)
-  const dailyDistributionList = useMemo(() => {
-    const list = [];
-
-    // Pre-calculate day coverage map from all advance records
-    const advanceCoverageMap = new Map<number, { record: JimpitanRecord; isSource: boolean; note: string; dayIndex?: number; totalDays?: number }>();
-
-    advanceRecords.forEach((adv) => {
-      const isFullMonth =
-        (adv.nominal && adv.nominal >= nominalDefault * 25) ||
-        (adv.catatan &&
-          (adv.catatan.toLowerCase().includes('1 bulan') ||
-            adv.catatan.toLowerCase().includes('lunas bulan') ||
-            adv.catatan.toLowerCase().includes('30 hari')));
-
-      const isOneWeek =
-        (adv.catatan && (adv.catatan.toLowerCase().includes('1 minggu') || adv.catatan.toLowerCase().includes('7 hari'))) ||
-        (adv.nominal >= nominalDefault * 6 && adv.nominal <= nominalDefault * 8);
-
-      const paymentDay = parseInt(adv.tanggal.slice(8, 10), 10) || 1;
-
-      if (isFullMonth) {
-        // Covers entire month 1..daysInMonth
-        for (let d = 1; d <= daysInMonth; d++) {
-          const isSource = d === paymentDay;
-          if (!advanceCoverageMap.has(d) || isSource) {
-            advanceCoverageMap.set(d, {
-              record: adv,
-              isSource,
-              note: isSource
-                ? `Setoran Pelunasan 1 Bulan: ${formatRupiah(adv.nominal)} (${formatRupiah(dailyAllocatedNominal)}/hari)`
-                : `Tercover Pelunasan 1 Bulan (${formatTanggalIndo(adv.tanggal)})`,
-              dayIndex: d,
-              totalDays: daysInMonth,
-            });
-          }
-        }
-      } else {
-        // Week advance or proportional days starting from payment date
-        const daysToCover = isOneWeek
-          ? 7
-          : Math.max(1, Math.floor(adv.nominal / nominalDefault));
-
-        for (let offset = 0; offset < daysToCover; offset++) {
-          const targetDay = paymentDay + offset;
-          if (targetDay <= daysInMonth) {
-            const isSource = offset === 0;
-            if (!advanceCoverageMap.has(targetDay) || isSource) {
-              advanceCoverageMap.set(targetDay, {
-                record: adv,
-                isSource,
-                note: isSource
-                  ? `Setoran Pelunasan 1 Minggu (${daysToCover} Hari): ${formatRupiah(adv.nominal)}`
-                  : `Tercover Pelunasan 1 Minggu (Hari ke-${offset + 1} dari ${daysToCover} hari)`,
-                dayIndex: offset + 1,
-                totalDays: daysToCover,
-              });
-            }
-          }
-        }
-      }
-    });
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateIso = `${activeYearMonth}-${String(d).padStart(2, '0')}`;
-      const rawOnDay = rawRecordsByDateMap.get(dateIso) || [];
-      const hasRegularPaid = rawOnDay.some((r) => r.status === 'sukses' && r.nominal > 0);
-      const advInfo = advanceCoverageMap.get(d);
-
-      let isPaid = false;
-      let nominal = 0;
-      let isAdvanceCovered = false;
-      let isAdvanceSource = false;
-      let petugas = '-';
-      let reguNama = 'Pengurus RT';
-      let waktu = '22:00';
-      let catatan = '';
-
-      if (advInfo) {
-        // Covered by advance payment (either 1-week starting on payment day or 1-month)
-        isPaid = true;
-        nominal = dailyAllocatedNominal;
-        isAdvanceCovered = true;
-        isAdvanceSource = advInfo.isSource;
-        petugas = advInfo.record.petugas || '-';
-        reguNama = advInfo.record.reguNama || 'Pengurus RT';
-        waktu = advInfo.record.waktu || '22:00';
-        catatan = advInfo.note;
-      } else if (hasRegularPaid) {
-        // Normal individual daily record
-        isPaid = true;
-        nominal = rawOnDay.reduce((sum, r) => sum + (r.nominal || 0), 0);
-        const first = rawOnDay[0];
-        petugas = first?.petugas || '-';
-        reguNama = first?.reguNama || 'Pengurus RT';
-        waktu = first?.waktu || '22:00';
-        catatan = first?.catatan || '';
-      } else if (rawOnDay.length > 0) {
-        // Entry with 0 or other status
-        const first = rawOnDay[0];
-        isPaid = first?.status === 'sukses' && (first.nominal || 0) > 0;
-        nominal = first?.nominal || 0;
-        petugas = first?.petugas || '-';
-        reguNama = first?.reguNama || 'Pengurus RT';
-        waktu = first?.waktu || '22:00';
-        catatan = first?.catatan || '';
-      }
-
-      list.push({
-        dateIso,
-        dayNum: d,
-        isPaid,
-        nominal,
-        isAdvanceCovered,
-        isAdvanceSource,
-        advanceRecord: advInfo?.record || monthlyAdvanceRecord,
-        rawRecords: rawOnDay,
-        petugas,
-        reguNama,
-        waktu,
-        catatan,
-      });
-    }
-
-    return list;
-  }, [
-    activeYearMonth,
-    daysInMonth,
-    rawRecordsByDateMap,
-    advanceRecords,
-    monthlyAdvanceRecord,
-    dailyAllocatedNominal,
-    nominalDefault,
-  ]);
-
   // Map daily distribution by dateIso
   const dailyDistributionMap = useMemo(() => {
-    const map = new Map<string, typeof dailyDistributionList[0]>();
+    const map = new Map<string, DailyStatus>();
     dailyDistributionList.forEach((item) => {
       map.set(item.dateIso, item);
     });
     return map;
-  }, [dailyDistributionList]);
-
-  // Effective days paid count (accounting for 1-month pelunasan distribution)
-  const distinctDaysPaidThisMonth = useMemo(() => {
-    return dailyDistributionList.filter((item) => item.isPaid).length;
   }, [dailyDistributionList]);
 
   const paymentPercentage = daysInMonth > 0 ? Math.round((distinctDaysPaidThisMonth / daysInMonth) * 100) : 0;

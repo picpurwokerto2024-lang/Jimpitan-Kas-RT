@@ -34,6 +34,7 @@ import {
   generateLaporanPengeluaranPdf
 } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
+import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 
 export type LaporanTabKey = 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan';
 
@@ -207,49 +208,19 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
 
   // Warga Monthly Calculations & Status Kurang/Lebih Bayar
   const wargaAnalysisList = safeWarga.map((w) => {
-    const wRecords = safeRecords.filter(
-      (r) => r.wargaId === w.id && r.tanggal && r.tanggal.startsWith(selectedYearMonth)
-    );
-    const paidRecords = wRecords.filter((r) => r.status === 'sukses' || r.status === 'titip' || (r.nominal && r.nominal > 0));
-    const totalTerbayar = paidRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
-    const countPaidDays = paidRecords.length;
-
-    const tarifHarian = w.nominalDefault || settings?.defaultNominal || 1000;
-    const targetBulan = tarifHarian * daysInMonth;
-
-    const nominalKurang = Math.max(0, targetBulan - totalTerbayar);
-    const nominalLebih = Math.max(0, totalTerbayar - targetBulan);
-
-    let status: 'underpaid' | 'overpaid' | 'exact' = 'exact';
-    if (totalTerbayar < targetBulan) status = 'underpaid';
-    else if (totalTerbayar > targetBulan) status = 'overpaid';
-
-    // Daily map for matrix
-    const dailyMap: Record<number, { isPaid: boolean; nominal: number; isAdvance: boolean }> = {};
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayStr = `${selectedYearMonth}-${String(day).padStart(2, '0')}`;
-      const rec = wRecords.find((r) => r.tanggal === dayStr && (r.status === 'sukses' || r.status === 'titip' || (r.nominal && r.nominal > 0)));
-      if (rec) {
-        dailyMap[day] = { isPaid: true, nominal: rec.nominal, isAdvance: false };
-      } else {
-        dailyMap[day] = { isPaid: false, nominal: 0, isAdvance: false };
-      }
-    }
-
-    const hariKurang = Math.max(0, daysInMonth - countPaidDays);
-    const selisih = totalTerbayar - targetBulan;
+    const dist = calculateWargaMonthDistribution(w, safeRecords, selectedYearMonth, settings);
 
     return {
       warga: w,
-      targetBulan,
-      totalTerbayar,
-      countPaidDays,
-      hariKurang,
-      selisih,
-      nominalKurang,
-      nominalLebih,
-      status,
-      dailyMap,
+      targetBulan: dist.targetBulan,
+      totalTerbayar: dist.totalTerbayar,
+      countPaidDays: dist.countPaidDays,
+      hariKurang: dist.hariKurang,
+      selisih: dist.selisih,
+      nominalKurang: dist.nominalKurang,
+      nominalLebih: dist.nominalLebih,
+      status: dist.status,
+      dailyMap: dist.dailyMap,
     };
   });
 

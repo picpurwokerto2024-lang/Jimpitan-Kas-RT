@@ -43,6 +43,7 @@ import {
 } from '../utils/formatters';
 import { LaporanWargaPdfModal } from './LaporanWargaPdfModal';
 import { LaporanTunggakanPdfModal } from './LaporanTunggakanPdfModal';
+import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 import { InputJimpitanMingguanModal } from './InputJimpitanMingguanModal';
 import { BayarPelunasanTunggakanModal } from './BayarPelunasanTunggakanModal';
 import { EditSisaPiutangModal } from './EditSisaPiutangModal';
@@ -174,140 +175,35 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
 
   // Group and compute calculations for all warga in active month
   const wargaMonthlyReportData = useMemo(() => {
-    // 1. Group records by resident
-    const recordsByWarga = new Map<string, JimpitanRecord[]>();
-    allRecords.forEach((r) => {
-      if (!r.tanggal || !r.tanggal.startsWith(activeYearMonth)) return;
-      if (r.status !== 'sukses') return;
-
-      if (r.wargaId) {
-        const list = recordsByWarga.get(r.wargaId) || [];
-        list.push(r);
-        recordsByWarga.set(r.wargaId, list);
-      }
-      if (r.nomorRumah) {
-        const list = recordsByWarga.get(`no_${r.nomorRumah}`) || [];
-        list.push(r);
-        recordsByWarga.set(`no_${r.nomorRumah}`, list);
-      }
-    });
-
     return wargaList.map((warga) => {
-      const recs = recordsByWarga.get(warga.id) || recordsByWarga.get(`no_${warga.nomorRumah}`) || [];
-      const nominalDefault = warga.nominalDefault || settings.defaultNominal || 1000;
-      const targetBulan = nominalDefault * daysInMonth;
-
-      // Check advance payment (lunas 1 bulan)
-      const hasFullMonthAdvance = recs.some(
+      const dist = calculateWargaMonthDistribution(warga, allRecords, activeYearMonth, settings);
+      const recs = allRecords.filter(
         (r) =>
-          (r.nominal && r.nominal >= nominalDefault * 25) ||
-          (r.catatan &&
-            (r.catatan.toLowerCase().includes('lunas 1 bulan') ||
-              r.catatan.toLowerCase().includes('lunas bulan') ||
-              r.catatan.toLowerCase().includes('30 hari') ||
-              r.catatan.toLowerCase().includes('31 hari')))
+          (r.wargaId === warga.id || r.nomorRumah === warga.nomorRumah) &&
+          r.tanggal &&
+          r.tanggal.startsWith(activeYearMonth) &&
+          (r.status === 'sukses' || r.status === 'titip' || (r.nominal && r.nominal > 0))
       );
 
-      // Check week advance records
-      const weekAdvanceRanges: { startDay: number; endDay: number }[] = [];
-      recs.forEach((r) => {
-        const isWeek =
-          (r.catatan && (r.catatan.toLowerCase().includes('1 minggu') || r.catatan.toLowerCase().includes('7 hari'))) ||
-          (r.nominal >= nominalDefault * 6 && r.nominal <= nominalDefault * 8);
-        if (isWeek && r.tanggal) {
-          const startDay = parseInt(r.tanggal.slice(8, 10), 10) || 1;
-          weekAdvanceRanges.push({ startDay, endDay: Math.min(daysInMonth, startDay + 6) });
-        }
-      });
-
-      // Map of day number -> boolean paid & nominal
-      const dailyMap: Record<number, { isPaid: boolean; nominal: number; isAdvance: boolean }> = {};
-      
-      // Initialize all days
-      for (let d = 1; d <= daysInMonth; d++) {
-        dailyMap[d] = { isPaid: false, nominal: 0, isAdvance: false };
-      }
-
-      // Populate actual recorded days
-      recs.forEach((r) => {
-        if (!r.tanggal) return;
-        const dayNum = parseInt(r.tanggal.slice(8, 10), 10);
-        if (dayNum >= 1 && dayNum <= daysInMonth) {
-          dailyMap[dayNum] = {
-            isPaid: true,
-            nominal: (dailyMap[dayNum]?.nominal || 0) + (r.nominal || nominalDefault),
-            isAdvance: false,
-          };
-        }
-      });
-
-      // Apply week advances
-      weekAdvanceRanges.forEach((range) => {
-        for (let d = range.startDay; d <= range.endDay; d++) {
-          if (!dailyMap[d]?.isPaid) {
-            dailyMap[d] = {
-              isPaid: true,
-              nominal: nominalDefault,
-              isAdvance: true,
-            };
-          }
-        }
-      });
-
-      // Apply full month advance
-      if (hasFullMonthAdvance) {
-        for (let d = 1; d <= daysInMonth; d++) {
-          dailyMap[d] = {
-            isPaid: true,
-            nominal: nominalDefault,
-            isAdvance: true,
-          };
-        }
-      }
-
-      // Calculate total paid and count of paid days
-      const totalTerbayar = hasFullMonthAdvance && recs.reduce((sum, r) => sum + (r.nominal || 0), 0) < targetBulan
-        ? targetBulan
-        : recs.reduce((sum, r) => sum + (r.nominal || 0), 0);
-
-      const countPaidDays = hasFullMonthAdvance 
-        ? daysInMonth 
-        : Object.values(dailyMap).filter((d) => d.isPaid).length;
-
-      // Selisih: (Total Bayar - Target)
-      const selisih = totalTerbayar - targetBulan;
-      
-      let status: 'underpaid' | 'exact' | 'overpaid' = 'exact';
-      if (selisih < 0) {
-        status = 'underpaid';
-      } else if (selisih > 0) {
-        status = 'overpaid';
-      } else {
-        status = 'exact';
-      }
-
-      const hariKurang = Math.max(0, daysInMonth - countPaidDays);
-      const nominalKurang = Math.max(0, targetBulan - totalTerbayar);
-      const nominalLebih = Math.max(0, totalTerbayar - targetBulan);
-      const percentComplete = targetBulan > 0 ? Math.min(100, Math.round((totalTerbayar / targetBulan) * 100)) : 0;
+      const percentComplete = dist.targetBulan > 0 ? Math.min(100, Math.round((dist.totalTerbayar / dist.targetBulan) * 100)) : 0;
 
       return {
         warga,
-        targetBulan,
-        totalTerbayar,
-        selisih,
-        status,
-        countPaidDays,
-        hariKurang,
-        nominalKurang,
-        nominalLebih,
+        targetBulan: dist.targetBulan,
+        totalTerbayar: dist.totalTerbayar,
+        selisih: dist.selisih,
+        status: dist.status,
+        countPaidDays: dist.countPaidDays,
+        hariKurang: dist.hariKurang,
+        nominalKurang: dist.nominalKurang,
+        nominalLebih: dist.nominalLebih,
         percentComplete,
-        hasFullMonthAdvance,
-        dailyMap,
+        hasFullMonthAdvance: dist.isLunas,
+        dailyMap: dist.dailyMap,
         recordsCount: recs.length,
       };
     });
-  }, [wargaList, allRecords, activeYearMonth, daysInMonth, settings.defaultNominal]);
+  }, [wargaList, allRecords, activeYearMonth, settings]);
 
   // Summary KPI Calculations for Monthly Matrix
   const summaryKpis = useMemo(() => {

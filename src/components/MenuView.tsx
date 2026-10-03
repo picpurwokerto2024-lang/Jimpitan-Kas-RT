@@ -40,6 +40,7 @@ import {
   Share2
 } from 'lucide-react';
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
+import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 import { PdfReportModal } from './PdfReportModal';
 import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
 
@@ -154,28 +155,21 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const targetBulanPerWarga = targetPerDay * daysInMonth;
 
       const wargaData = allWarga.map((warga) => {
-        const wargaRecs = allRecords.filter((r) => r.nomorRumah === warga.nomorRumah && r.tanggal.startsWith(currentYearMonth));
+        const dist = calculateWargaMonthDistribution(warga, allRecords, currentYearMonth, settings);
         const dailyAmounts: { [day: number]: number } = {};
-        let total = 0;
-        let countDays = 0;
 
-        wargaRecs.forEach((r) => {
-          const d = parseInt(r.tanggal.split('-')[2], 10);
-          if (d >= 1 && d <= daysInMonth) {
-            dailyAmounts[d] = (dailyAmounts[d] || 0) + r.nominal;
-            total += r.nominal;
-            if (r.status === 'sukses') countDays++;
-          }
-        });
+        for (let d = 1; d <= daysInMonth; d++) {
+          dailyAmounts[d] = dist.dailyMap[d]?.nominal || 0;
+        }
 
         return {
           warga,
-          totalAmount: total,
-          countDays,
+          totalAmount: dist.totalTerbayar,
+          countDays: dist.countPaidDays,
           dailyAmounts,
-          isTargetMet: total >= targetBulanPerWarga,
-          isOverTarget: total > targetBulanPerWarga,
-          difference: total - targetBulanPerWarga,
+          isTargetMet: dist.isLunas,
+          isOverTarget: dist.totalTerbayar > dist.targetBulan,
+          difference: dist.selisih,
         };
       });
 
