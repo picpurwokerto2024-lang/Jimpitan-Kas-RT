@@ -12,6 +12,7 @@ interface GenerateExcelOptions {
   petugasName?: string;
   bendaharaName?: string;
   ketuaRtName?: string;
+  wargaList?: Warga[];
 }
 
 export const generateKasReportExcel = async ({
@@ -24,6 +25,7 @@ export const generateKasReportExcel = async ({
   petugasName = '',
   bendaharaName = '',
   ketuaRtName = '',
+  wargaList = [],
 }: GenerateExcelOptions) => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Sistem Jimpitan Digital RT 08 RW 06 Pliken';
@@ -233,6 +235,14 @@ export const generateKasReportExcel = async ({
     worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'center' };
     for (let c = 1; c <= 8; c++) worksheet.getCell(curRow, c).border = borderThin;
   } else {
+    const wargaMap = new Map<string, string>();
+    if (Array.isArray(wargaList)) {
+      wargaList.forEach((w) => {
+        if (w.id) wargaMap.set(w.id, w.nama);
+        if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+      });
+    }
+
     records.forEach((r, idx) => {
       curRow++;
       worksheet.getCell(curRow, 1).value = idx + 1;
@@ -247,7 +257,13 @@ export const generateKasReportExcel = async ({
       worksheet.getCell(curRow, 4).value = r.nomorRumah ? `No. ${r.nomorRumah}` : '-';
       worksheet.getCell(curRow, 4).alignment = { horizontal: 'center' };
 
-      worksheet.getCell(curRow, 5).value = r.namaWarga || '-';
+      const citizenName =
+        (r.wargaId && wargaMap.get(r.wargaId)) ||
+        (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
+        r.namaWarga ||
+        '-';
+
+      worksheet.getCell(curRow, 5).value = citizenName;
 
       worksheet.getCell(curRow, 6).value = r.status.toUpperCase();
       worksheet.getCell(curRow, 6).alignment = { horizontal: 'center' };

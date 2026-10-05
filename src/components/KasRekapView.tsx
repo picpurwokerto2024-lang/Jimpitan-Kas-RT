@@ -1572,6 +1572,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         kasMutations={kasMutations}
         settings={settings}
         selectedDate={selectedDate}
+        wargaList={wargaList}
       />
     </div>
   );

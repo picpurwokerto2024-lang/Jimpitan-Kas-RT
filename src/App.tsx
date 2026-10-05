@@ -809,17 +809,59 @@ export default function App() {
       return false;
     }
 
+    const oldWarga = wargaList.find((w) => w.id === updated.id);
+
     setWargaList((prev) => {
       const next = prev.map((w) => (w.id === updated.id ? updated : w));
       const { cleanList } = deduplicateWargaArray(next);
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(cleanList));
       return cleanList;
     });
+
     try {
       await saveWargaCloud(updated);
     } catch (err) {
       console.error('Failed to update warga in cloud:', err);
     }
+
+    // Cascade update all existing jimpitan records if name or house number was updated
+    if (oldWarga && (oldWarga.nama !== updated.nama || oldWarga.nomorRumah !== updated.nomorRumah)) {
+      const affectedRecords: JimpitanRecord[] = [];
+      setAllRecords((prevRecords) => {
+        const nextRecords = prevRecords.map((rec) => {
+          if (
+            rec.wargaId === updated.id ||
+            rec.nomorRumah === oldWarga.nomorRumah ||
+            rec.nomorRumah === updated.nomorRumah
+          ) {
+            const updatedRec: JimpitanRecord = {
+              ...rec,
+              wargaId: updated.id,
+              nomorRumah: updated.nomorRumah,
+              namaWarga: updated.nama,
+            };
+            affectedRecords.push(updatedRec);
+            return updatedRec;
+          }
+          return rec;
+        });
+
+        try {
+          localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(nextRecords));
+        } catch (e) {
+          console.warn('Failed to save cascaded records to localStorage:', e);
+        }
+        return nextRecords;
+      });
+
+      // Sync affected records to Firestore cloud
+      if (affectedRecords.length > 0) {
+        addBatchJimpitanRecordsCloud(affectedRecords).catch((err) =>
+          console.warn('Failed to sync cascaded records to cloud:', err)
+        );
+      }
+    }
+
     return true;
   };
 

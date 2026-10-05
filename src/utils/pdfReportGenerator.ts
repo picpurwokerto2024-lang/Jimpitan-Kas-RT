@@ -14,6 +14,7 @@ export interface GeneratePdfOptions {
   petugasName?: string;
   bendaharaName?: string;
   ketuaRtName?: string;
+  wargaList?: Warga[];
 }
 
 export const generateKasReportPdf = ({
@@ -26,6 +27,7 @@ export const generateKasReportPdf = ({
   petugasName,
   bendaharaName,
   ketuaRtName,
+  wargaList = [],
 }: GeneratePdfOptions) => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -195,16 +197,31 @@ export const generateKasReportPdf = ({
   doc.setTextColor(15, 23, 42);
   doc.text('II. Rincian Penarikan Jimpitan Warga', margin, currentY);
 
+  const wargaMap = new Map<string, string>();
+  if (Array.isArray(wargaList)) {
+    wargaList.forEach((w) => {
+      if (w.id) wargaMap.set(w.id, w.nama);
+      if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+    });
+  }
+
   const jimpitanRows = records.length > 0
-    ? records.map((r, idx) => [
-        String(idx + 1),
-        `${r.tanggal} ${r.waktu || ''}`,
-        `No. ${r.nomorRumah}`,
-        r.namaWarga,
-        r.status.toUpperCase(),
-        r.petugas || r.reguNama || '-',
-        formatRupiah(r.nominal),
-      ])
+    ? records.map((r, idx) => {
+        const citizenName =
+          (r.wargaId && wargaMap.get(r.wargaId)) ||
+          (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
+          r.namaWarga;
+
+        return [
+          String(idx + 1),
+          `${r.tanggal} ${r.waktu || ''}`,
+          `No. ${r.nomorRumah}`,
+          citizenName,
+          r.status.toUpperCase(),
+          r.petugas || r.reguNama || '-',
+          formatRupiah(r.nominal),
+        ];
+      })
     : [['-', '-', '-', 'Tidak ada data jimpitan pada periode ini', '-', '-', '-']];
 
   autoTable(doc, {

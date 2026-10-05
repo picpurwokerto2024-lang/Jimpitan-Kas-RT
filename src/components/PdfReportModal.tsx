@@ -16,7 +16,7 @@ import {
   Edit3,
   UserCheck
 } from 'lucide-react';
-import { JimpitanRecord, KasMutation, AppSettings } from '../types';
+import { JimpitanRecord, KasMutation, AppSettings, Warga } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
 import { generateKasReportPdf } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel } from '../utils/excelReportGenerator';
@@ -28,6 +28,7 @@ interface PdfReportModalProps {
   kasMutations: KasMutation[];
   settings: AppSettings;
   selectedDate: string;
+  wargaList?: Warga[];
 }
 
 export const PdfReportModal: React.FC<PdfReportModalProps> = ({
@@ -37,6 +38,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   kasMutations = [],
   settings,
   selectedDate,
+  wargaList = [],
 }) => {
   // Safe initial month YYYY-MM
   const initialMonth = useMemo(() => {
@@ -179,6 +181,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         petugasName: petugasName.trim() || undefined,
         bendaharaName: bendaharaName.trim() || settings?.namaBendahara || undefined,
         ketuaRtName: ketuaRtName.trim() || settings?.namaKetuaRt || undefined,
+        wargaList,
       });
     } catch (err) {
       console.error('Error generating PDF:', err);
@@ -512,28 +515,34 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-stone-200 text-[10px] sm:text-[11px]">
                     {filteredRecords.length > 0 ? (
-                      filteredRecords.slice(0, 100).map((r, idx) => (
-                        <tr key={r.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                          <td className="p-1.5 sm:p-2 text-center text-stone-500">{idx + 1}</td>
-                          <td className="p-1.5 sm:p-2 font-mono text-[9.5px]">
-                            {r.tanggal} {r.waktu ? r.waktu.slice(0, 5) : ''}
-                          </td>
-                          <td className="p-1.5 sm:p-2 text-center font-bold text-sky-800">
-                            No. {r.nomorRumah}
-                          </td>
-                          <td className="p-1.5 sm:p-2 font-medium truncate max-w-[120px] sm:max-w-none">
-                            {r.namaWarga}
-                          </td>
-                          <td className="p-1.5 sm:p-2 text-center">
-                            <span className="inline-block px-1 py-0.5 rounded text-[8.5px] font-extrabold bg-stone-100 text-stone-800 uppercase">
-                              {r.status}
-                            </span>
-                          </td>
-                          <td className="p-1.5 sm:p-2 text-right font-bold text-sky-700">
-                            {formatRupiah(r.nominal)}
-                          </td>
-                        </tr>
-                      ))
+                      filteredRecords.slice(0, 100).map((r, idx) => {
+                        const matchedWarga = wargaList.find((w) => w.id === r.wargaId || w.nomorRumah === r.nomorRumah);
+                        const displayCitizenName = matchedWarga?.nama || r.namaWarga;
+                        const displayHouseNo = matchedWarga?.nomorRumah || r.nomorRumah;
+
+                        return (
+                          <tr key={r.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
+                            <td className="p-1.5 sm:p-2 text-center text-stone-500">{idx + 1}</td>
+                            <td className="p-1.5 sm:p-2 font-mono text-[9.5px]">
+                              {r.tanggal} {r.waktu ? r.waktu.slice(0, 5) : ''}
+                            </td>
+                            <td className="p-1.5 sm:p-2 text-center font-bold text-sky-800">
+                              No. {displayHouseNo}
+                            </td>
+                            <td className="p-1.5 sm:p-2 font-medium truncate max-w-[120px] sm:max-w-none">
+                              {displayCitizenName}
+                            </td>
+                            <td className="p-1.5 sm:p-2 text-center">
+                              <span className="inline-block px-1 py-0.5 rounded text-[8.5px] font-extrabold bg-stone-100 text-stone-800 uppercase">
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="p-1.5 sm:p-2 text-right font-bold text-sky-700">
+                              {formatRupiah(r.nominal)}
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={6} className="p-3 text-center text-stone-400 italic">
