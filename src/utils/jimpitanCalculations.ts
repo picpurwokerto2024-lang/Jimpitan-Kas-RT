@@ -36,9 +36,9 @@ export interface WargaMonthDistribution {
 }
 
 /**
- * Calculates accurate daily payment distribution for a resident in a specific month.
- * If a resident pays a partial lump-sum amount (e.g., Rp 25,000 with tariff Rp 1,000),
- * only 25 days will be marked as paid/checked, and the remaining 5 or 6 days will remain unpaid.
+ * Maps payment records directly to their exact transaction dates (1:1 mapping).
+ * If a resident pays Rp 25,000 on date 2, only date 2 is marked as paid with nominal Rp 25,000.
+ * Other dates without transactions remain unpaid (0 / '-').
  */
 export function calculateWargaMonthDistribution(
   warga: Warga,
@@ -65,7 +65,7 @@ export function calculateWargaMonthDistribution(
 
   const totalTerbayar = monthRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
 
-  // Initialize all days
+  // Initialize daily map for all days in the month (1..daysInMonth)
   const dailyMap: Record<number, DailyStatus> = {};
   for (let d = 1; d <= daysInMonth; d++) {
     const dateIso = `${yearMonth}-${String(d).padStart(2, '0')}`;
@@ -85,80 +85,19 @@ export function calculateWargaMonthDistribution(
     };
   }
 
-  // 1. Separate single-day records from lump-sum / multi-day records
-  const singleDayRecords: JimpitanRecord[] = [];
-  const multiDayRecords: JimpitanRecord[] = [];
-
+  // Exact 1:1 Mapping to transaction dates
   monthRecords.forEach((r) => {
-    const isExplicitMonthly =
-      r.catatan &&
-      (r.catatan.toLowerCase().includes('lunas 1 bulan') ||
-        r.catatan.toLowerCase().includes('lunas bulan') ||
-        r.catatan.toLowerCase().includes('pelunasan bulan') ||
-        r.catatan.toLowerCase().includes('30 hari') ||
-        r.catatan.toLowerCase().includes('31 hari'));
-
-    const isLumpSum = (r.nominal && r.nominal >= tarifHarian * 2) || isExplicitMonthly;
-
-    if (isLumpSum) {
-      multiDayRecords.push(r);
-    } else {
-      singleDayRecords.push(r);
-    }
-  });
-
-  // 2. First pass: Apply specific single-day records
-  singleDayRecords.forEach((r) => {
     const dayNum = parseInt(r.tanggal.slice(8, 10), 10);
     if (dayNum >= 1 && dayNum <= daysInMonth) {
       const current = dailyMap[dayNum];
       current.isPaid = true;
-      current.nominal += r.nominal || tarifHarian;
+      current.nominal += r.nominal || 0;
       current.rawRecords.push(r);
       current.petugas = r.petugas || current.petugas;
       current.reguNama = r.reguNama || current.reguNama;
       current.waktu = r.waktu || current.waktu;
-      current.catatan = r.catatan || current.catatan;
-    }
-  });
-
-  // 3. Second pass: Distribute multi-day / advance payments proportionally
-  multiDayRecords.forEach((adv) => {
-    const paymentDay = parseInt(adv.tanggal.slice(8, 10), 10) || 1;
-    
-    // Explicit full month check ONLY if nominal >= targetBulan OR note states full month
-    const isExplicitFullMonth =
-      adv.nominal >= targetBulan ||
-      (adv.catatan &&
-        (adv.catatan.toLowerCase().includes('lunas 1 bulan') ||
-          adv.catatan.toLowerCase().includes('lunas bulan') ||
-          adv.catatan.toLowerCase().includes('pelunasan 1 bulan')));
-
-    // Number of days covered by this specific nominal (e.g. Rp 25,000 = 25 days)
-    const daysToCover = isExplicitFullMonth
-      ? daysInMonth
-      : Math.max(1, Math.floor((adv.nominal || 0) / tarifHarian));
-
-    let daysAllocated = 0;
-
-    // First try to allocate starting from day 1 (or payment day) on unpaid days
-    for (let d = 1; d <= daysInMonth && daysAllocated < daysToCover; d++) {
-      if (!dailyMap[d].isPaid) {
-        dailyMap[d].isPaid = true;
-        dailyMap[d].nominal = tarifHarian;
-        dailyMap[d].isAdvance = true;
-        dailyMap[d].isAdvanceCovered = true;
-        dailyMap[d].isAdvanceSource = d === paymentDay;
-        dailyMap[d].advanceRecord = adv;
-        dailyMap[d].petugas = adv.petugas || dailyMap[d].petugas;
-        dailyMap[d].reguNama = adv.reguNama || dailyMap[d].reguNama;
-        dailyMap[d].waktu = adv.waktu || dailyMap[d].waktu;
-        dailyMap[d].catatan =
-          d === paymentDay
-            ? `Setoran Sebagian/Dimuka: ${adv.nominal?.toLocaleString('id-ID')} (${daysToCover} Hari)`
-            : `Tercover Setoran Dimuka (Hari ke-${daysAllocated + 1} dari ${daysToCover} hari)`;
-        dailyMap[d].rawRecords.push(adv);
-        daysAllocated++;
+      if (r.catatan) {
+        current.catatan = current.catatan ? `${current.catatan}, ${r.catatan}` : r.catatan;
       }
     }
   });

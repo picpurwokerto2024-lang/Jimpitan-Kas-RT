@@ -321,21 +321,21 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
           </button>
         </div>
 
-        {/* Advance Payment Banner if resident paid for the month */}
+        {/* Advance Payment Banner if resident met monthly target */}
         {isMonthlyLunas && (
           <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/90 rounded-2xl p-3 flex items-start space-x-2.5 shadow-2xs">
             <Award className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-xs">
               <div className="flex items-center space-x-1.5 flex-wrap">
                 <span className="font-black text-amber-950">
-                  Warga Ini Telah Lunas 1 Bulan Penuh!
+                  Target Jimpitan Bulan Ini Lunas Penuh!
                 </span>
                 <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[10px] font-extrabold">
                   {activeMonthLabel}
                 </span>
               </div>
               <p className="text-amber-900/90 text-[11px] mt-0.5 leading-relaxed">
-                Tercatat setoran kas jimpitan sebesar <strong>{formatRupiah(totalPaidThisMonth)}</strong>. Seluruh <strong>{daysInMonth} hari</strong> otomatis terisi lunas dengan pembagian alokasi <strong>{formatRupiah(dailyAllocatedNominal)}/hari</strong>.
+                Tercatat total setoran kas jimpitan sebesar <strong>{formatRupiah(totalPaidThisMonth)}</strong> (Target: {formatRupiah(targetBulan)}).
               </p>
             </div>
           </div>
@@ -601,7 +601,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                📅 Rincian Terdistribusi ({dailyDistributionList.length} Hari)
+                📅 Rekap Harian ({dailyDistributionList.length} Hari)
               </button>
               <button
                 type="button"
@@ -612,7 +612,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                💰 Transaksi Kas Riil ({monthRecords.length})
+                💰 Riwayat Transaksi ({monthRecords.length})
               </button>
             </div>
 
@@ -627,9 +627,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                       key={item.dateIso}
                       className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
                         item.isPaid
-                          ? item.isAdvanceCovered
-                            ? 'bg-amber-50/40 border-amber-200'
-                            : 'bg-white border-stone-200'
+                          ? 'bg-white border-sky-200'
                           : 'bg-stone-50/50 border-stone-200 opacity-60'
                       }`}
                     >
@@ -637,9 +635,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                         <div
                           className={`w-8 h-8 rounded-xl font-extrabold flex items-center justify-center text-xs flex-shrink-0 ${
                             item.isPaid
-                              ? item.isAdvanceCovered
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-sky-100 text-sky-800'
+                              ? 'bg-sky-500 text-white'
                               : 'bg-stone-200 text-stone-500'
                           }`}
                         >
@@ -651,13 +647,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                           </h6>
                           <p className="text-[11px] text-stone-500 truncate">
                             {item.isPaid ? (
-                              item.isAdvanceCovered ? (
-                                <span className="text-amber-800 font-semibold">
-                                  🌟 Alokasi Pelunasan 1 Bulan • {item.reguNama}
-                                </span>
-                              ) : (
-                                <span>⏰ {item.waktu} • 👮‍♂️ {item.petugas}</span>
-                              )
+                              <span>⏰ {item.waktu || '22:00'} • 👮‍♂️ {item.petugas || item.reguNama}</span>
                             ) : (
                               <span className="text-stone-400">Belum Ada Penarikan</span>
                             )}
@@ -670,12 +660,12 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                           {formatRupiah(item.nominal)}
                         </span>
                         {item.isPaid ? (
-                          <span className={`text-[9px] font-extrabold uppercase ${item.isAdvanceCovered ? 'text-amber-700' : 'text-emerald-600'}`}>
-                            {item.isAdvanceCovered ? 'LUNAS (1 BULAN)' : 'LUNAS'}
+                          <span className="text-[9px] font-extrabold uppercase text-emerald-600">
+                            TERBAYAR
                           </span>
                         ) : (
                           <span className="text-[9px] font-semibold text-stone-400 uppercase">
-                            KOSONG
+                            -
                           </span>
                         )}
                       </div>
