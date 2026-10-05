@@ -1,27 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Pengaturan RT/RW
+    // Pengaturan RT & RW
     match /settings/{document=**} {
       allow read, write: if true;
     }
-    // Data Warga
+    // Data Warga & Kartu QR Rumah
     match /warga/{document=**} {
       allow read, write: if true;
     }
-    // Catatan Penarikan Jimpitan
+    // Catatan Riwayat Transaksi Jimpitan Ronda
     match /jimpitan_records/{document=**} {
       allow read, write: if true;
     }
-    // Kas & Mutasi Pengeluaran
+    // Buku Kas Mutasi Pemasukan & Pengeluaran
     match /kas_mutations/{document=**} {
       allow read, write: if true;
     }
-    // Regu Ronda
+    // Jadwal & Anggota Regu Ronda Siskamling
     match /regu_ronda/{document=**} {
       allow read, write: if true;
     }
-    // Hitungan Pecahan Uang Fisik
+    // Hitungan Rincian Pecahan Uang Fisik (Koin & Kertas)
     match /money_counts/{document=**} {
       allow read, write: if true;
     }
@@ -29,11 +29,19 @@ service cloud.firestore {
     match /ronda_sessions/{document=**} {
       allow read, write: if true;
     }
-    // Kehadiran / Online Presence Warga & Petugas
+    // Kehadiran Realtime Pengguna & Petugas Online
     match /active_presences/{document=**} {
       allow read, write: if true;
     }
-    // Connection health check
+    // Cadangan Data Cloud Otomatis & Manual
+    match /backups/{document=**} {
+      allow read, write: if true;
+    }
+    // Arsip Rekapitulasi Bulanan
+    match /monthly_archives/{document=**} {
+      allow read, write: if true;
+    }
+    // Health Check & Uji Koneksi Database
     match /test/{document=**} {
       allow read, write: if true;
     }

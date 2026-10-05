@@ -101,6 +101,32 @@
         "kertas100000": { "type": "number" },
         "updatedAt": { "type": "number" }
       }
+    },
+    "Backup": {
+      "title": "AppBackup",
+      "description": "Cadangan data otomatis dan manual",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "number" },
+        "createdAtIso": { "type": "string" },
+        "source": { "type": "string" },
+        "data": { "type": "object" }
+      },
+      "required": ["timestamp", "data"]
+    },
+    "MonthlyArchive": {
+      "title": "MonthlyArchive",
+      "description": "Snapshot arsip rekapitulasi bulanan",
+      "type": "object",
+      "properties": {
+        "yearMonth": { "type": "string" },
+        "monthLabel": { "type": "string" },
+        "totalWarga": { "type": "number" },
+        "totalTerkumpul": { "type": "number" },
+        "saldoAkhirBulan": { "type": "number" },
+        "archivedAt": { "type": "number" }
+      },
+      "required": ["yearMonth", "archivedAt"]
     }
   },
   "firestore": {
@@ -127,6 +153,14 @@
     "/money_counts/{countId}": {
       "entity": "MoneyCounts",
       "description": "Pecahan uang fisik hitungan ronda"
+    },
+    "/backups/{backupId}": {
+      "entity": "Backup",
+      "description": "Collection of cloud backups"
+    },
+    "/monthly_archives/{archiveId}": {
+      "entity": "MonthlyArchive",
+      "description": "Collection of monthly historical archives"
     },
     "/test/{docId}": {
       "entity": "Settings",

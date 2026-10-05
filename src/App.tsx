@@ -65,6 +65,8 @@ import {
   purgeArchiveAndDemoDataCloud,
   deduplicateCloudWargaNow,
   addBatchJimpitanRecordsCloud,
+  saveBatchWargaCloud,
+  triggerAutoCloudBackup,
   sendPresenceHeartbeat,
   removePresenceSession,
   subscribeToActivePresences
@@ -935,9 +937,7 @@ export default function App() {
     setWargaList(updatedList);
     try {
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
-      for (const w of updatedList) {
-        await saveWargaCloud(w);
-      }
+      await saveBatchWargaCloud(updatedList);
       alert('✅ Berhasil! Seluruh data piutang warga telah direset menjadi 0 Rupiah.');
     } catch (err) {
       console.error('Failed to reset all piutang to zero:', err);
@@ -1241,6 +1241,16 @@ export default function App() {
 
     try {
       await saveRondaSessionCloud(newSession);
+      // Automatically generate a cloud snapshot when ronda finishes
+      triggerAutoCloudBackup({
+        settings,
+        warga: wargaList,
+        records: allRecords,
+        mutations: kasMutations,
+        regu: reguList,
+        moneyCounts,
+        totalKas: saldoKas,
+      }).catch(console.warn);
     } catch (err) {
       console.error('Failed to save ronda session to cloud:', err);
     }

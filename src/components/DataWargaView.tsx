@@ -79,6 +79,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   currentReguId = 'regu-1',
 }) => {
   const [search, setSearch] = useState<string>('');
+  const [displayLimit, setDisplayLimit] = useState<number>(50);
   const [activeSubTab, setActiveSubTab] = useState<'directory' | 'monthly_report'>('directory');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [editingWarga, setEditingWarga] = useState<Warga | null>(null);
@@ -547,7 +548,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
 
           {/* List of Residents */}
           <div className="space-y-2.5">
-            {filtered.map((warga) => {
+            {filtered.slice(0, displayLimit).map((warga) => {
               const stats = residentMonthlyStatsMap.get(warga.id) || residentMonthlyStatsMap.get(`no_${warga.nomorRumah}`) || { totalThisMonth: 0, countThisMonth: 0, paidToday: false, isMonthlyLunas: false, isWeeklyLunas: false };
 
               return (
@@ -689,6 +690,18 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                 </div>
               );
             })}
+
+            {filtered.length > displayLimit && (
+              <div className="pt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit((prev) => prev + 50)}
+                  className="px-4 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-extrabold text-xs transition-colors cursor-pointer shadow-2xs"
+                >
+                  Muat Lebih Banyak (+50 dari {filtered.length - displayLimit} warga tersisa)
+                </button>
+              </div>
+            )}
           </div>
 
       {/* MODAL 1: ADD / EDIT WARGA */}

@@ -16,7 +16,19 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { AppSettings, Warga, JimpitanRecord, KasMutation, ReguRonda, MoneyDenomination, RondaSession, UserPresence, AppMode } from '../types';
+import { 
+  AppSettings, 
+  Warga, 
+  JimpitanRecord, 
+  KasMutation, 
+  ReguRonda, 
+  MoneyDenomination, 
+  RondaSession, 
+  UserPresence, 
+  AppMode,
+  AppBackup,
+  MonthlyArchive
+} from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_REGU, DEFAULT_WARGA, DEFAULT_MUTATIONS } from '../data/defaultData';
 import { deduplicateWargaArray } from '../utils/wargaDeduplicator';
 
@@ -66,6 +78,33 @@ const MUTATIONS_COL = 'kas_mutations';
 const REGU_COL = 'regu_ronda';
 const SESSIONS_COL = 'ronda_sessions';
 const MONEY_COUNTS_DOC = 'money_counts/latest';
+const BACKUPS_COL = 'backups';
+const ARCHIVES_COL = 'monthly_archives';
+
+// Helper to chunk arrays into groups of max 400 items (safely below Firestore's 500 batch limit)
+export const chunkArray = <T>(array: T[], size = 400): T[][] => {
+  if (!array || array.length === 0) return [];
+  const result: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+};
+
+// Generic batch executor with chunking for large datasets (>500 items)
+export const commitChunkedBatch = async <T>(
+  items: T[],
+  operation: (batch: ReturnType<typeof writeBatch>, item: T) => void,
+  chunkSize = 400
+) => {
+  if (!items || items.length === 0) return;
+  const chunks = chunkArray(items, chunkSize);
+  for (const chunk of chunks) {
+    const batch = writeBatch(db);
+    chunk.forEach((item) => operation(batch, item));
+    await batch.commit();
+  }
+};
 
 // Helper to recursively remove undefined fields so Firestore setDoc/updateDoc never fails
 export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => {
@@ -200,6 +239,19 @@ export const saveWargaCloud = async (warga: Warga) => {
   }
 };
 
+export const saveBatchWargaCloud = async (wargaList: Warga[]) => {
+  if (!wargaList || wargaList.length === 0) return;
+  try {
+    await commitChunkedBatch(wargaList, (batch, w) => {
+      const wargaRef = doc(db, WARGA_COL, w.id);
+      const { id, ...data } = w;
+      batch.set(wargaRef, cleanFirestoreData(data), { merge: true });
+    });
+  } catch (err) {
+    console.error('Failed to batch save warga to cloud:', err);
+  }
+};
+
 export const deleteWargaCloud = async (wargaId: string) => {
   try {
     const wargaRef = doc(db, WARGA_COL, wargaId);
@@ -215,13 +267,11 @@ export const deleteWargaCloud = async (wargaId: string) => {
 export const seedCleanRecords = async (initialList?: JimpitanRecord[]) => {
   try {
     if (!initialList || initialList.length === 0) return;
-    const batch = writeBatch(db);
-    initialList.forEach((r) => {
+    await commitChunkedBatch(initialList, (batch, r) => {
       const recRef = doc(db, RECORDS_COL, r.id);
       const { id, ...data } = r;
       batch.set(recRef, cleanFirestoreData({ ...data, updatedAt: Date.now() }), { merge: true });
     });
-    await batch.commit();
     console.log('✅ Jimpitan records seeded to Firestore');
   } catch (err) {
     console.error('Failed to seed jimpitan records:', err);
@@ -278,17 +328,19 @@ export const addJimpitanRecordCloud = async (record: JimpitanRecord) => {
 export const addBatchJimpitanRecordsCloud = async (records: JimpitanRecord[]) => {
   if (!records || records.length === 0) return;
   try {
-    const batch = writeBatch(db);
-    records.forEach((record) => {
+    await commitChunkedBatch(records, (batch, record) => {
       const recRef = doc(db, RECORDS_COL, record.id);
       const { id, ...data } = record;
-      batch.set(recRef, cleanFirestoreData({
-        ...data,
-        nominal: Number(data.nominal) || 0,
-        updatedAt: Date.now(),
-      }), { merge: true });
+      batch.set(
+        recRef,
+        cleanFirestoreData({
+          ...data,
+          nominal: Number(data.nominal) || 0,
+          updatedAt: Date.now(),
+        }),
+        { merge: true }
+      );
     });
-    await batch.commit();
   } catch (err) {
     console.error('Failed to batch save jimpitan records to cloud:', err);
   }
@@ -310,18 +362,20 @@ export const seedCleanMutations = async (initialList?: KasMutation[]) => {
   try {
     const listToSeed = initialList && initialList.length > 0 ? initialList : DEFAULT_MUTATIONS;
     if (!listToSeed || listToSeed.length === 0) return;
-    const batch = writeBatch(db);
-    listToSeed.forEach((m) => {
+    await commitChunkedBatch(listToSeed, (batch, m) => {
       const mutRef = doc(db, MUTATIONS_COL, m.id);
       const { id, ...data } = m;
-      batch.set(mutRef, cleanFirestoreData({
-        ...data,
-        nominal: Number(data.nominal) || 0,
-        createdAt: data.createdAt || Date.now(),
-        updatedAt: Date.now(),
-      }), { merge: true });
+      batch.set(
+        mutRef,
+        cleanFirestoreData({
+          ...data,
+          nominal: Number(data.nominal) || 0,
+          createdAt: data.createdAt || Date.now(),
+          updatedAt: Date.now(),
+        }),
+        { merge: true }
+      );
     });
-    await batch.commit();
     console.log('✅ Kas mutations seeded to Firestore');
   } catch (err) {
     console.error('Failed to seed kas mutations:', err);
@@ -552,7 +606,7 @@ export const saveRondaSessionCloud = async (session: RondaSession) => {
 };
 
 // ==========================================
-// 8. PURGE DUMMY & RESET ALL & DELETE SEPTEMBER DATA
+// 8. PURGE DUMMY & RESET ALL & DELETE SEPTEMBER DATA (>500 Data Batch Safe)
 // ==========================================
 export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
   try {
@@ -563,7 +617,6 @@ export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
     // Helper to check if a date string belongs to the target month (e.g. '09' for September)
     const isTargetMonth = (dateStr?: string) => {
       if (!dateStr) return false;
-      // Matches 'YYYY-09-DD' or contains '-09-' or starts with '2026-09'
       return (
         dateStr.includes(`-${monthQuery}-`) ||
         dateStr.startsWith(`2026-${monthQuery}`) ||
@@ -572,19 +625,21 @@ export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
       );
     };
 
-    // 1. Delete matching jimpitan records from Firestore
+    // 1. Delete matching jimpitan records from Firestore using safe chunked batches
     try {
       const recSnap = await getDocs(collection(db, RECORDS_COL));
-      const recBatch = writeBatch(db);
+      const docsToDelete: { ref: any }[] = [];
       recSnap.forEach((docSnap) => {
         const d = docSnap.data();
         if (isTargetMonth(d.tanggal)) {
-          recBatch.delete(docSnap.ref);
-          deletedRecCount++;
+          docsToDelete.push({ ref: docSnap.ref });
         }
       });
+      deletedRecCount = docsToDelete.length;
       if (deletedRecCount > 0) {
-        await recBatch.commit();
+        await commitChunkedBatch(docsToDelete, (batch, item) => {
+          batch.delete(item.ref);
+        });
         console.log(`✅ Deleted ${deletedRecCount} jimpitan records for month ${monthQuery}`);
       }
     } catch (err) {
@@ -594,16 +649,18 @@ export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
     // 2. Delete matching kas mutations from Firestore
     try {
       const mutSnap = await getDocs(collection(db, MUTATIONS_COL));
-      const mutBatch = writeBatch(db);
+      const mutDocsToDelete: { ref: any }[] = [];
       mutSnap.forEach((docSnap) => {
         const d = docSnap.data();
         if (isTargetMonth(d.tanggal)) {
-          mutBatch.delete(docSnap.ref);
-          deletedMutCount++;
+          mutDocsToDelete.push({ ref: docSnap.ref });
         }
       });
+      deletedMutCount = mutDocsToDelete.length;
       if (deletedMutCount > 0) {
-        await mutBatch.commit();
+        await commitChunkedBatch(mutDocsToDelete, (batch, item) => {
+          batch.delete(item.ref);
+        });
         console.log(`✅ Deleted ${deletedMutCount} kas mutations for month ${monthQuery}`);
       }
     } catch (err) {
@@ -613,15 +670,17 @@ export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
     // 3. Delete matching ronda sessions from Firestore
     try {
       const sessSnap = await getDocs(collection(db, SESSIONS_COL));
-      const sessBatch = writeBatch(db);
+      const sessDocsToDelete: { ref: any }[] = [];
       sessSnap.forEach((docSnap) => {
         if (isTargetMonth(docSnap.id) || isTargetMonth(docSnap.data().tanggal)) {
-          sessBatch.delete(docSnap.ref);
-          deletedSessCount++;
+          sessDocsToDelete.push({ ref: docSnap.ref });
         }
       });
+      deletedSessCount = sessDocsToDelete.length;
       if (deletedSessCount > 0) {
-        await sessBatch.commit();
+        await commitChunkedBatch(sessDocsToDelete, (batch, item) => {
+          batch.delete(item.ref);
+        });
         console.log(`✅ Deleted ${deletedSessCount} ronda sessions for month ${monthQuery}`);
       }
     } catch (err) {
@@ -674,28 +733,26 @@ export const purgeArchiveAndDemoDataCloud = async () => {
   let deletedSessCount = 0;
   let deletedDemoWargaCount = 0;
 
-  // 1. Delete all jimpitan records
+  // 1. Delete all jimpitan records safely with chunked batching
   try {
     const recSnap = await getDocs(collection(db, RECORDS_COL));
-    const recBatch = writeBatch(db);
-    recSnap.forEach((d) => {
-      recBatch.delete(d.ref);
-      deletedRecCount++;
-    });
-    if (deletedRecCount > 0) await recBatch.commit();
+    const docs = recSnap.docs;
+    deletedRecCount = docs.length;
+    if (deletedRecCount > 0) {
+      await commitChunkedBatch(docs, (batch, d) => batch.delete(d.ref));
+    }
   } catch (e) {
     console.warn('Records purge error:', e);
   }
 
-  // 2. Delete all kas mutations
+  // 2. Delete all kas mutations safely with chunked batching
   try {
     const mutSnap = await getDocs(collection(db, MUTATIONS_COL));
-    const mutBatch = writeBatch(db);
-    mutSnap.forEach((d) => {
-      mutBatch.delete(d.ref);
-      deletedMutCount++;
-    });
-    if (deletedMutCount > 0) await mutBatch.commit();
+    const docs = mutSnap.docs;
+    deletedMutCount = docs.length;
+    if (deletedMutCount > 0) {
+      await commitChunkedBatch(docs, (batch, d) => batch.delete(d.ref));
+    }
   } catch (e) {
     console.warn('Mutations purge error:', e);
   }
@@ -703,12 +760,11 @@ export const purgeArchiveAndDemoDataCloud = async () => {
   // 3. Delete all ronda sessions
   try {
     const sessSnap = await getDocs(collection(db, SESSIONS_COL));
-    const sessBatch = writeBatch(db);
-    sessSnap.forEach((d) => {
-      sessBatch.delete(d.ref);
-      deletedSessCount++;
-    });
-    if (deletedSessCount > 0) await sessBatch.commit();
+    const docs = sessSnap.docs;
+    deletedSessCount = docs.length;
+    if (deletedSessCount > 0) {
+      await commitChunkedBatch(docs, (batch, d) => batch.delete(d.ref));
+    }
   } catch (e) {
     console.warn('Sessions purge error:', e);
   }
@@ -717,18 +773,17 @@ export const purgeArchiveAndDemoDataCloud = async () => {
   try {
     const wargaSnap = await getDocs(collection(db, WARGA_COL));
     const demoWargaIds = ['warga-01', 'warga-02', 'warga-03'];
-    const demoBatch = writeBatch(db);
-    wargaSnap.forEach((d) => {
+    const demoDocs = wargaSnap.docs.filter((d) => {
       const data = d.data();
-      if (
+      return (
         demoWargaIds.includes(d.id) ||
         (data.nama && (data.nama.includes('Slamet Riyadi') || data.nama.includes('Joko Purnomo') || data.nama.includes('Siti Aminah')))
-      ) {
-        demoBatch.delete(d.ref);
-        deletedDemoWargaCount++;
-      }
+      );
     });
-    if (deletedDemoWargaCount > 0) await demoBatch.commit();
+    deletedDemoWargaCount = demoDocs.length;
+    if (deletedDemoWargaCount > 0) {
+      await commitChunkedBatch(demoDocs, (batch, d) => batch.delete(d.ref));
+    }
   } catch (e) {
     console.warn('Demo warga purge error:', e);
   }
@@ -754,17 +809,14 @@ export const purgeArchiveAndDemoDataCloud = async () => {
 };
 
 export const purgeDummyDataCloud = async () => {
-  // Clear warga, records, mutations
   const collectionsToClear = [WARGA_COL, RECORDS_COL, MUTATIONS_COL, SESSIONS_COL];
   for (const colName of collectionsToClear) {
     const snap = await getDocs(collection(db, colName));
-    const batch = writeBatch(db);
-    snap.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
+    if (!snap.empty) {
+      await commitChunkedBatch(snap.docs, (batch, d) => batch.delete(d.ref));
+    }
   }
-  // Reset money counts to 0
   await setDoc(doc(db, 'money_counts', 'latest'), DEFAULT_MONEY_DENOMINATION);
-  // Reset clean regu
   await seedCleanRegu();
 };
 
@@ -780,6 +832,7 @@ export const restoreFullCloudBackup = async (backupData: {
   allRecords?: JimpitanRecord[];
   allMutations?: KasMutation[];
   moneyCounts?: MoneyDenomination;
+  sessions?: RondaSession[];
 }) => {
   if (backupData.settings) {
     await saveSettingsCloud(backupData.settings);
@@ -789,34 +842,182 @@ export const restoreFullCloudBackup = async (backupData: {
   }
   if (backupData.allWarga && backupData.allWarga.length > 0) {
     const { cleanList } = deduplicateWargaArray(backupData.allWarga);
-    const batch = writeBatch(db);
-    cleanList.forEach((w) => {
+    await commitChunkedBatch(cleanList, (batch, w) => {
       const ref = doc(db, WARGA_COL, w.id);
       const { id, ...data } = w;
       batch.set(ref, cleanFirestoreData(data));
     });
-    await batch.commit();
   }
   if (backupData.allRecords && backupData.allRecords.length > 0) {
-    const batch = writeBatch(db);
-    backupData.allRecords.forEach((r) => {
+    await commitChunkedBatch(backupData.allRecords, (batch, r) => {
       const ref = doc(db, RECORDS_COL, r.id);
       const { id, ...data } = r;
       batch.set(ref, cleanFirestoreData(data));
     });
-    await batch.commit();
   }
   if (backupData.allMutations && backupData.allMutations.length > 0) {
-    const batch = writeBatch(db);
-    backupData.allMutations.forEach((m) => {
+    await commitChunkedBatch(backupData.allMutations, (batch, m) => {
       const ref = doc(db, MUTATIONS_COL, m.id);
       const { id, ...data } = m;
       batch.set(ref, cleanFirestoreData(data));
     });
-    await batch.commit();
+  }
+  if (backupData.sessions && backupData.sessions.length > 0) {
+    await commitChunkedBatch(backupData.sessions, (batch, s) => {
+      const ref = doc(db, SESSIONS_COL, s.tanggal);
+      batch.set(ref, cleanFirestoreData(s));
+    });
   }
   if (backupData.moneyCounts) {
     await saveMoneyCountsCloud(backupData.moneyCounts);
+  }
+};
+
+// ==========================================
+// 6. CLOUD BACKUPS (AUTOMATIC & MANUAL)
+// ==========================================
+export const saveCloudBackup = async (backup: AppBackup): Promise<void> => {
+  try {
+    const docRef = doc(db, BACKUPS_COL, backup.id);
+    await setDoc(docRef, cleanFirestoreData(backup));
+    console.log(`✅ Cloud backup saved: ${backup.id}`);
+
+    // Prune older auto-backups (keep max 15 latest auto-backups to maintain lean database)
+    if (backup.source === 'auto') {
+      try {
+        const snap = await getDocs(collection(db, BACKUPS_COL));
+        const autoBackups: { id: string; timestamp: number }[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data.source === 'auto') {
+            autoBackups.push({ id: d.id, timestamp: data.timestamp || 0 });
+          }
+        });
+        if (autoBackups.length > 15) {
+          autoBackups.sort((a, b) => b.timestamp - a.timestamp);
+          const toDelete = autoBackups.slice(15);
+          for (const oldB of toDelete) {
+            deleteDoc(doc(db, BACKUPS_COL, oldB.id)).catch(() => {});
+          }
+        }
+      } catch (pruneErr) {
+        console.warn('Auto-backup prune notice:', pruneErr);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to save cloud backup:', err);
+    throw err;
+  }
+};
+
+export const triggerAutoCloudBackup = async (payload: {
+  settings: AppSettings;
+  warga: Warga[];
+  records: JimpitanRecord[];
+  mutations: KasMutation[];
+  regu: ReguRonda[];
+  moneyCounts?: MoneyDenomination;
+  sessions?: Record<string, RondaSession>;
+  totalKas: number;
+}): Promise<AppBackup | null> => {
+  try {
+    const lastBackupTime = Number(localStorage.getItem('jimpitan_last_auto_backup') || '0');
+    const now = Date.now();
+    // Throttle auto-backups to once per 15 minutes unless it's the very first time
+    if (now - lastBackupTime < 15 * 60 * 1000) {
+      return null;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const backupId = `auto-backup-${today}-${Math.random().toString(36).substring(2, 7)}`;
+    const backupObj: AppBackup = {
+      id: backupId,
+      timestamp: now,
+      createdAtIso: new Date().toISOString(),
+      source: 'auto',
+      stats: {
+        wargaCount: payload.warga.length,
+        recordsCount: payload.records.length,
+        mutationsCount: payload.mutations.length,
+        reguCount: payload.regu.length,
+        totalKas: payload.totalKas,
+      },
+      data: {
+        settings: payload.settings,
+        warga: payload.warga,
+        records: payload.records,
+        mutations: payload.mutations,
+        regu: payload.regu,
+        moneyCounts: payload.moneyCounts,
+      },
+    };
+    await saveCloudBackup(backupObj);
+    localStorage.setItem('jimpitan_last_auto_backup', String(now));
+    return backupObj;
+  } catch (err) {
+    console.warn('Auto backup skipped/failed:', err);
+    return null;
+  }
+};
+
+export const getCloudBackups = async (): Promise<AppBackup[]> => {
+  try {
+    const snap = await getDocs(collection(db, BACKUPS_COL));
+    const list: AppBackup[] = [];
+    snap.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() } as AppBackup);
+    });
+    return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  } catch (err) {
+    console.error('Failed to fetch cloud backups:', err);
+    return [];
+  }
+};
+
+export const deleteCloudBackup = async (backupId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, BACKUPS_COL, backupId));
+    console.log(`🗑️ Cloud backup deleted: ${backupId}`);
+  } catch (err) {
+    console.error('Failed to delete cloud backup:', err);
+    throw err;
+  }
+};
+
+// ==========================================
+// 7. MONTHLY ARCHIVES (SNAPSHOT REKAP BULANAN)
+// ==========================================
+export const saveMonthlyArchiveCloud = async (archive: MonthlyArchive): Promise<void> => {
+  try {
+    const docRef = doc(db, ARCHIVES_COL, archive.id);
+    await setDoc(docRef, cleanFirestoreData(archive), { merge: true });
+    console.log(`✅ Monthly archive saved to cloud: ${archive.id}`);
+  } catch (err) {
+    console.error('Failed to save monthly archive to cloud:', err);
+    throw err;
+  }
+};
+
+export const getMonthlyArchivesCloud = async (): Promise<MonthlyArchive[]> => {
+  try {
+    const snap = await getDocs(collection(db, ARCHIVES_COL));
+    const list: MonthlyArchive[] = [];
+    snap.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() } as MonthlyArchive);
+    });
+    return list.sort((a, b) => (b.yearMonth || '').localeCompare(a.yearMonth || ''));
+  } catch (err) {
+    console.error('Failed to fetch monthly archives:', err);
+    return [];
+  }
+};
+
+export const deleteMonthlyArchiveCloud = async (archiveId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, ARCHIVES_COL, archiveId));
+    console.log(`🗑️ Monthly archive deleted: ${archiveId}`);
+  } catch (err) {
+    console.error('Failed to delete monthly archive:', err);
+    throw err;
   }
 };
 

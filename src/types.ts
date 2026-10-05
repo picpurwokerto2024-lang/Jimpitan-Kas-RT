@@ -103,3 +103,46 @@ export interface UserPresence {
   joinedAt?: number;
 }
 
+export interface MonthlyArchive {
+  id: string;
+  yearMonth: string; // YYYY-MM
+  monthLabel: string;
+  totalWarga: number;
+  totalTarget: number;
+  totalTerkumpul: number;
+  totalKurangBayar: number;
+  totalLebihBayar: number;
+  saldoAwalBulan: number;
+  totalPemasukanMutasi: number;
+  totalPengeluaranMutasi: number;
+  saldoAkhirBulan: number;
+  recordsCount: number;
+  archivedAt: number;
+  archivedBy?: string;
+  catatan?: string;
+}
+
+export interface AppBackup {
+  id: string;
+  timestamp: number;
+  createdAtIso: string;
+  source: 'auto' | 'manual';
+  stats: {
+    wargaCount: number;
+    recordsCount: number;
+    mutationsCount: number;
+    reguCount: number;
+    totalKas: number;
+  };
+  data: {
+    settings: AppSettings;
+    warga: Warga[];
+    records: JimpitanRecord[];
+    mutations: KasMutation[];
+    regu: ReguRonda[];
+    moneyCounts?: MoneyDenomination;
+    sessions?: RondaSession[];
+  };
+}
+
+

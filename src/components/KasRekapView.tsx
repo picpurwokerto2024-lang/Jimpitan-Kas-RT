@@ -285,6 +285,10 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   // Category filter state for mutation list
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('semua');
 
+  // History Optimization: Pagination / Windowing for ultra-fast rendering with >500 records
+  const [recordsDisplayLimit, setRecordsDisplayLimit] = useState<number>(30);
+  const [mutationsDisplayLimit, setMutationsDisplayLimit] = useState<number>(30);
+
   // Form for new/editing Kas Mutation
   const [jenisMutasi, setJenisMutasi] = useState<'masuk' | 'keluar'>('keluar');
   const [nominalMutasi, setNominalMutasi] = useState<number>(25000);
@@ -1072,9 +1076,9 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             Belum ada data jimpitan untuk periode ini.
           </div>
         ) : (
-          /* Render list of records */
+          /* Render list of records with optimized windowing */
           <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-            {filteredRecords.map((record) => (
+            {filteredRecords.slice(0, recordsDisplayLimit).map((record) => (
               <div
                 key={record.id}
                 className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/80 flex items-center justify-between gap-3 shadow-2xs hover:border-sky-300 transition-all"
@@ -1137,6 +1141,18 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 </div>
               </div>
             ))}
+
+            {filteredRecords.length > recordsDisplayLimit && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setRecordsDisplayLimit((prev) => prev + 50)}
+                  className="px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-extrabold text-xs transition-colors cursor-pointer"
+                >
+                  Muat Lebih Banyak (+50 dari {filteredRecords.length - recordsDisplayLimit} sisa)
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1184,7 +1200,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
           </div>
         ) : (
           <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-            {displayedMutations.map((mut) => {
+            {displayedMutations.slice(0, mutationsDisplayLimit).map((mut) => {
               const badge = getCategoryBadge(mut.kategori, mut.jenis);
               return (
                 <div
@@ -1259,6 +1275,18 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 </div>
               );
             })}
+
+            {displayedMutations.length > mutationsDisplayLimit && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setMutationsDisplayLimit((prev) => prev + 50)}
+                  className="px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-extrabold text-xs transition-colors cursor-pointer"
+                >
+                  Muat Lebih Banyak Mutasi (+50 dari {displayedMutations.length - mutationsDisplayLimit} sisa)
+                </button>
+              </div>
+            )}
           </div>
         )}
 

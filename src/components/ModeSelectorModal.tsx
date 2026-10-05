@@ -104,7 +104,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         setErrorMessage('PIN Petugas / Admin RT salah. Silakan coba kembali.');
       }
     } else if (selectedTargetMode === 'penginput') {
-      if (cleanPin === activePenginputPin) {
+      if (cleanPin === activePenginputPin || cleanPin === activeAdminPin) {
         onSelectMode('penginput');
         onClose();
       } else {
