@@ -182,7 +182,9 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
           (r.wargaId === warga.id || r.nomorRumah === warga.nomorRumah) &&
           r.tanggal &&
           r.tanggal.startsWith(activeYearMonth) &&
-          (r.status === 'sukses' || r.status === 'titip' || (r.nominal && r.nominal > 0))
+          r.status !== 'kosong' &&
+          r.status !== 'lewat' &&
+          (Number(r.nominal) || 0) > 0
       );
 
       const percentComplete = dist.targetBulan > 0 ? Math.min(100, Math.round((dist.totalTerbayar / dist.targetBulan) * 100)) : 0;

@@ -623,9 +623,11 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     e.preventDefault();
     if (!editingRecord || !onUpdateRecord) return;
 
+    const finalNominal = (editRecStatus === 'kosong' || editRecStatus === 'lewat') ? 0 : (Number(editRecNominal) || 0);
+
     onUpdateRecord({
       ...editingRecord,
-      nominal: Number(editRecNominal),
+      nominal: finalNominal,
       status: editRecStatus,
       petugas: editRecPetugas.trim() || editingRecord.petugas,
       catatan: editRecCatatan.trim(),

@@ -60,10 +60,12 @@ export function calculateWargaMonthDistribution(
       (r.wargaId === warga.id || r.nomorRumah === warga.nomorRumah) &&
       r.tanggal &&
       r.tanggal.startsWith(yearMonth) &&
-      (r.status === 'sukses' || r.status === 'titip' || (r.nominal && r.nominal > 0))
+      r.status !== 'kosong' &&
+      r.status !== 'lewat' &&
+      (Number(r.nominal) || 0) > 0
   );
 
-  const totalTerbayar = monthRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalTerbayar = monthRecords.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
 
   // Initialize daily map for all days in the month (1..daysInMonth)
   const dailyMap: Record<number, DailyStatus> = {};
@@ -88,10 +90,11 @@ export function calculateWargaMonthDistribution(
   // Exact 1:1 Mapping to transaction dates
   monthRecords.forEach((r) => {
     const dayNum = parseInt(r.tanggal.slice(8, 10), 10);
-    if (dayNum >= 1 && dayNum <= daysInMonth) {
+    const validNominal = Number(r.nominal) || 0;
+    if (dayNum >= 1 && dayNum <= daysInMonth && validNominal > 0) {
       const current = dailyMap[dayNum];
       current.isPaid = true;
-      current.nominal += r.nominal || 0;
+      current.nominal += validNominal;
       current.rawRecords.push(r);
       current.petugas = r.petugas || current.petugas;
       current.reguNama = r.reguNama || current.reguNama;
