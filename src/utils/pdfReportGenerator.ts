@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Warga, JimpitanRecord, KasMutation, AppSettings } from '../types';
+import { Warga, JimpitanRecord, KasMutation, AppSettings, KasReportCustomOptions } from '../types';
 import { formatRupiah, formatTanggalIndo, formatCompactNominal, formatMatrixNominalFull } from './formatters';
 
 export interface GeneratePdfOptions {
@@ -15,6 +15,7 @@ export interface GeneratePdfOptions {
   bendaharaName?: string;
   ketuaRtName?: string;
   wargaList?: Warga[];
+  customOptions?: KasReportCustomOptions;
 }
 
 export const generateKasReportPdf = ({
@@ -28,6 +29,7 @@ export const generateKasReportPdf = ({
   bendaharaName,
   ketuaRtName,
   wargaList = [],
+  customOptions,
 }: GeneratePdfOptions) => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -38,39 +40,76 @@ export const generateKasReportPdf = ({
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
 
-  // 1. KOP SURAT RT 08 RW 06 PLIKEN KEMBARAN
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(20, 20, 20);
-  doc.text('PENGURUS RUKUN TETANGGA 08 / RUKUN WARGA 06', pageWidth / 2, 16, { align: 'center' });
+  const custom: KasReportCustomOptions = customOptions || {
+    showKopSurat: true,
+    showSummaryCards: true,
+    showMutasiTable: true,
+    showJimpitanTable: true,
+    showRekapPerRumahTable: false,
+    showSignatures: true,
+    showCatatanLaporan: false,
+    catatanLaporanText: '',
+    mutasiFilterJenis: 'semua',
+    mutasiColumns: {
+      no: true,
+      tanggal: true,
+      kategori: true,
+      keterangan: true,
+      petugas: true,
+      nominal: true,
+    },
+    jimpitanFilterStatus: 'semua',
+    jimpitanColumns: {
+      no: true,
+      waktu: true,
+      nomorRumah: true,
+      namaWarga: true,
+      status: true,
+      petugas: true,
+      nominal: true,
+    },
+  };
 
-  doc.setFontSize(15);
-  doc.setTextColor(2, 132, 199); // Sky 600
-  doc.text('DESA PLIKEN, KECAMATAN KEMBARAN', pageWidth / 2, 22.5, { align: 'center' });
+  let currentY = 16;
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text('Sekretariat: Lingkungan RT 08 RW 06 Desa Pliken, Kec. Kembaran, Kab. Banyumas 53182', pageWidth / 2, 28, { align: 'center' });
-  doc.text('Email: rt08rw06pliken@gmail.com | Layanan Jimpitan Digital RT', pageWidth / 2, 32, { align: 'center' });
+  // 1. KOP SURAT RT
+  if (custom.showKopSurat !== false) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(20, 20, 20);
+    doc.text(`PENGURUS ${settings?.namaRt ? settings.namaRt.toUpperCase() : 'RUKUN TETANGGA 08'} / ${settings?.namaRw ? settings.namaRw.toUpperCase() : 'RUKUN WARGA 06'}`, pageWidth / 2, 16, { align: 'center' });
 
-  // Double horizontal line for official Indonesian Kop Surat
-  doc.setDrawColor(30, 41, 59); // Slate 800
-  doc.setLineWidth(0.8);
-  doc.line(margin, 35, pageWidth - margin, 35);
-  doc.setLineWidth(0.2);
-  doc.line(margin, 36, pageWidth - margin, 36);
+    doc.setFontSize(15);
+    doc.setTextColor(2, 132, 199); // Sky 600
+    doc.text('DESA PLIKEN, KECAMATAN KEMBARAN', pageWidth / 2, 22.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Sekretariat: Lingkungan ${settings?.namaRt || 'RT 08'} ${settings?.namaRw || 'RW 06'} Desa Pliken, Kec. Kembaran, Kab. Banyumas 53182`, pageWidth / 2, 28, { align: 'center' });
+    doc.text('Email: rt08rw06pliken@gmail.com | Layanan Jimpitan Digital RT', pageWidth / 2, 32, { align: 'center' });
+
+    // Double horizontal line for official Indonesian Kop Surat
+    doc.setDrawColor(30, 41, 59); // Slate 800
+    doc.setLineWidth(0.8);
+    doc.line(margin, 35, pageWidth - margin, 35);
+    doc.setLineWidth(0.2);
+    doc.line(margin, 36, pageWidth - margin, 36);
+
+    currentY = 43;
+  }
 
   // 2. DOCUMENT TITLE & PERIOD
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text('LAPORAN KEUANGAN KAS & JIMPITAN WARGA', pageWidth / 2, 43, { align: 'center' });
+  doc.text('LAPORAN KEUANGAN KAS & JIMPITAN WARGA', pageWidth / 2, currentY, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Periode Laporan: ${periodText}`, pageWidth / 2, 48, { align: 'center' });
+  doc.text(`Periode Laporan: ${periodText}`, pageWidth / 2, currentY + 5, { align: 'center' });
+  currentY += 10;
 
   // 3. EXECUTIVE FINANCIAL SUMMARY BOX
   const totalJimpitan = records.reduce((sum, r) => sum + r.nominal, 0);
@@ -80,241 +119,403 @@ export const generateKasReportPdf = ({
   const totalPengeluaran = mutations
     .filter((m) => m.jenis === 'keluar')
     .reduce((sum, m) => sum + m.nominal, 0);
-  const totalPemasukanAll = totalJimpitan + totalPemasukanLain;
 
-  // Box background
-  doc.setFillColor(248, 250, 252); // slate 50
-  doc.setDrawColor(226, 232, 240); // slate 200
-  doc.roundedRect(margin, 52, pageWidth - margin * 2, 22, 2, 2, 'FD');
+  if (custom.showSummaryCards !== false) {
+    // Box background
+    doc.setFillColor(248, 250, 252); // slate 50
+    doc.setDrawColor(226, 232, 240); // slate 200
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 22, 2, 2, 'FD');
 
-  // Summary columns
-  const colWidth = (pageWidth - margin * 2) / 4;
-  const topY = 57;
+    // Summary columns
+    const colWidth = (pageWidth - margin * 2) / 4;
+    const topY = currentY + 5;
 
-  // Col 1: Jimpitan
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('TOTAL JIMPITAN', margin + 4, topY);
-  doc.setFontSize(10);
-  doc.setTextColor(2, 132, 199);
-  doc.text(formatRupiah(totalJimpitan), margin + 4, topY + 5.5);
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`${records.length} Transaksi`, margin + 4, topY + 10);
+    // Col 1: Jimpitan
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('TOTAL JIMPITAN', margin + 4, topY);
+    doc.setFontSize(10);
+    doc.setTextColor(2, 132, 199);
+    doc.text(formatRupiah(totalJimpitan), margin + 4, topY + 5.5);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`${records.length} Transaksi`, margin + 4, topY + 10);
 
-  // Col 2: Pemasukan Lain
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('PEMASUKAN LAIN', margin + colWidth + 2, topY);
-  doc.setFontSize(10);
-  doc.setTextColor(16, 185, 129);
-  doc.text(formatRupiah(totalPemasukanLain), margin + colWidth + 2, topY + 5.5);
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Iuran/Sumbangan', margin + colWidth + 2, topY + 10);
+    // Col 2: Pemasukan Lain
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('PEMASUKAN LAIN', margin + colWidth + 2, topY);
+    doc.setFontSize(10);
+    doc.setTextColor(16, 185, 129);
+    doc.text(formatRupiah(totalPemasukanLain), margin + colWidth + 2, topY + 5.5);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Iuran/Sumbangan', margin + colWidth + 2, topY + 10);
 
-  // Col 3: Pengeluaran
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('PENGELUARAN KAS', margin + colWidth * 2 + 2, topY);
-  doc.setFontSize(10);
-  doc.setTextColor(225, 29, 72);
-  doc.text(`- ${formatRupiah(totalPengeluaran)}`, margin + colWidth * 2 + 2, topY + 5.5);
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Operasional RT', margin + colWidth * 2 + 2, topY + 10);
+    // Col 3: Pengeluaran
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('PENGELUARAN KAS', margin + colWidth * 2 + 2, topY);
+    doc.setFontSize(10);
+    doc.setTextColor(225, 29, 72);
+    doc.text(`- ${formatRupiah(totalPengeluaran)}`, margin + colWidth * 2 + 2, topY + 5.5);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Operasional RT', margin + colWidth * 2 + 2, topY + 10);
 
-  // Col 4: Saldo Kas Bersih
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text('SALDO KAS BERSIH', margin + colWidth * 3 + 2, topY);
-  doc.setFontSize(10.5);
-  doc.setTextColor(3, 105, 161);
-  doc.text(formatRupiah(totalSaldoKas), margin + colWidth * 3 + 2, topY + 5.5);
-  doc.setFontSize(7);
-  doc.setTextColor(16, 185, 129);
-  doc.text(saldoAwalPeriode !== undefined ? `Saldo Awal: ${formatRupiah(saldoAwalPeriode)}` : 'Status: Kas Aktif', margin + colWidth * 3 + 2, topY + 10);
+    // Col 4: Saldo Kas Bersih
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('SALDO KAS BERSIH', margin + colWidth * 3 + 2, topY);
+    doc.setFontSize(10.5);
+    doc.setTextColor(3, 105, 161);
+    doc.text(formatRupiah(totalSaldoKas), margin + colWidth * 3 + 2, topY + 5.5);
+    doc.setFontSize(7);
+    doc.setTextColor(16, 185, 129);
+    doc.text(saldoAwalPeriode !== undefined ? `Saldo Awal: ${formatRupiah(saldoAwalPeriode)}` : 'Status: Kas Aktif', margin + colWidth * 3 + 2, topY + 10);
 
-  let currentY = 78;
+    currentY += 28;
+  }
 
   // 4. TABEL 1: MUTASI PENGELUARAN / KAS RT
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('I. Rincian Pengeluaran & Belanja Kas RT', margin, currentY);
+  if (custom.showMutasiTable !== false) {
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
 
-  const mutationRows = mutations.length > 0 
-    ? mutations.map((m, idx) => [
-        String(idx + 1),
-        m.tanggal,
-        m.kategori,
-        m.keterangan,
-        m.petugas || '-',
-        m.jenis === 'masuk' ? `+ ${formatRupiah(m.nominal)}` : `- ${formatRupiah(m.nominal)}`,
-      ])
-    : [['-', '-', 'Belum ada catatan mutasi kas pada periode ini', '-', '-', '-']];
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    const mutasiTitle = custom.mutasiFilterJenis === 'keluar' 
+      ? 'I. Rincian Pengeluaran Kas RT' 
+      : custom.mutasiFilterJenis === 'masuk'
+      ? 'I. Rincian Pemasukan Kas RT (Non-Jimpitan)'
+      : 'I. Rincian Pengeluaran & Pemasukan Kas RT';
+    doc.text(mutasiTitle, margin, currentY);
 
-  autoTable(doc, {
-    startY: currentY + 2,
-    head: [['No', 'Tanggal', 'Kategori', 'Keterangan', 'Petugas/PJ', 'Nominal']],
-    body: mutationRows,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [2, 132, 199],
-      textColor: [255, 255, 255],
-      fontSize: 8,
-      fontStyle: 'bold',
-      halign: 'left',
-    },
-    bodyStyles: {
-      fontSize: 7.5,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 28 },
-      5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
-    },
-    margin: { left: margin, right: margin },
-  });
+    let filteredMut = mutations;
+    if (custom.mutasiFilterJenis === 'keluar') {
+      filteredMut = mutations.filter((m) => m.jenis === 'keluar');
+    } else if (custom.mutasiFilterJenis === 'masuk') {
+      filteredMut = mutations.filter((m) => m.jenis === 'masuk');
+    }
 
-  // Get Y position after first table
-  currentY = (doc as any).lastAutoTable.finalY + 8;
+    const mutCols = custom.mutasiColumns || {
+      no: true,
+      tanggal: true,
+      kategori: true,
+      keterangan: true,
+      petugas: true,
+      nominal: true,
+    };
 
-  // If page space is low, start new page
-  if (currentY > 230) {
-    doc.addPage();
-    currentY = 20;
+    const mutHead: string[] = [];
+    const colStyles: any = {};
+    let cIdx = 0;
+
+    if (mutCols.no) { mutHead.push('No'); colStyles[cIdx] = { cellWidth: 10, halign: 'center' }; cIdx++; }
+    if (mutCols.tanggal) { mutHead.push('Tanggal'); colStyles[cIdx] = { cellWidth: 22 }; cIdx++; }
+    if (mutCols.kategori) { mutHead.push('Kategori'); colStyles[cIdx] = { cellWidth: 30 }; cIdx++; }
+    if (mutCols.keterangan) { mutHead.push('Keterangan'); colStyles[cIdx] = { cellWidth: 'auto' }; cIdx++; }
+    if (mutCols.petugas) { mutHead.push('Petugas/PJ'); colStyles[cIdx] = { cellWidth: 26 }; cIdx++; }
+    if (mutCols.nominal) { mutHead.push('Nominal'); colStyles[cIdx] = { cellWidth: 26, halign: 'right', fontStyle: 'bold' }; cIdx++; }
+
+    const mutationRows = filteredMut.length > 0 
+      ? filteredMut.map((m, idx) => {
+          const row: string[] = [];
+          if (mutCols.no) row.push(String(idx + 1));
+          if (mutCols.tanggal) row.push(m.tanggal);
+          if (mutCols.kategori) row.push(m.kategori);
+          if (mutCols.keterangan) row.push(m.keterangan);
+          if (mutCols.petugas) row.push(m.petugas || '-');
+          if (mutCols.nominal) row.push(m.jenis === 'masuk' ? `+ ${formatRupiah(m.nominal)}` : `- ${formatRupiah(m.nominal)}`);
+          return row;
+        })
+      : [['Tidak ada catatan mutasi kas pada kriteria ini']];
+
+    autoTable(doc, {
+      startY: currentY + 2,
+      head: [mutHead],
+      body: mutationRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [2, 132, 199],
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: [30, 41, 59],
+      },
+      columnStyles: colStyles,
+      margin: { left: margin, right: margin },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
   // 5. TABEL 2: REKAP JIMPITAN WARGA
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('II. Rincian Penarikan Jimpitan Warga', margin, currentY);
+  if (custom.showJimpitanTable !== false) {
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
 
-  const wargaMap = new Map<string, string>();
-  if (Array.isArray(wargaList)) {
-    wargaList.forEach((w) => {
-      if (w.id) wargaMap.set(w.id, w.nama);
-      if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('II. Rincian Penarikan Jimpitan Warga', margin, currentY);
+
+    let filteredRecs = records;
+    if (custom.jimpitanFilterStatus === 'ada_setoran') {
+      filteredRecs = records.filter((r) => r.nominal > 0 || r.status === 'sukses' || r.status === 'titip');
+    } else if (custom.jimpitanFilterStatus === 'sukses') {
+      filteredRecs = records.filter((r) => r.status === 'sukses');
+    } else if (custom.jimpitanFilterStatus === 'titip') {
+      filteredRecs = records.filter((r) => r.status === 'titip');
+    } else if (custom.jimpitanFilterStatus === 'kosong') {
+      filteredRecs = records.filter((r) => r.status === 'kosong');
+    } else if (custom.jimpitanFilterStatus === 'lewat') {
+      filteredRecs = records.filter((r) => r.status === 'lewat');
+    }
+
+    const jimpCols = custom.jimpitanColumns || {
+      no: true,
+      waktu: true,
+      nomorRumah: true,
+      namaWarga: true,
+      status: true,
+      petugas: true,
+      nominal: true,
+    };
+
+    const jimpHead: string[] = [];
+    const colStyles: any = {};
+    let cIdx = 0;
+
+    if (jimpCols.no) { jimpHead.push('No'); colStyles[cIdx] = { cellWidth: 10, halign: 'center' }; cIdx++; }
+    if (jimpCols.waktu) { jimpHead.push('Waktu'); colStyles[cIdx] = { cellWidth: 26 }; cIdx++; }
+    if (jimpCols.nomorRumah) { jimpHead.push('Rumah'); colStyles[cIdx] = { cellWidth: 16, halign: 'center', fontStyle: 'bold' }; cIdx++; }
+    if (jimpCols.namaWarga) { jimpHead.push('Nama Kepala Keluarga'); colStyles[cIdx] = { cellWidth: 'auto' }; cIdx++; }
+    if (jimpCols.status) { jimpHead.push('Status'); colStyles[cIdx] = { cellWidth: 18, halign: 'center' }; cIdx++; }
+    if (jimpCols.petugas) { jimpHead.push('Petugas'); colStyles[cIdx] = { cellWidth: 26 }; cIdx++; }
+    if (jimpCols.nominal) { jimpHead.push('Nominal'); colStyles[cIdx] = { cellWidth: 24, halign: 'right', fontStyle: 'bold' }; cIdx++; }
+
+    const wargaMap = new Map<string, string>();
+    if (Array.isArray(wargaList)) {
+      wargaList.forEach((w) => {
+        if (w.id) wargaMap.set(w.id, w.nama);
+        if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+      });
+    }
+
+    const jimpitanRows = filteredRecs.length > 0
+      ? filteredRecs.map((r, idx) => {
+          const citizenName =
+            (r.wargaId && wargaMap.get(r.wargaId)) ||
+            (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
+            r.namaWarga;
+
+          const row: string[] = [];
+          if (jimpCols.no) row.push(String(idx + 1));
+          if (jimpCols.waktu) row.push(`${r.tanggal} ${r.waktu || ''}`.trim());
+          if (jimpCols.nomorRumah) row.push(`No. ${r.nomorRumah}`);
+          if (jimpCols.namaWarga) row.push(citizenName);
+          if (jimpCols.status) row.push(r.status.toUpperCase());
+          if (jimpCols.petugas) row.push(r.petugas || r.reguNama || '-');
+          if (jimpCols.nominal) row.push(formatRupiah(r.nominal));
+          return row;
+        })
+      : [['Tidak ada data jimpitan pada kriteria ini']];
+
+    autoTable(doc, {
+      startY: currentY + 2,
+      head: [jimpHead],
+      body: jimpitanRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: [30, 41, 59],
+      },
+      columnStyles: colStyles,
+      margin: { left: margin, right: margin },
     });
+
+    currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  const jimpitanRows = records.length > 0
-    ? records.map((r, idx) => {
-        const citizenName =
-          (r.wargaId && wargaMap.get(r.wargaId)) ||
-          (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
-          r.namaWarga;
+  // 6. TABEL 3: REKAP TOTAL PER RUMAH / WARGA (OPSIONAL)
+  if (custom.showRekapPerRumahTable) {
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
 
-        return [
-          String(idx + 1),
-          `${r.tanggal} ${r.waktu || ''}`,
-          `No. ${r.nomorRumah}`,
-          citizenName,
-          r.status.toUpperCase(),
-          r.petugas || r.reguNama || '-',
-          formatRupiah(r.nominal),
-        ];
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('III. Rekapitulasi Akumulasi Jimpitan per Rumah / Warga', margin, currentY);
+
+    const mapHouseTotal = new Map<string, { noRumah: string; nama: string; total: number; count: number }>();
+    if (Array.isArray(wargaList)) {
+      wargaList.forEach((w) => {
+        mapHouseTotal.set(w.nomorRumah, { noRumah: w.nomorRumah, nama: w.nama, total: 0, count: 0 });
+      });
+    }
+    records.forEach((r) => {
+      const existing = mapHouseTotal.get(r.nomorRumah);
+      if (existing) {
+        existing.total += (r.nominal || 0);
+        if ((r.nominal || 0) > 0 || r.status === 'sukses' || r.status === 'titip') {
+          existing.count += 1;
+        }
+      } else {
+        mapHouseTotal.set(r.nomorRumah, { noRumah: r.nomorRumah, nama: r.namaWarga, total: r.nominal || 0, count: 1 });
+      }
+    });
+
+    const rekapRows = Array.from(mapHouseTotal.values())
+      .sort((a, b) => {
+        const numA = parseInt(a.noRumah.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.noRumah.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
       })
-    : [['-', '-', '-', 'Tidak ada data jimpitan pada periode ini', '-', '-', '-']];
+      .map((item, idx) => [
+        String(idx + 1),
+        `No. ${item.noRumah}`,
+        item.nama,
+        `${item.count} Kali`,
+        formatRupiah(item.total),
+      ]);
 
-  autoTable(doc, {
-    startY: currentY + 2,
-    head: [['No', 'Waktu', 'Rumah', 'Nama Kepala Keluarga', 'Status', 'Petugas', 'Nominal']],
-    body: jimpitanRows,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [15, 23, 42],
-      textColor: [255, 255, 255],
-      fontSize: 8,
-      fontStyle: 'bold',
-      halign: 'left',
-    },
-    bodyStyles: {
-      fontSize: 7.5,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 28 },
-      2: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 32 },
-      6: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
-    },
-    margin: { left: margin, right: margin },
-  });
+    autoTable(doc, {
+      startY: currentY + 2,
+      head: [['No', 'Rumah', 'Nama Kepala Keluarga', 'Frekuensi Setor', 'Total Terkumpul']],
+      body: rekapRows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [14, 116, 144], // Cyan 700
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: [30, 41, 59],
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 30, halign: 'center' },
+        4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+      },
+      margin: { left: margin, right: margin },
+    });
 
-  // 6. PENGESAHAN / TANDA TANGAN PENGURUS
-  let signY = (doc as any).lastAutoTable.finalY + 12;
-
-  // If sign block exceeds page, add page
-  if (signY > 240) {
-    doc.addPage();
-    signY = 25;
+    currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
+  // 7. CATATAN & KETERANGAN TAMBAHAN PENGURUS
+  if (custom.showCatatanLaporan && custom.catatanLaporanText && custom.catatanLaporanText.trim()) {
+    if (currentY > 240) {
+      doc.addPage();
+      currentY = 20;
+    }
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(51, 65, 85);
-  doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal ${todayStr}`, pageWidth - margin, signY, { align: 'right' });
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 16, 2, 2, 'FD');
 
-  const signColWidth = (pageWidth - margin * 2) / 3;
-  const signTop = signY + 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Catatan & Keterangan Pengurus RT:', margin + 3, currentY + 5);
 
-  // Sign 1: Petugas / Penarik Jimpitan (Kiri)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Petugas / Penarik Jimpitan', margin + signColWidth / 2, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Koordinator Lapangan ${settings.namaRt} / ${settings.namaRw}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  const displayPetugas = (petugasName || '').trim() ? `( ${petugasName!.trim()} )` : '( ....................................... )';
-  doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(custom.catatanLaporanText.trim(), margin + 3, currentY + 10, { maxWidth: pageWidth - margin * 2 - 6 });
 
-  // Sign 2: Bendahara RT (Tengah)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Pengelola Kas Jimpitan', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  const displayBendahara = (bendaharaName || settings.namaBendahara || '').trim() ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` : '( ....................................... )';
-  doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+    currentY += 20;
+  }
 
-  // Sign 3: Ketua RT (Kanan)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  const displayKetua = (ketuaRtName || settings.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` : '( ....................................... )';
-  doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  // 8. PENGESAHAN / TANDA TANGAN PENGURUS
+  if (custom.showSignatures !== false) {
+    let signY = currentY + 6;
+
+    // If sign block exceeds page, add page
+    if (signY > 240) {
+      doc.addPage();
+      signY = 25;
+    }
+
+    const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal ${todayStr}`, pageWidth - margin, signY, { align: 'right' });
+
+    const signColWidth = (pageWidth - margin * 2) / 3;
+    const signTop = signY + 6;
+
+    // Sign 1: Petugas / Penarik Jimpitan (Kiri)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Petugas / Penarik Jimpitan', margin + signColWidth / 2, signTop, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Koordinator Lapangan ${settings?.namaRt || 'RT 08'} / ${settings?.namaRw || 'RW 06'}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    const displayPetugas = (petugasName || '').trim() ? `( ${petugasName!.trim()} )` : '( ....................................... )';
+    doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
+
+    // Sign 2: Bendahara RT (Tengah)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Pengelola Kas Jimpitan', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    const displayBendahara = (bendaharaName || settings?.namaBendahara || '').trim() ? `( ${(bendaharaName || settings?.namaBendahara)!.trim()} )` : '( ....................................... )';
+    doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+
+    // Sign 3: Ketua RT (Kanan)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Ketua ${settings?.namaRt || 'RT 08'} ${settings?.namaRw || 'RW 06'}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    const displayKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings?.namaKetuaRt)!.trim()} )` : '( ....................................... )';
+    doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  }
 
   // Footer on all pages
   const totalPages = doc.getNumberOfPages();

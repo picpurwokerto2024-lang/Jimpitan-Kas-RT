@@ -145,4 +145,34 @@ export interface AppBackup {
   };
 }
 
+export interface KasReportCustomOptions {
+  showKopSurat: boolean;
+  showSummaryCards: boolean;
+  showMutasiTable: boolean;
+  showJimpitanTable: boolean;
+  showRekapPerRumahTable: boolean;
+  showSignatures: boolean;
+  showCatatanLaporan: boolean;
+  catatanLaporanText?: string;
+  mutasiFilterJenis: 'semua' | 'keluar' | 'masuk';
+  mutasiColumns: {
+    no: boolean;
+    tanggal: boolean;
+    kategori: boolean;
+    keterangan: boolean;
+    petugas: boolean;
+    nominal: boolean;
+  };
+  jimpitanFilterStatus: 'semua' | 'ada_setoran' | 'sukses' | 'titip' | 'kosong' | 'lewat';
+  jimpitanColumns: {
+    no: boolean;
+    waktu: boolean;
+    nomorRumah: boolean;
+    namaWarga: boolean;
+    status: boolean;
+    petugas: boolean;
+    nominal: boolean;
+  };
+}
+
 

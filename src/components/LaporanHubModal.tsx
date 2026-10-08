@@ -22,7 +22,8 @@ import {
   RefreshCw,
   Building,
   Check,
-  ChevronDown
+  ChevronDown,
+  SlidersHorizontal
 } from 'lucide-react';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, ReguRonda } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
@@ -35,6 +36,7 @@ import {
 } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
 import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
+import { PdfReportModal } from './PdfReportModal';
 
 export type LaporanTabKey = 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan';
 
@@ -111,6 +113,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const [bendaharaName, setBendaharaName] = useState<string>('');
   const [ketuaRtName, setKetuaRtName] = useState<string>(settings?.namaKetuaRt || '');
   const [showSignatureSettings, setShowSignatureSettings] = useState<boolean>(false);
+  const [showCustomPdfReportModal, setShowCustomPdfReportModal] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -660,12 +663,20 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
             {activeTab === 'kas' && (
               <div className="flex items-center space-x-1.5">
                 <button
+                  onClick={() => setShowCustomPdfReportModal(true)}
+                  className="px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-extrabold text-xs flex items-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
+                  title="Atur kolom dan pratinjau cetak kas fleksibel"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Kustomisasi & Cetak</span>
+                </button>
+                <button
                   onClick={handleExportKasExcel}
                   className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
                   title="Unduh Lembar Kerja Excel (.xlsx) Lengkap Kop Surat & 3 TTD"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Excel Kas (.xlsx)</span>
+                  <span className="hidden sm:inline">Excel Kas</span>
                 </button>
                 <button
                   onClick={handleExportKasPdf}
@@ -1408,6 +1419,18 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         </div>
 
       </div>
+
+      {showCustomPdfReportModal && (
+        <PdfReportModal
+          isOpen={showCustomPdfReportModal}
+          onClose={() => setShowCustomPdfReportModal(false)}
+          allRecords={safeRecords}
+          kasMutations={safeMutations}
+          settings={settings}
+          selectedDate={`${selectedYearMonth}-01`}
+          wargaList={safeWarga}
+        />
+      )}
     </div>
   );
 };

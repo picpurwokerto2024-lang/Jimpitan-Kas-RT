@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { JimpitanRecord, KasMutation, AppSettings, Warga } from '../types';
+import { JimpitanRecord, KasMutation, AppSettings, Warga, KasReportCustomOptions } from '../types';
 import { formatTanggalIndo } from './formatters';
 
 interface GenerateExcelOptions {
@@ -13,6 +13,7 @@ interface GenerateExcelOptions {
   bendaharaName?: string;
   ketuaRtName?: string;
   wargaList?: Warga[];
+  customOptions?: KasReportCustomOptions;
 }
 
 export const generateKasReportExcel = async ({
@@ -26,6 +27,7 @@ export const generateKasReportExcel = async ({
   bendaharaName = '',
   ketuaRtName = '',
   wargaList = [],
+  customOptions,
 }: GenerateExcelOptions) => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Sistem Jimpitan Digital RT 08 RW 06 Pliken';
@@ -46,6 +48,27 @@ export const generateKasReportExcel = async ({
     { key: 'colG', width: 18 },  // Nominal Masuk
     { key: 'colH', width: 18 },  // Nominal Keluar
   ];
+
+  // Apply custom filters if specified
+  let effectiveMutations = mutations;
+  if (customOptions?.mutasiFilterJenis === 'keluar') {
+    effectiveMutations = mutations.filter((m) => m.jenis === 'keluar');
+  } else if (customOptions?.mutasiFilterJenis === 'masuk') {
+    effectiveMutations = mutations.filter((m) => m.jenis === 'masuk');
+  }
+
+  let effectiveRecords = records;
+  if (customOptions?.jimpitanFilterStatus === 'ada_setoran') {
+    effectiveRecords = records.filter((r) => (r.nominal || 0) > 0 || r.status === 'sukses' || r.status === 'titip');
+  } else if (customOptions?.jimpitanFilterStatus === 'sukses') {
+    effectiveRecords = records.filter((r) => r.status === 'sukses');
+  } else if (customOptions?.jimpitanFilterStatus === 'titip') {
+    effectiveRecords = records.filter((r) => r.status === 'titip');
+  } else if (customOptions?.jimpitanFilterStatus === 'kosong') {
+    effectiveRecords = records.filter((r) => r.status === 'kosong');
+  } else if (customOptions?.jimpitanFilterStatus === 'lewat') {
+    effectiveRecords = records.filter((r) => r.status === 'lewat');
+  }
 
   // Helper styles
   const primaryColor = 'FF0284C7'; // Sky 600
@@ -148,35 +171,41 @@ export const generateKasReportExcel = async ({
   curRow += 2;
 
   // 4. TABEL 1: MUTASI PENGELUARAN & KAS MASUK LAINNYA
-  worksheet.mergeCells(`A${curRow}:H${curRow}`);
-  worksheet.getCell(`A${curRow}`).value = 'TABEL 1: BUKU CATATAN MUTASI & PENGELUARAN KAS RT';
-  worksheet.getCell(`A${curRow}`).font = { name: 'Calibri', size: 11, bold: true, color: { argb: darkNavy } };
-
-  curRow++;
-  const mutasiHeaderRow = curRow;
-  const mutasiHeaders = ['No', 'Tanggal', 'Jenis', 'Kategori Pengeluaran / Masuk', 'Keterangan Rincian', 'Petugas / PJ', 'Pemasukan (Rp)', 'Pengeluaran (Rp)'];
-  mutasiHeaders.forEach((h, idx) => {
-    const cell = worksheet.getCell(mutasiHeaderRow, idx + 1);
-    cell.value = h;
-    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF334155' }, // Slate 700
-    };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = borderThin;
-  });
-
-  if (mutations.length === 0) {
-    curRow++;
+  if (customOptions?.showMutasiTable !== false) {
     worksheet.mergeCells(`A${curRow}:H${curRow}`);
-    worksheet.getCell(`A${curRow}`).value = 'Tidak ada transaksi mutasi kas tercatat pada periode ini.';
-    worksheet.getCell(`A${curRow}`).font = { italic: true, color: { argb: 'FF94A3B8' } };
-    worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'center' };
-    for (let c = 1; c <= 8; c++) worksheet.getCell(curRow, c).border = borderThin;
-  } else {
-    mutations.forEach((m, idx) => {
+    const mutasiTitle = customOptions?.mutasiFilterJenis === 'keluar'
+      ? 'TABEL 1: BUKU CATATAN PENGELUARAN KAS RT'
+      : customOptions?.mutasiFilterJenis === 'masuk'
+      ? 'TABEL 1: BUKU CATATAN PEMASUKAN KAS RT (NON-JIMPITAN)'
+      : 'TABEL 1: BUKU CATATAN MUTASI & PENGELUARAN KAS RT';
+    worksheet.getCell(`A${curRow}`).value = mutasiTitle;
+    worksheet.getCell(`A${curRow}`).font = { name: 'Calibri', size: 11, bold: true, color: { argb: darkNavy } };
+
+    curRow++;
+    const mutasiHeaderRow = curRow;
+    const mutasiHeaders = ['No', 'Tanggal', 'Jenis', 'Kategori Pengeluaran / Masuk', 'Keterangan Rincian', 'Petugas / PJ', 'Pemasukan (Rp)', 'Pengeluaran (Rp)'];
+    mutasiHeaders.forEach((h, idx) => {
+      const cell = worksheet.getCell(mutasiHeaderRow, idx + 1);
+      cell.value = h;
+      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF334155' }, // Slate 700
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = borderThin;
+    });
+
+    if (effectiveMutations.length === 0) {
+      curRow++;
+      worksheet.mergeCells(`A${curRow}:H${curRow}`);
+      worksheet.getCell(`A${curRow}`).value = 'Tidak ada transaksi mutasi kas tercatat pada kriteria ini.';
+      worksheet.getCell(`A${curRow}`).font = { italic: true, color: { argb: 'FF94A3B8' } };
+      worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'center' };
+      for (let c = 1; c <= 8; c++) worksheet.getCell(curRow, c).border = borderThin;
+    } else {
+      effectiveMutations.forEach((m, idx) => {
       curRow++;
       worksheet.getCell(curRow, 1).value = idx + 1;
       worksheet.getCell(curRow, 1).alignment = { horizontal: 'center' };
@@ -205,11 +234,13 @@ export const generateKasReportExcel = async ({
   }
 
   curRow += 2;
+}
 
   // 5. TABEL 2: RINCIAN PENERIMAAN JIMPITAN WARGA
-  worksheet.mergeCells(`A${curRow}:H${curRow}`);
-  worksheet.getCell(`A${curRow}`).value = 'TABEL 2: RINCIAN PENERIMAAN JIMPITAN WARGA';
-  worksheet.getCell(`A${curRow}`).font = { name: 'Calibri', size: 11, bold: true, color: { argb: darkNavy } };
+  if (customOptions?.showJimpitanTable !== false) {
+    worksheet.mergeCells(`A${curRow}:H${curRow}`);
+    worksheet.getCell(`A${curRow}`).value = 'TABEL 2: RINCIAN PENERIMAAN JIMPITAN WARGA';
+    worksheet.getCell(`A${curRow}`).font = { name: 'Calibri', size: 11, bold: true, color: { argb: darkNavy } };
 
   curRow++;
   const jimpitanHeaderRow = curRow;
@@ -227,74 +258,75 @@ export const generateKasReportExcel = async ({
     cell.border = borderThin;
   });
 
-  if (records.length === 0) {
-    curRow++;
-    worksheet.mergeCells(`A${curRow}:H${curRow}`);
-    worksheet.getCell(`A${curRow}`).value = 'Belum ada data setoran jimpitan pada periode ini.';
-    worksheet.getCell(`A${curRow}`).font = { italic: true, color: { argb: 'FF94A3B8' } };
-    worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'center' };
-    for (let c = 1; c <= 8; c++) worksheet.getCell(curRow, c).border = borderThin;
-  } else {
-    const wargaMap = new Map<string, string>();
-    if (Array.isArray(wargaList)) {
-      wargaList.forEach((w) => {
-        if (w.id) wargaMap.set(w.id, w.nama);
-        if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
-      });
-    }
-
-    records.forEach((r, idx) => {
+    if (effectiveRecords.length === 0) {
       curRow++;
-      worksheet.getCell(curRow, 1).value = idx + 1;
-      worksheet.getCell(curRow, 1).alignment = { horizontal: 'center' };
+      worksheet.mergeCells(`A${curRow}:H${curRow}`);
+      worksheet.getCell(`A${curRow}`).value = 'Belum ada data setoran jimpitan pada kriteria ini.';
+      worksheet.getCell(`A${curRow}`).font = { italic: true, color: { argb: 'FF94A3B8' } };
+      worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'center' };
+      for (let c = 1; c <= 8; c++) worksheet.getCell(curRow, c).border = borderThin;
+    } else {
+      const wargaMap = new Map<string, string>();
+      if (Array.isArray(wargaList)) {
+        wargaList.forEach((w) => {
+          if (w.id) wargaMap.set(w.id, w.nama);
+          if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+        });
+      }
 
-      worksheet.getCell(curRow, 2).value = r.tanggal ? formatTanggalIndo(r.tanggal) : '-';
-      worksheet.getCell(curRow, 2).alignment = { horizontal: 'center' };
+      effectiveRecords.forEach((r, idx) => {
+        curRow++;
+        worksheet.getCell(curRow, 1).value = idx + 1;
+        worksheet.getCell(curRow, 1).alignment = { horizontal: 'center' };
 
-      worksheet.getCell(curRow, 3).value = r.waktu || '-';
-      worksheet.getCell(curRow, 3).alignment = { horizontal: 'center' };
+        worksheet.getCell(curRow, 2).value = r.tanggal ? formatTanggalIndo(r.tanggal) : '-';
+        worksheet.getCell(curRow, 2).alignment = { horizontal: 'center' };
 
-      worksheet.getCell(curRow, 4).value = r.nomorRumah ? `No. ${r.nomorRumah}` : '-';
-      worksheet.getCell(curRow, 4).alignment = { horizontal: 'center' };
+        worksheet.getCell(curRow, 3).value = r.waktu || '-';
+        worksheet.getCell(curRow, 3).alignment = { horizontal: 'center' };
 
-      const citizenName =
-        (r.wargaId && wargaMap.get(r.wargaId)) ||
-        (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
-        r.namaWarga ||
-        '-';
+        worksheet.getCell(curRow, 4).value = r.nomorRumah ? `No. ${r.nomorRumah}` : '-';
+        worksheet.getCell(curRow, 4).alignment = { horizontal: 'center' };
 
-      worksheet.getCell(curRow, 5).value = citizenName;
+        const citizenName =
+          (r.wargaId && wargaMap.get(r.wargaId)) ||
+          (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
+          r.namaWarga ||
+          '-';
 
-      worksheet.getCell(curRow, 6).value = r.status.toUpperCase();
-      worksheet.getCell(curRow, 6).alignment = { horizontal: 'center' };
-      worksheet.getCell(curRow, 6).font = { bold: true, color: { argb: r.status === 'sukses' ? 'FF059669' : 'FFE11D48' } };
+        worksheet.getCell(curRow, 5).value = citizenName;
 
-      worksheet.getCell(curRow, 7).value = r.petugas || '-';
+        worksheet.getCell(curRow, 6).value = r.status.toUpperCase();
+        worksheet.getCell(curRow, 6).alignment = { horizontal: 'center' };
+        worksheet.getCell(curRow, 6).font = { bold: true, color: { argb: r.status === 'sukses' ? 'FF059669' : 'FFE11D48' } };
 
-      worksheet.getCell(curRow, 8).value = r.nominal || 0;
-      worksheet.getCell(curRow, 8).numFmt = '"Rp "#,##0';
+        worksheet.getCell(curRow, 7).value = r.petugas || '-';
 
+        worksheet.getCell(curRow, 8).value = r.nominal || 0;
+        worksheet.getCell(curRow, 8).numFmt = '"Rp "#,##0';
+
+        for (let c = 1; c <= 8; c++) {
+          worksheet.getCell(curRow, c).border = borderThin;
+        }
+      });
+
+      // Subtotal Jimpitan
+      curRow++;
+      worksheet.mergeCells(`A${curRow}:G${curRow}`);
+      worksheet.getCell(`A${curRow}`).value = 'TOTAL PENERIMAAN JIMPITAN WARGA';
+      worksheet.getCell(`A${curRow}`).font = { bold: true, color: { argb: darkNavy } };
+      worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'right' };
+      worksheet.getCell(`H${curRow}`).value = totalJimpitan;
+      worksheet.getCell(`H${curRow}`).numFmt = '"Rp "#,##0';
+      worksheet.getCell(`H${curRow}`).font = { bold: true, color: { argb: 'FF0284C7' } };
       for (let c = 1; c <= 8; c++) {
+        worksheet.getCell(curRow, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: softBg } };
         worksheet.getCell(curRow, c).border = borderThin;
       }
-    });
-
-    // Subtotal Jimpitan
-    curRow++;
-    worksheet.mergeCells(`A${curRow}:G${curRow}`);
-    worksheet.getCell(`A${curRow}`).value = 'TOTAL PENERIMAAN JIMPITAN WARGA';
-    worksheet.getCell(`A${curRow}`).font = { bold: true, color: { argb: darkNavy } };
-    worksheet.getCell(`A${curRow}`).alignment = { horizontal: 'right' };
-    worksheet.getCell(`H${curRow}`).value = totalJimpitan;
-    worksheet.getCell(`H${curRow}`).numFmt = '"Rp "#,##0';
-    worksheet.getCell(`H${curRow}`).font = { bold: true, color: { argb: 'FF0284C7' } };
-    for (let c = 1; c <= 8; c++) {
-      worksheet.getCell(curRow, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: softBg } };
-      worksheet.getCell(curRow, c).border = borderThin;
     }
-  }
 
-  curRow += 3;
+    curRow += 3;
+  }
 
   // 6. LEMBAR PENGESAHAN & 3 TANDA TANGAN RESMI
   // Susunan: Kiri: Petugas, Tengah: Bendahara, Kanan: Ketua RT

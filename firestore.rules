@@ -1,49 +1,120 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Pengaturan RT & RW
-    match /settings/{document=**} {
-      allow read, write: if true;
+
+    // Helper functions for data sanitization and type checking
+    function hasValidTimestamp(data) {
+      return !('updatedAt' in data) || data.updatedAt is number;
     }
-    // Data Warga & Kartu QR Rumah
-    match /warga/{document=**} {
-      allow read, write: if true;
+
+    // 1. Pengaturan RT & RW
+    match /settings/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.namaRt is string
+        && request.resource.data.namaRw is string
+        && request.resource.data.defaultNominal is number
+        && request.resource.data.defaultNominal >= 0
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if false;
     }
-    // Catatan Riwayat Transaksi Jimpitan Ronda
-    match /jimpitan_records/{document=**} {
-      allow read, write: if true;
+
+    // 2. Data Warga & Kartu QR Rumah
+    match /warga/{wargaId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.nomorRumah is string
+        && request.resource.data.nomorRumah.size() > 0
+        && request.resource.data.nama is string
+        && request.resource.data.nama.size() > 0
+        && request.resource.data.nominalDefault is number
+        && request.resource.data.nominalDefault >= 0
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Buku Kas Mutasi Pemasukan & Pengeluaran
-    match /kas_mutations/{document=**} {
-      allow read, write: if true;
+
+    // 3. Catatan Riwayat Transaksi Jimpitan Ronda
+    match /jimpitan_records/{recordId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.tanggal is string
+        && request.resource.data.tanggal.size() >= 8
+        && request.resource.data.nomorRumah is string
+        && request.resource.data.namaWarga is string
+        && request.resource.data.nominal is number
+        && request.resource.data.nominal >= 0
+        && request.resource.data.status in ['sukses', 'kosong', 'titip', 'lewat']
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Jadwal & Anggota Regu Ronda Siskamling
-    match /regu_ronda/{document=**} {
-      allow read, write: if true;
+
+    // 4. Buku Kas Mutasi Pemasukan & Pengeluaran
+    match /kas_mutations/{mutationId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.tanggal is string
+        && request.resource.data.jenis in ['masuk', 'keluar']
+        && request.resource.data.nominal is number
+        && request.resource.data.nominal >= 0
+        && request.resource.data.keterangan is string
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Hitungan Rincian Pecahan Uang Fisik (Koin & Kertas)
-    match /money_counts/{document=**} {
-      allow read, write: if true;
+
+    // 5. Jadwal & Anggota Regu Ronda Siskamling
+    match /regu_ronda/{reguId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.nama is string
+        && request.resource.data.hari is string
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Sesi Status Ronda & Finish Harian
-    match /ronda_sessions/{document=**} {
-      allow read, write: if true;
+
+    // 6. Hitungan Rincian Pecahan Uang Fisik (Koin & Kertas)
+    match /money_counts/{countId} {
+      allow read: if true;
+      allow create, update: if (request.resource.data.koin100 is number || request.resource.data.kertas1000 is number)
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Kehadiran Realtime Pengguna & Petugas Online
-    match /active_presences/{document=**} {
-      allow read, write: if true;
+
+    // 7. Sesi Status Ronda & Finish Harian
+    match /ronda_sessions/{sessionId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.tanggal is string
+        && request.resource.data.status in ['active', 'finished']
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
     }
-    // Cadangan Data Cloud Otomatis & Manual
-    match /backups/{document=**} {
-      allow read, write: if true;
+
+    // 8. Kehadiran Realtime Pengguna & Petugas Online
+    match /active_presences/{presenceId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.mode in ['warga', 'penginput', 'petugas']
+        && request.resource.data.lastSeen is number;
+      allow delete: if true;
     }
-    // Arsip Rekapitulasi Bulanan
-    match /monthly_archives/{document=**} {
-      allow read, write: if true;
+
+    // 9. Cadangan Data Cloud Otomatis & Manual
+    match /backups/{backupId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.timestamp is number
+        && request.resource.data.source in ['auto', 'manual']
+        && request.resource.data.stats is map
+        && request.resource.data.data is map;
+      allow delete: if true;
     }
-    // Health Check & Uji Koneksi Database
-    match /test/{document=**} {
-      allow read, write: if true;
+
+    // 10. Arsip Rekapitulasi Bulanan
+    match /monthly_archives/{archiveId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.yearMonth is string
+        && request.resource.data.totalTerkumpul is number
+        && request.resource.data.archivedAt is number;
+      allow delete: if true;
+    }
+
+    // 11. Health Check & Uji Koneksi Database (Hanya baca dokumen connection khusus, tanpa izin write)
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write, delete: if false;
     }
   }
 }
+
