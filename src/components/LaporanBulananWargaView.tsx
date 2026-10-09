@@ -817,22 +817,22 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                 type="button"
                 onClick={() => setIsTunggakanPdfModalOpen(true)}
                 className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
-                title="Ekspor Laporan Tunggakan & Pelunasan PDF Lengkap dengan 3 Tanda Tangan"
+                title="Ekspor Laporan Tunggakan & Pelunasan PDF Lengkap dengan 2 Tanda Tangan (Bendahara & Ketua RT)"
                 id="btn-export-pdf-tunggakan"
               >
                 <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>Ekspor PDF Tunggakan (3 TTD)</span>
+                <span>Ekspor PDF Tunggakan (2 TTD)</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsPdfModalOpen(true)}
                 className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
-                title="Ekspor Laporan Resmi PDF Lengkap dengan 3 Tanda Tangan (Petugas, Bendahara, Ketua RT)"
+                title="Ekspor Laporan Resmi PDF Lengkap dengan 2 Tanda Tangan (Bendahara RT & Ketua RT)"
                 id="btn-export-pdf-warga-monthly"
               >
                 <FileText className="w-3.5 h-3.5 text-sky-200" />
-                <span>Ekspor PDF (3 TTD)</span>
+                <span>Ekspor PDF (2 TTD)</span>
               </button>
             )}
 
@@ -1425,7 +1425,7 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                 className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>Unduh PDF (3 TTD)</span>
+                <span>Unduh PDF (2 TTD)</span>
               </button>
             </div>
           </div>

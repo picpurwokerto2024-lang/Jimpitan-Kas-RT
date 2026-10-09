@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FileText, 
   Download, 
@@ -37,9 +38,10 @@ interface PdfReportModalProps {
   settings: AppSettings;
   selectedDate: string;
   wargaList?: Warga[];
+  initialPreset?: ReportPresetKey;
 }
 
-type ReportPresetKey = 'lengkap' | 'kas' | 'jimpitan' | 'eksekutif' | 'rekap_rumah' | 'kustom';
+export type ReportPresetKey = 'lengkap' | 'kas' | 'jimpitan' | 'pemasukan' | 'pengeluaran' | 'eksekutif' | 'rekap_rumah' | 'kustom';
 
 export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   isOpen,
@@ -49,6 +51,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   settings,
   selectedDate,
   wargaList = [],
+  initialPreset = 'lengkap',
 }) => {
   // Safe initial month YYYY-MM
   const initialMonth = useMemo(() => {
@@ -68,7 +71,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   const [isGeneratingExcel, setIsGeneratingExcel] = useState<boolean>(false);
 
   // Active Preset Tracker
-  const [activePreset, setActivePreset] = useState<ReportPresetKey>('lengkap');
+  const [activePreset, setActivePreset] = useState<ReportPresetKey>(initialPreset);
   const [showConfigDrawer, setShowConfigDrawer] = useState<boolean>(false);
   const [configSubTab, setConfigSubTab] = useState<'sections' | 'mutasi' | 'jimpitan' | 'ttd'>('sections');
 
@@ -114,6 +117,19 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       if (settings.namaKetuaRt) setKetuaRtName(settings.namaKetuaRt);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (selectedDate && selectedDate.includes('-')) {
+      const parts = selectedDate.split('-');
+      setSelectedMonth(`${parts[0]}-${parts[1]}`);
+    }
+  }, [selectedDate, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && initialPreset && initialPreset !== 'lengkap') {
+      applyPreset(initialPreset);
+    }
+  }, [isOpen, initialPreset]);
 
   if (!isOpen) return null;
 
@@ -176,6 +192,28 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         showJimpitanTable: false,
         showRekapPerRumahTable: true,
         showSignatures: true,
+      }));
+    } else if (preset === 'pemasukan') {
+      setCustomOptions(prev => ({
+        ...prev,
+        showKopSurat: true,
+        showSummaryCards: true,
+        showMutasiTable: true,
+        showJimpitanTable: true,
+        showRekapPerRumahTable: false,
+        showSignatures: true,
+        mutasiFilterJenis: 'masuk',
+      }));
+    } else if (preset === 'pengeluaran') {
+      setCustomOptions(prev => ({
+        ...prev,
+        showKopSurat: true,
+        showSummaryCards: true,
+        showMutasiTable: true,
+        showJimpitanTable: false,
+        showRekapPerRumahTable: false,
+        showSignatures: true,
+        mutasiFilterJenis: 'keluar',
       }));
     }
   };
@@ -388,30 +426,27 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
     window.print();
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible" id="pdf-report-preview-modal">
       <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-4xl w-full my-auto overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[92vh] animate-in fade-in zoom-in-95 print:max-h-none print:shadow-none print:border-none print:m-0 print:rounded-none">
         
         {/* HEADER BAR (Non-printable) */}
-        <div className="p-3.5 sm:p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/90 print:hidden flex-shrink-0">
+        <div className="p-3 sm:p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/95 print:hidden flex-shrink-0">
           <div className="flex items-center space-x-3 min-w-0">
             <div className="w-9 h-9 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs flex-shrink-0">
-              <FileText className="w-5 h-5" />
+              <Eye className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
                 <h3 className="font-extrabold text-stone-900 text-sm sm:text-base truncate">
-                  Laporan Kas & Jimpitan Warga
+                  Pratinjau & Cetak Laporan Kas & Jimpitan
                 </h3>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black shrink-0">
                   Resmi RT
                 </span>
-                <span className="hidden sm:inline px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold shrink-0">
-                  Preset: {activePreset === 'lengkap' ? 'Semua Data' : activePreset === 'kas' ? 'Buku Kas Saja' : activePreset === 'jimpitan' ? 'Jimpitan Saja' : activePreset === 'eksekutif' ? 'Ringkasan Eksekutif' : activePreset === 'rekap_rumah' ? 'Rekap per Rumah' : 'Kustom'}
-                </span>
               </div>
               <p className="text-xs text-stone-500 truncate">
-                Pilih bebas bagian & kolom yang ingin ditampilkan, dicetak, atau diunduh (PDF / Excel).
+                Layar pratinjau langsung: pilih data apa saja yang ingin ditampilkan sebelum dicetak / diunduh.
               </p>
             </div>
           </div>
@@ -424,11 +459,10 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                   ? 'bg-sky-600 text-white border-sky-600 shadow-sky-200' 
                   : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-50'
               }`}
-              title="Atur bagian data dan kolom yang ditampilkan"
+              title="Atur rincian bagian data dan kolom yang ditampilkan"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pilih Data & Kolom</span>
-              <span className="sm:hidden">Pilih Data</span>
+              <span>{showConfigDrawer ? 'Tutup Pilihan Data' : 'Pilih Data & Kolom'}</span>
               {showConfigDrawer ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
             </button>
 
@@ -442,14 +476,14 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
           </div>
         </div>
 
-        {/* CONTROLS BAR (Non-printable) */}
-        <div className="p-2.5 sm:p-3 bg-sky-50/70 border-b border-sky-100 flex flex-wrap items-center justify-between gap-2 print:hidden flex-shrink-0">
+        {/* CONTROLS BAR: PERIODE & PRESET CEPAT & ACTIONS (Non-printable) */}
+        <div className="p-2.5 sm:p-3 bg-sky-50/80 border-b border-sky-100 flex flex-wrap items-center justify-between gap-2 print:hidden flex-shrink-0">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-xs font-bold text-sky-950 mr-1">Periode:</span>
             
             <button
               onClick={() => setFilterType('bulan')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'bulan'
                   ? 'bg-sky-600 text-white shadow-2xs'
                   : 'bg-white text-stone-700 border border-sky-200 hover:bg-sky-100'
@@ -460,7 +494,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
 
             <button
               onClick={() => setFilterType('hari')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'hari'
                   ? 'bg-sky-600 text-white shadow-2xs'
                   : 'bg-white text-stone-700 border border-sky-200 hover:bg-sky-100'
@@ -471,7 +505,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
 
             <button
               onClick={() => setFilterType('semua')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'semua'
                   ? 'bg-sky-600 text-white shadow-2xs'
                   : 'bg-white text-stone-700 border border-sky-200 hover:bg-sky-100'
@@ -488,6 +522,32 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                 className="px-2.5 py-1 rounded-xl bg-white border border-sky-300 text-xs font-bold text-stone-800 outline-none shadow-2xs"
               />
             )}
+          </div>
+
+          {/* Quick Presets Strip directly in toolbar */}
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            <span className="text-[11px] font-bold text-stone-500 mr-1 shrink-0">Preset:</span>
+            {[
+              { id: 'lengkap', label: 'Semua Lengkap' },
+              { id: 'kas', label: 'Buku Kas' },
+              { id: 'pemasukan', label: 'Pemasukan' },
+              { id: 'pengeluaran', label: 'Pengeluaran' },
+              { id: 'jimpitan', label: 'Jimpitan Saja' },
+              { id: 'eksekutif', label: 'Ringkasan' },
+              { id: 'rekap_rumah', label: 'Rekap Rumah' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                onClick={() => applyPreset(p.id as ReportPresetKey)}
+                className={`px-2 py-1 rounded-lg text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                  activePreset === p.id
+                    ? 'bg-sky-700 text-white shadow-2xs'
+                    : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex items-center space-x-1.5 sm:space-x-2">
@@ -507,7 +567,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
               title="Unduh File PDF Dokumen Resmi"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>{isGeneratingPdf ? 'Membuat...' : 'PDF'}</span>
+              <span>{isGeneratingPdf ? 'Membuat...' : 'Unduh PDF'}</span>
             </button>
           </div>
         </div>
@@ -651,7 +711,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                     onChange={(e) => updateCustom(p => ({ ...p, showSignatures: e.target.checked }))}
                     className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
                   />
-                  <span className="font-medium text-stone-800">3 Tanda Tangan Resmi Pengurus</span>
+                  <span className="font-medium text-stone-800">2 Tanda Tangan Resmi (Bendahara & Ketua RT)</span>
                 </label>
 
                 <label className="flex items-center space-x-2 cursor-pointer select-none col-span-1 sm:col-span-2">
@@ -789,41 +849,33 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
             {/* TAB 4: Penandatangan & Catatan Khusus */}
             {configSubTab === 'ttd' && (
               <div className="bg-white p-3 rounded-xl border border-stone-200 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-950 text-xs font-semibold">
+                  Laporan resmi disahkan oleh <strong>Bendahara RT</strong> dan <strong>Ketua RT</strong>.
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-black uppercase text-stone-700 block mb-0.5">
-                      1. Nama Petugas Ronda
-                    </label>
-                    <input
-                      type="text"
-                      value={petugasName}
-                      onChange={(e) => setPetugasName(e.target.value)}
-                      placeholder="Nama Petugas Ronda"
-                      className="w-full px-2.5 py-1 rounded-lg bg-stone-50 border border-stone-300 text-xs font-bold text-stone-800 focus:outline-none focus:bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-stone-700 block mb-0.5">
-                      2. Nama Bendahara RT
+                      1. Nama Bendahara RT (Pengelola Kas)
                     </label>
                     <input
                       type="text"
                       value={bendaharaName}
                       onChange={(e) => setBendaharaName(e.target.value)}
                       placeholder="Nama Bendahara RT"
-                      className="w-full px-2.5 py-1 rounded-lg bg-stone-50 border border-stone-300 text-xs font-bold text-stone-800 focus:outline-none focus:bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 border border-stone-300 text-xs font-bold text-stone-800 focus:outline-none focus:bg-white"
                     />
                   </div>
                   <div>
                     <label className="text-[10px] font-black uppercase text-stone-700 block mb-0.5">
-                      3. Nama Ketua RT
+                      2. Nama Ketua RT (Mengetahui & Menyetujui)
                     </label>
                     <input
                       type="text"
                       value={ketuaRtName}
                       onChange={(e) => setKetuaRtName(e.target.value)}
                       placeholder="Nama Ketua RT"
-                      className="w-full px-2.5 py-1 rounded-lg bg-stone-50 border border-stone-300 text-xs font-bold text-stone-800 focus:outline-none focus:bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-stone-50 border border-stone-300 text-xs font-bold text-stone-800 focus:outline-none focus:bg-white"
                     />
                   </div>
                 </div>
@@ -847,6 +899,33 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
 
         {/* DOCUMENT PREVIEW CONTAINER (Styled like an Official A4 Sheet) */}
         <div className="p-3 sm:p-6 overflow-y-auto flex-1 bg-stone-200/70 print:p-0 print:bg-white min-h-[400px]">
+          {/* Live Preview Indicator */}
+          <div className="max-w-3xl mx-auto flex items-center justify-between pb-3 text-xs text-stone-600 print:hidden">
+            <div className="flex items-center space-x-1.5 font-bold text-sky-900 bg-sky-100/90 px-3 py-1 rounded-xl border border-sky-300 shadow-2xs">
+              <Eye className="w-4 h-4 text-sky-600" />
+              <span>Pratinjau Layar Dokumen Siap Cetak (A4)</span>
+            </div>
+            <div className="text-[11px] text-stone-500 font-medium hidden sm:block">
+              Perubahan pilihan data langsung tertera pada layar di bawah ini
+            </div>
+          </div>
+
+          {filteredRecords.length === 0 && filteredMutations.length === 0 && filterType === 'bulan' && (
+            <div className="max-w-3xl mx-auto mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between shadow-2xs print:hidden">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold">Informasi:</span>
+                <span>Belum ada transaksi pada bulan {periodText}.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterType('semua')}
+                className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-2xs cursor-pointer transition-colors"
+              >
+                Tampilkan Semua Waktu
+              </button>
+            </div>
+          )}
+
           <div className="max-w-3xl mx-auto bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-stone-300 print:border-none print:shadow-none print:p-0 text-stone-900 font-sans">
             
             {/* 1. KOP SURAT RESMI RT 08 RW 06 PLIKEN KEMBARAN */}
@@ -1139,46 +1218,34 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
               </div>
             )}
 
-            {/* 8. LEMBAR PENGESAHAN DENGAN 3 TANDA TANGAN RESMI */}
+            {/* 8. LEMBAR PENGESAHAN DENGAN 2 TANDA TANGAN RESMI (BENDAHARA RT & KETUA RT) */}
             {customOptions.showSignatures && (
               <div className="pt-4 border-t-2 border-stone-900 mt-6">
                 <p className="text-right text-[11px] text-stone-600 mb-3">
                   Ditetapkan di Pliken, Kembaran pada tanggal: <strong>{formatTanggalIndo(new Date().toISOString().split('T')[0])}</strong>
                 </p>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-[10.5px] sm:text-xs">
-                  {/* 1. TTD PETUGAS */}
+                <div className="grid grid-cols-2 gap-4 text-center text-[10.5px] sm:text-xs">
+                  {/* 1. TTD BENDAHARA */}
                   <div className="p-1">
-                    <p className="font-bold text-stone-900">Petugas Ronda</p>
-                    <p className="text-[9.5px] text-stone-500">Penarik Jimpitan</p>
+                    <p className="font-bold text-stone-900">Bendahara Kas RT</p>
+                    <p className="text-[9.5px] text-stone-500">Pengelola Kas Jimpitan</p>
                     <div className="h-12 sm:h-14 flex items-end justify-center pb-1">
                       <span className="text-[9px] text-stone-300 italic">( TTD )</span>
                     </div>
-                    <p className="font-extrabold text-stone-900 border-b border-stone-800 inline-block px-2 text-[10px] sm:text-xs">
-                      ( {petugasName.trim() || 'Petugas Lapangan'} )
-                    </p>
-                  </div>
-
-                  {/* 2. TTD BENDAHARA */}
-                  <div className="p-1">
-                    <p className="font-bold text-stone-900">Bendahara RT</p>
-                    <p className="text-[9.5px] text-stone-500">Pengelola Kas</p>
-                    <div className="h-12 sm:h-14 flex items-end justify-center pb-1">
-                      <span className="text-[9px] text-stone-300 italic">( TTD )</span>
-                    </div>
-                    <p className="font-extrabold text-stone-900 border-b border-stone-800 inline-block px-2 text-[10px] sm:text-xs">
+                    <p className="font-extrabold text-stone-900 border-b border-stone-800 inline-block px-3 text-[10px] sm:text-xs">
                       ( {bendaharaName.trim() || settings?.namaBendahara || 'Bendahara RT'} )
                     </p>
                   </div>
 
-                  {/* 3. TTD KETUA RT */}
+                  {/* 2. TTD KETUA RT */}
                   <div className="p-1">
-                    <p className="font-bold text-stone-900">Ketua {settings?.namaRt || 'RT 08'}</p>
+                    <p className="font-bold text-stone-900">Ketua {settings?.namaRt || 'RT 08'} {settings?.namaRw || 'RW 06'}</p>
                     <p className="text-[9.5px] text-stone-500">Mengetahui & Menyetujui</p>
                     <div className="h-12 sm:h-14 flex items-end justify-center pb-1">
                       <span className="text-[9px] text-stone-300 italic">( TTD )</span>
                     </div>
-                    <p className="font-extrabold text-stone-900 border-b border-stone-800 inline-block px-2 text-[10px] sm:text-xs">
+                    <p className="font-extrabold text-stone-900 border-b border-stone-800 inline-block px-3 text-[10px] sm:text-xs">
                       ( {ketuaRtName.trim() || settings?.namaKetuaRt || 'Ketua RT'} )
                     </p>
                   </div>
@@ -1226,4 +1293,10 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

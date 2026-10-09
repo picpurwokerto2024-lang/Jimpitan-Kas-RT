@@ -328,75 +328,57 @@ export const generateKasReportExcel = async ({
     curRow += 3;
   }
 
-  // 6. LEMBAR PENGESAHAN & 3 TANDA TANGAN RESMI
-  // Susunan: Kiri: Petugas, Tengah: Bendahara, Kanan: Ketua RT
+  // 6. LEMBAR PENGESAHAN & 2 TANDA TANGAN RESMI (BENDAHARA & KETUA RT)
   const todayDateStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
 
-  worksheet.mergeCells(`F${curRow}:H${curRow}`);
-  worksheet.getCell(`F${curRow}`).value = `Ditetapkan di Pliken, Kembaran pada: ${todayDateStr}`;
-  worksheet.getCell(`F${curRow}`).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF475569' } };
-  worksheet.getCell(`F${curRow}`).alignment = { horizontal: 'right' };
+  worksheet.mergeCells(`E${curRow}:H${curRow}`);
+  worksheet.getCell(`E${curRow}`).value = `Ditetapkan di Pliken, Kembaran pada: ${todayDateStr}`;
+  worksheet.getCell(`E${curRow}`).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF475569' } };
+  worksheet.getCell(`E${curRow}`).alignment = { horizontal: 'right' };
 
   curRow += 2;
   const signHeaderRow = curRow;
 
-  // Kolom 1 (Kiri): Petugas / Penarik Jimpitan
-  worksheet.mergeCells(`A${signHeaderRow}:C${signHeaderRow}`);
-  worksheet.getCell(`A${signHeaderRow}`).value = 'Petugas / Penarik Jimpitan RT';
+  // Kolom 1 (Kiri): Bendahara Kas RT
+  worksheet.mergeCells(`A${signHeaderRow}:D${signHeaderRow}`);
+  worksheet.getCell(`A${signHeaderRow}`).value = 'Bendahara Kas RT';
   worksheet.getCell(`A${signHeaderRow}`).font = { bold: true, size: 10 };
   worksheet.getCell(`A${signHeaderRow}`).alignment = { horizontal: 'center' };
 
-  worksheet.mergeCells(`A${signHeaderRow + 1}:C${signHeaderRow + 1}`);
-  worksheet.getCell(`A${signHeaderRow + 1}`).value = `Koordinator Lapangan ${settings.namaRt} / ${settings.namaRw}`;
+  worksheet.mergeCells(`A${signHeaderRow + 1}:D${signHeaderRow + 1}`);
+  worksheet.getCell(`A${signHeaderRow + 1}`).value = 'Pengelola Kas Jimpitan Warga';
   worksheet.getCell(`A${signHeaderRow + 1}`).font = { size: 8.5, color: { argb: 'FF64748B' } };
   worksheet.getCell(`A${signHeaderRow + 1}`).alignment = { horizontal: 'center' };
 
-  // Kolom 2 (Tengah): Bendahara Kas RT
-  worksheet.mergeCells(`D${signHeaderRow}:E${signHeaderRow}`);
-  worksheet.getCell(`D${signHeaderRow}`).value = 'Bendahara Kas RT';
-  worksheet.getCell(`D${signHeaderRow}`).font = { bold: true, size: 10 };
-  worksheet.getCell(`D${signHeaderRow}`).alignment = { horizontal: 'center' };
+  // Kolom 2 (Kanan): Ketua RT
+  worksheet.mergeCells(`E${signHeaderRow}:H${signHeaderRow}`);
+  worksheet.getCell(`E${signHeaderRow}`).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
+  worksheet.getCell(`E${signHeaderRow}`).font = { bold: true, size: 10 };
+  worksheet.getCell(`E${signHeaderRow}`).alignment = { horizontal: 'center' };
 
-  worksheet.mergeCells(`D${signHeaderRow + 1}:E${signHeaderRow + 1}`);
-  worksheet.getCell(`D${signHeaderRow + 1}`).value = 'Pengelola Kas Jimpitan Warga';
-  worksheet.getCell(`D${signHeaderRow + 1}`).font = { size: 8.5, color: { argb: 'FF64748B' } };
-  worksheet.getCell(`D${signHeaderRow + 1}`).alignment = { horizontal: 'center' };
-
-  // Kolom 3 (Kanan): Ketua RT
-  worksheet.mergeCells(`F${signHeaderRow}:H${signHeaderRow}`);
-  worksheet.getCell(`F${signHeaderRow}`).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
-  worksheet.getCell(`F${signHeaderRow}`).font = { bold: true, size: 10 };
-  worksheet.getCell(`F${signHeaderRow}`).alignment = { horizontal: 'center' };
-
-  worksheet.mergeCells(`F${signHeaderRow + 1}:H${signHeaderRow + 1}`);
-  worksheet.getCell(`F${signHeaderRow + 1}`).value = 'Mengetahui & Menyetujui';
-  worksheet.getCell(`F${signHeaderRow + 1}`).font = { size: 8.5, color: { argb: 'FF64748B' } };
-  worksheet.getCell(`F${signHeaderRow + 1}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`E${signHeaderRow + 1}:H${signHeaderRow + 1}`);
+  worksheet.getCell(`E${signHeaderRow + 1}`).value = 'Mengetahui & Menyetujui';
+  worksheet.getCell(`E${signHeaderRow + 1}`).font = { size: 8.5, color: { argb: 'FF64748B' } };
+  worksheet.getCell(`E${signHeaderRow + 1}`).alignment = { horizontal: 'center' };
 
   // Signature Names (After 4 empty rows for ink sign)
   const signNameRow = signHeaderRow + 5;
 
-  const displayPetugas = petugasName.trim() ? `( ${petugasName.trim()} )` : '( .................................................. )';
-  worksheet.mergeCells(`A${signNameRow}:C${signNameRow}`);
-  worksheet.getCell(`A${signNameRow}`).value = displayPetugas;
-  worksheet.getCell(`A${signNameRow}`).font = { bold: true, size: 9.5 };
-  worksheet.getCell(`A${signNameRow}`).alignment = { horizontal: 'center' };
-
   const displayBendahara = (bendaharaName || settings.namaBendahara || '').trim() 
     ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` 
     : '( .................................................. )';
-  worksheet.mergeCells(`D${signNameRow}:E${signNameRow}`);
-  worksheet.getCell(`D${signNameRow}`).value = displayBendahara;
-  worksheet.getCell(`D${signNameRow}`).font = { bold: true, size: 9.5 };
-  worksheet.getCell(`D${signNameRow}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`A${signNameRow}:D${signNameRow}`);
+  worksheet.getCell(`A${signNameRow}`).value = displayBendahara;
+  worksheet.getCell(`A${signNameRow}`).font = { bold: true, size: 9.5 };
+  worksheet.getCell(`A${signNameRow}`).alignment = { horizontal: 'center' };
 
   const displayKetua = (ketuaRtName || settings.namaKetuaRt || '').trim() 
     ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` 
     : '( .................................................. )';
-  worksheet.mergeCells(`F${signNameRow}:H${signNameRow}`);
-  worksheet.getCell(`F${signNameRow}`).value = displayKetua;
-  worksheet.getCell(`F${signNameRow}`).font = { bold: true, size: 9.5 };
-  worksheet.getCell(`F${signNameRow}`).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(`E${signNameRow}:H${signNameRow}`);
+  worksheet.getCell(`E${signNameRow}`).value = displayKetua;
+  worksheet.getCell(`E${signNameRow}`).font = { bold: true, size: 9.5 };
+  worksheet.getCell(`E${signNameRow}`).alignment = { horizontal: 'center' };
 
   // Write and trigger download
   const buffer = await workbook.xlsx.writeBuffer();
@@ -576,44 +558,31 @@ export const generateWargaMonthlyReportExcel = async ({
   curRow += 2;
   const sRow = curRow;
 
-  // Petugas (Left)
-  worksheet.mergeCells(sRow, 1, sRow, 4);
-  worksheet.getCell(sRow, 1).value = 'Petugas Lapangan Jimpitan RT';
+  // Bendahara (Left)
+  worksheet.mergeCells(sRow, 1, sRow, 6);
+  worksheet.getCell(sRow, 1).value = 'Bendahara Kas RT';
   worksheet.getCell(sRow, 1).font = { bold: true, size: 9.5 };
   worksheet.getCell(sRow, 1).alignment = { horizontal: 'center' };
 
-  // Bendahara (Middle)
-  const midColStart = Math.floor(totalCols / 2) - 2;
-  worksheet.mergeCells(sRow, midColStart, sRow, midColStart + 4);
-  worksheet.getCell(sRow, midColStart).value = 'Bendahara Kas RT';
-  worksheet.getCell(sRow, midColStart).font = { bold: true, size: 9.5 };
-  worksheet.getCell(sRow, midColStart).alignment = { horizontal: 'center' };
-
   // Ketua RT (Right)
-  worksheet.mergeCells(sRow, totalCols - 4, sRow, totalCols);
-  worksheet.getCell(sRow, totalCols - 4).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
-  worksheet.getCell(sRow, totalCols - 4).font = { bold: true, size: 9.5 };
-  worksheet.getCell(sRow, totalCols - 4).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(sRow, totalCols - 6, sRow, totalCols);
+  worksheet.getCell(sRow, totalCols - 6).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
+  worksheet.getCell(sRow, totalCols - 6).font = { bold: true, size: 9.5 };
+  worksheet.getCell(sRow, totalCols - 6).alignment = { horizontal: 'center' };
 
   // Names after 4 rows
   const nameRow = sRow + 5;
-  const dispPet = petugasName.trim() ? `( ${petugasName.trim()} )` : '( .................................................. )';
-  worksheet.mergeCells(nameRow, 1, nameRow, 4);
-  worksheet.getCell(nameRow, 1).value = dispPet;
+  const dispBen = (bendaharaName || settings.namaBendahara || '').trim() ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` : '( .................................................. )';
+  worksheet.mergeCells(nameRow, 1, nameRow, 6);
+  worksheet.getCell(nameRow, 1).value = dispBen;
   worksheet.getCell(nameRow, 1).font = { bold: true, size: 9 };
   worksheet.getCell(nameRow, 1).alignment = { horizontal: 'center' };
 
-  const dispBen = (bendaharaName || settings.namaBendahara || '').trim() ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` : '( .................................................. )';
-  worksheet.mergeCells(nameRow, midColStart, nameRow, midColStart + 4);
-  worksheet.getCell(nameRow, midColStart).value = dispBen;
-  worksheet.getCell(nameRow, midColStart).font = { bold: true, size: 9 };
-  worksheet.getCell(nameRow, midColStart).alignment = { horizontal: 'center' };
-
   const dispKet = (ketuaRtName || settings.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` : '( .................................................. )';
-  worksheet.mergeCells(nameRow, totalCols - 4, nameRow, totalCols);
-  worksheet.getCell(nameRow, totalCols - 4).value = dispKet;
-  worksheet.getCell(nameRow, totalCols - 4).font = { bold: true, size: 9 };
-  worksheet.getCell(nameRow, totalCols - 4).alignment = { horizontal: 'center' };
+  worksheet.mergeCells(nameRow, totalCols - 6, nameRow, totalCols);
+  worksheet.getCell(nameRow, totalCols - 6).value = dispKet;
+  worksheet.getCell(nameRow, totalCols - 6).font = { bold: true, size: 9 };
+  worksheet.getCell(nameRow, totalCols - 6).alignment = { horizontal: 'center' };
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

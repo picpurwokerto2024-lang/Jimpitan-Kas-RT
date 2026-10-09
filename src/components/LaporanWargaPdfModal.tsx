@@ -95,11 +95,11 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
               <div className="flex items-center space-x-2">
                 <h3 className="font-extrabold text-base sm:text-lg">Ekspor PDF Laporan Jimpitan Bulanan</h3>
                 <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold">
-                  3 Tanda Tangan
+                  2 Tanda Tangan
                 </span>
               </div>
               <p className="text-xs text-sky-200/80">
-                Laporan resmi lengkap dengan Kop Surat & Pengesahan Petugas, Bendahara, Ketua RT
+                Laporan resmi lengkap dengan Kop Surat & Pengesahan Bendahara RT dan Ketua RT
               </p>
             </div>
           </div>
@@ -158,26 +158,11 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
               <span className="text-[10px] text-stone-400">Opsional (bisa dikosongkan untuk TTD basah)</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Petugas RT */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-stone-700 block">
-                  1. Petugas Jimpitan RT
-                </label>
-                <input
-                  type="text"
-                  value={petugasName}
-                  onChange={(e) => setPetugasName(e.target.value)}
-                  placeholder="Contoh: Bpk. Sugeng"
-                  className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:ring-2 focus:ring-sky-400"
-                />
-                <span className="text-[10px] text-stone-400 block">Koordinator / Penarik</span>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Bendahara RT */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700 block">
-                  2. Bendahara Kas RT
+                  1. Bendahara Kas RT
                 </label>
                 <input
                   type="text"
@@ -192,7 +177,7 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
               {/* Ketua RT */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700 block">
-                  3. Ketua RT 08 RW 06
+                  2. Ketua RT 08 RW 06
                 </label>
                 <input
                   type="text"
@@ -315,7 +300,7 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
               <li>Kop Surat Resmi RT 08 RW 06 Desa Pliken, Kec. Kembaran</li>
               <li>Tabel Rekapitulasi Pembayaran, Kehadiran, Target, dan Status Kurang/Lebih Bayar</li>
               <li>Matriks Presensi Jimpitan Harian Kalender</li>
-              <li>Kolom Pengesahan Tanda Tangan: <strong>Petugas RT</strong>, <strong>Bendahara RT</strong>, dan <strong>Ketua RT</strong></li>
+              <li>Kolom Pengesahan Tanda Tangan: <strong>Bendahara RT</strong> dan <strong>Ketua RT</strong></li>
             </ul>
           </div>
         </div>
@@ -349,7 +334,7 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
               id="btn-download-pdf-warga-monthly"
             >
               <Download className="w-4 h-4" />
-              <span>{isGenerating ? 'Membuat PDF...' : 'Unduh PDF Resmi (3 TTD)'}</span>
+              <span>{isGenerating ? 'Membuat PDF...' : 'Unduh PDF Resmi (2 TTD)'}</span>
             </button>
           </div>
         </div>

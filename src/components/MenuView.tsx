@@ -582,7 +582,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-sky-200/70">
-                    Cetak PDF 3 Tanda Tangan, Unduh Excel (.xlsx) & Bagikan WA
+                    Cetak PDF Resmi (Bendahara & Ketua RT), Unduh Excel (.xlsx) & Bagikan WA
                   </p>
                 </div>
               </div>
@@ -601,12 +601,12 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
             {/* BAR MENU CEPAT: PRATINJAU PDF, UNDUH EXCEL, KIRIM WA, PUSAT HUB */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
-              {/* Button 1: Pratinjau & Cetak PDF (3 TTD) */}
+              {/* Button 1: Pratinjau & Cetak PDF (2 TTD) */}
               <button
                 type="button"
                 onClick={() => setIsPdfModalOpen(true)}
                 className="p-2.5 rounded-2xl bg-sky-600/90 hover:bg-sky-500 text-white border border-sky-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
-                title="Buka Pratinjau Dokumen PDF Resmi Lengkap 3 Tanda Tangan"
+                title="Buka Pratinjau Dokumen PDF Resmi Lengkap 2 Tanda Tangan (Bendahara & Ketua RT)"
                 id="btn-menu-preview-pdf"
               >
                 <div className="p-1.5 rounded-xl bg-sky-400/20 text-sky-200 group-hover:scale-110 transition-transform shrink-0">
@@ -614,7 +614,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 </div>
                 <div className="min-w-0">
                   <span className="text-xs font-black block text-white leading-tight truncate">Pratinjau PDF</span>
-                  <span className="text-[9px] text-sky-200/80 block leading-tight">3 TTD Resmi</span>
+                  <span className="text-[9px] text-sky-200/80 block leading-tight">2 TTD Resmi</span>
                 </div>
               </button>
 
@@ -624,7 +624,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 onClick={handleExportKasExcel}
                 disabled={isExportingKasExcel}
                 className="p-2.5 rounded-2xl bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/30 flex items-center space-x-2 text-left transition-all shadow-xs cursor-pointer group"
-                title="Unduh Lembar Kerja Excel (.xlsx) Kas RT dengan Kop Surat & 3 TTD"
+                title="Unduh Lembar Kerja Excel (.xlsx) Kas RT dengan Kop Surat & 2 TTD"
                 id="btn-menu-excel-kas"
               >
                 <div className="p-1.5 rounded-xl bg-emerald-400/20 text-emerald-200 group-hover:scale-110 transition-transform shrink-0">
@@ -1568,6 +1568,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
         kasMutations={allMutations}
         settings={settings}
         selectedDate={new Date().toISOString().split('T')[0]}
+        wargaList={allWarga}
       />
 
       {/* CETAK & UNDUH LEMBAR QR BARCODE WARGA (MODAL DENGAN PENGATURAN UKURAN) */}

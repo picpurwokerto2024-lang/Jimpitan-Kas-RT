@@ -97,11 +97,11 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
               <div className="flex items-center space-x-2">
                 <h3 className="font-extrabold text-base sm:text-lg">Ekspor PDF Laporan Tunggakan & Pelunasan</h3>
                 <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold">
-                  3 Tanda Tangan
+                  2 Tanda Tangan
                 </span>
               </div>
               <p className="text-xs text-sky-200/80">
-                Laporan resmi rekonsiliasi saldo kurang/lebih bayar bulan sebelumnya
+                Laporan resmi rekonsiliasi disahkan oleh Bendahara RT dan Ketua RT
               </p>
             </div>
           </div>
@@ -160,25 +160,11 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
               <span className="text-[10px] text-stone-400">Opsional (bisa dikosongkan untuk TTD basah)</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Petugas RT */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-stone-700 block">
-                  1. Petugas Jimpitan RT
-                </label>
-                <input
-                  type="text"
-                  value={petugasName}
-                  onChange={(e) => setPetugasName(e.target.value)}
-                  placeholder="Contoh: Bpk. Sugeng"
-                  className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Bendahara RT */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700 block">
-                  2. Bendahara Kas RT
+                  1. Bendahara Kas RT
                 </label>
                 <input
                   type="text"
@@ -187,12 +173,13 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
                   placeholder="Contoh: Ibu Siti"
                   className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:ring-2 focus:ring-sky-400"
                 />
+                <span className="text-[10px] text-stone-400 block">Pengelola Keuangan</span>
               </div>
 
               {/* Ketua RT */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700 block">
-                  3. Ketua RT 08 RW 06
+                  2. Ketua RT
                 </label>
                 <input
                   type="text"
@@ -201,6 +188,7 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
                   placeholder="Contoh: Bpk. H. Supriyanto"
                   className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:ring-2 focus:ring-sky-400"
                 />
+                <span className="text-[10px] text-stone-400 block">Mengetahui & Menyetujui</span>
               </div>
             </div>
           </div>
@@ -233,7 +221,7 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
               className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-stone-400 text-white text-xs font-extrabold flex items-center justify-center space-x-2 shadow-sm transition-all cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span>{isGenerating ? 'Membuat PDF...' : 'Unduh PDF Tunggakan (3 TTD)'}</span>
+              <span>{isGenerating ? 'Membuat PDF...' : 'Unduh PDF Tunggakan (2 TTD)'}</span>
             </button>
           </div>
         </div>

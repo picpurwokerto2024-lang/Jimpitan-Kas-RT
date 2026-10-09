@@ -23,7 +23,8 @@ import {
   Building,
   Check,
   ChevronDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Eye
 } from 'lucide-react';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, ReguRonda } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
@@ -36,7 +37,7 @@ import {
 } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
 import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
-import { PdfReportModal } from './PdfReportModal';
+import { PdfReportModal, ReportPresetKey } from './PdfReportModal';
 
 export type LaporanTabKey = 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan';
 
@@ -114,6 +115,12 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const [ketuaRtName, setKetuaRtName] = useState<string>(settings?.namaKetuaRt || '');
   const [showSignatureSettings, setShowSignatureSettings] = useState<boolean>(false);
   const [showCustomPdfReportModal, setShowCustomPdfReportModal] = useState<boolean>(false);
+  const [customPdfPreset, setCustomPdfPreset] = useState<ReportPresetKey>('kas');
+
+  const openPdfPreviewWithPreset = (preset: ReportPresetKey = 'kas') => {
+    setCustomPdfPreset(preset);
+    setShowCustomPdfReportModal(true);
+  };
 
   if (!isOpen) return null;
 
@@ -663,59 +670,71 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
             {activeTab === 'kas' && (
               <div className="flex items-center space-x-1.5">
                 <button
-                  onClick={() => setShowCustomPdfReportModal(true)}
-                  className="px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-extrabold text-xs flex items-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
-                  title="Atur kolom dan pratinjau cetak kas fleksibel"
+                  onClick={() => openPdfPreviewWithPreset('kas')}
+                  className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Buka Pratinjau Dokumen Layar & Cetak PDF (Bisa pilih data bebas)"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Kustomisasi & Cetak</span>
+                  <Eye className="w-3.5 h-3.5" />
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Pratinjau & Cetak Kas</span>
                 </button>
                 <button
                   onClick={handleExportKasExcel}
                   className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-                  title="Unduh Lembar Kerja Excel (.xlsx) Lengkap Kop Surat & 3 TTD"
+                  title="Unduh Lembar Kerja Excel (.xlsx) Lengkap Kop Surat & 2 TTD"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Excel Kas</span>
-                </button>
-                <button
-                  onClick={handleExportKasPdf}
-                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak PDF Kas</span>
                 </button>
               </div>
             )}
 
             {activeTab === 'tunggakan' && (
-              <button
-                onClick={handleExportTunggakanPdf}
-                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF Tunggakan</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => openPdfPreviewWithPreset('rekap_rumah')}
+                  className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Buka Pratinjau Dokumen Layar Rekap Per Rumah"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Pratinjau Layar</span>
+                </button>
+                <button
+                  onClick={handleExportTunggakanPdf}
+                  className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Cetak PDF Tunggakan</span>
+                </button>
+              </div>
             )}
 
             {activeTab === 'pemasukan' && (
-              <button
-                onClick={handleExportPemasukanPdf}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF Pemasukan</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => openPdfPreviewWithPreset('pemasukan')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Buka Pratinjau Dokumen Layar Pemasukan & Cetak PDF"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Pratinjau & Cetak Pemasukan</span>
+                </button>
+              </div>
             )}
 
             {activeTab === 'pengeluaran' && (
-              <button
-                onClick={handleExportPengeluaranPdf}
-                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF Pengeluaran</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => openPdfPreviewWithPreset('pengeluaran')}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Buka Pratinjau Dokumen Layar Pengeluaran & Cetak PDF"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Pratinjau & Cetak Pengeluaran</span>
+                </button>
+              </div>
             )}
 
             {activeTab === 'bulanan' && (
@@ -723,7 +742,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                 <button
                   onClick={handleExportBulananMatriksExcel}
                   className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-                  title="Unduh Lembar Kerja Excel (.xlsx) Matriks 1-31 Lengkap Kop Surat & 3 TTD"
+                  title="Unduh Lembar Kerja Excel (.xlsx) Matriks 1-31 Lengkap Kop Surat & 2 TTD"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Excel Matriks (.xlsx)</span>
@@ -1429,6 +1448,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
           settings={settings}
           selectedDate={`${selectedYearMonth}-01`}
           wargaList={safeWarga}
+          initialPreset={customPdfPreset}
         />
       )}
     </div>

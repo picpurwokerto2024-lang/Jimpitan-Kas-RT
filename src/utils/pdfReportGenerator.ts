@@ -468,53 +468,38 @@ export const generateKasReportPdf = ({
     doc.setTextColor(51, 65, 85);
     doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal ${todayStr}`, pageWidth - margin, signY, { align: 'right' });
 
-    const signColWidth = (pageWidth - margin * 2) / 3;
+    const signColWidth = (pageWidth - margin * 2) / 2;
     const signTop = signY + 6;
 
-    // Sign 1: Petugas / Penarik Jimpitan (Kiri)
+    // Sign 1: Bendahara RT (Kiri)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
-    doc.text('Petugas / Penarik Jimpitan', margin + signColWidth / 2, signTop, { align: 'center' });
+    doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Koordinator Lapangan ${settings?.namaRt || 'RT 08'} / ${settings?.namaRw || 'RW 06'}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    const displayPetugas = (petugasName || '').trim() ? `( ${petugasName!.trim()} )` : '( ....................................... )';
-    doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
-
-    // Sign 2: Bendahara RT (Tengah)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Pengelola Kas Jimpitan', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+    doc.text('Pengelola Kas Jimpitan', margin + signColWidth / 2, signTop + 4, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
     const displayBendahara = (bendaharaName || settings?.namaBendahara || '').trim() ? `( ${(bendaharaName || settings?.namaBendahara)!.trim()} )` : '( ....................................... )';
-    doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+    doc.text(displayBendahara, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-    // Sign 3: Ketua RT (Kanan)
+    // Sign 2: Ketua RT (Kanan)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(`Ketua ${settings?.namaRt || 'RT 08'} ${settings?.namaRw || 'RW 06'}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
+    doc.text(`Ketua ${settings?.namaRt || 'RT 08'} ${settings?.namaRw || 'RW 06'}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+    doc.text('Mengetahui & Menyetujui', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
     const displayKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings?.namaKetuaRt)!.trim()} )` : '( ....................................... )';
-    doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+    doc.text(displayKetua, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
   }
 
   // Footer on all pages
@@ -909,7 +894,7 @@ export const generateWargaMonthlyReportPdf = ({
     currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // 6. LEMBAR PENGESAHAN & TANDA TANGAN (Petugas RT, Bendahara RT, Ketua RT)
+  // 6. LEMBAR PENGESAHAN & 2 TANDA TANGAN (Bendahara RT, Ketua RT)
   // Check if remaining space is sufficient for signature block (~40mm)
   if (currentY > 155) {
     doc.addPage();
@@ -923,53 +908,38 @@ export const generateWargaMonthlyReportPdf = ({
   doc.setTextColor(51, 65, 85);
   doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal: ${todayStr}`, pageWidth - margin, currentY, { align: 'right' });
 
-  const signColWidth = contentWidth / 3;
+  const signColWidth = contentWidth / 2;
   const signTop = currentY + 5;
 
-  // Signature 1: Petugas RT (Kiri)
+  // Signature 1: Bendahara RT (Kiri)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text('Petugas / Penarik Jimpitan RT', margin + signColWidth / 2, signTop, { align: 'center' });
+  doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Koordinator Lapangan ${settings.namaRt} / ${settings.namaRw}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  const displayPetugas = petugasName.trim() ? `( ${petugasName.trim()} )` : '( .................................................. )';
-  doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
-
-  // Signature 2: Bendahara RT (Tengah)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Pengelola Kas Jimpitan Warga', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+  doc.text('Pengelola Kas Jimpitan Warga', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
   const displayBendahara = bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( .................................................. )';
-  doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+  doc.text(displayBendahara, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-  // Signature 3: Ketua RT (Kanan)
+  // Signature 2: Ketua RT (Kanan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
+  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
   const displayKetua = ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( .................................................. )';
-  doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  doc.text(displayKetua, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   // 7. FOOTER PADA SETIAP HALAMAN
   const totalPages = doc.getNumberOfPages();
@@ -1240,7 +1210,7 @@ export const generateLaporanTunggakanPdf = ({
 
   currentY = (doc as any).lastAutoTable.finalY + 8;
 
-  // 5. LEMBAR PENGESAHAN & 3 TANDA TANGAN (Petugas, Bendahara, Ketua RT)
+  // 5. LEMBAR PENGESAHAN & 2 TANDA TANGAN (Bendahara RT, Ketua RT)
   if (currentY > 155) {
     doc.addPage();
     currentY = 20;
@@ -1253,53 +1223,38 @@ export const generateLaporanTunggakanPdf = ({
   doc.setTextColor(51, 65, 85);
   doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal: ${todayStr}`, pageWidth - margin, currentY, { align: 'right' });
 
-  const signColWidth = contentWidth / 3;
+  const signColWidth = contentWidth / 2;
   const signTop = currentY + 5;
 
-  // Signature 1: Petugas RT (Kiri)
+  // Signature 1: Bendahara RT (Kiri)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text('Petugas / Penarik Jimpitan RT', margin + signColWidth / 2, signTop, { align: 'center' });
+  doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Koordinator Lapangan ${settings.namaRt} / ${settings.namaRw}`, margin + signColWidth / 2, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  const displayPetugas = petugasName.trim() ? `( ${petugasName.trim()} )` : '( .................................................. )';
-  doc.text(displayPetugas, margin + signColWidth / 2, signTop + 24, { align: 'center' });
-
-  // Signature 2: Bendahara RT (Tengah)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Pengelola Kas Jimpitan Warga', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+  doc.text('Pengelola Kas Jimpitan Warga', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
   const displayBendahara = bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( .................................................. )';
-  doc.text(displayBendahara, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+  doc.text(displayBendahara, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-  // Signature 3: Ketua RT (Kanan)
+  // Signature 2: Ketua RT (Kanan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
+  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
+  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
   const displayKetua = ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( .................................................. )';
-  doc.text(displayKetua, margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  doc.text(displayKetua, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   // 6. FOOTER PADA SETIAP HALAMAN
   const totalPages = doc.getNumberOfPages();
@@ -1535,37 +1490,28 @@ export const generateLaporanPemasukanPdf = ({
   doc.setTextColor(51, 65, 85);
   doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal ${todayStr}`, pageWidth - margin, signY, { align: 'right' });
 
-  const signColWidth = (pageWidth - margin * 2) / 3;
+  const signColWidth = (pageWidth - margin * 2) / 2;
   const signTop = signY + 6;
 
-  // Sign 1: Petugas
+  // Sign 1: Bendahara
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('Petugas / PJ Jimpitan', margin + signColWidth / 2, signTop, { align: 'center' });
+  doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Penerima Setoran Lapangan', margin + signColWidth / 2, signTop + 4, { align: 'center' });
+  doc.text('Pencatat Kas & Keuangan', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(petugasName.trim() ? `( ${petugasName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
+  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-  // Sign 2: Bendahara
-  doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
+  // Sign 2: Ketua RT
+  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Pencatat Kas & Keuangan', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
-
-  // Sign 3: Ketua RT
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text('Mengetahui & Menyetujui', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -1792,37 +1738,28 @@ export const generateLaporanPengeluaranPdf = ({
   doc.setTextColor(51, 65, 85);
   doc.text(`Ditetapkan di Pliken, Kembaran pada tanggal ${todayStr}`, pageWidth - margin, signY, { align: 'right' });
 
-  const signColWidth = (pageWidth - margin * 2) / 3;
+  const signColWidth = (pageWidth - margin * 2) / 2;
   const signTop = signY + 6;
 
-  // Sign 1: Petugas
+  // Sign 1: Bendahara
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('Petugas / Pemegang Kas', margin + signColWidth / 2, signTop, { align: 'center' });
+  doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Pelaksana Operasional', margin + signColWidth / 2, signTop + 4, { align: 'center' });
+  doc.text('Pencatat & Verifikator Nota', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(petugasName.trim() ? `( ${petugasName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
+  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
-  // Sign 2: Bendahara
-  doc.text('Bendahara Kas RT', margin + signColWidth * 1.5, signTop, { align: 'center' });
+  // Sign 2: Ketua RT
+  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Pencatat & Verifikator Nota', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
+  doc.text('Menyetujui Pengeluaran', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
-
-  // Sign 3: Ketua RT
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 2.5, signTop, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text('Menyetujui Pengeluaran', margin + signColWidth * 2.5, signTop + 4, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 2.5, signTop + 24, { align: 'center' });
+  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
