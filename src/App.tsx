@@ -1380,7 +1380,7 @@ export default function App() {
                 settings={settings}
                 selectedDate={selectedDate}
                 onOpenShareModal={() => handleOpenShareModal('laporan')}
-                onOpenLaporanHub={handleOpenLaporanHub}
+                onOpenLaporanHub={appMode !== 'warga' ? handleOpenLaporanHub : undefined}
                 onSelectDate={setSelectedDate}
                 onResetToToday={handleResetToTodayDate}
                 isAdmin={isAdminUnlocked}
@@ -1686,8 +1686,8 @@ export default function App() {
         }}
       />
 
-      {/* Pusat Laporan & Rekapitulasi RT Modal */}
-      {isLaporanHubOpen && (
+      {/* Pusat Laporan & Rekapitulasi RT Modal (Khusus Petugas & Admin) */}
+      {isLaporanHubOpen && appMode !== 'warga' && (
         <ErrorBoundary fallbackTitle="Kendala Membuka Pusat Laporan RT">
           <LaporanHubModal
             isOpen={isLaporanHubOpen}
