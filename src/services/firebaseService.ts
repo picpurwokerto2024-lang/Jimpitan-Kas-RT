@@ -182,19 +182,8 @@ export const subscribeWarga = (callback: (wargaList: Warga[]) => void): Unsubscr
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as Warga);
       });
-      // Deduplicate to guarantee no duplicate warga ever exists
-      const { cleanList, duplicateIds } = deduplicateWargaArray(list);
-
-      // Auto-prune duplicate documents from Firestore in the background if found
-      if (duplicateIds.length > 0) {
-        console.warn(`🧹 Auto-cleaning ${duplicateIds.length} duplicate warga documents from Firestore.`);
-        const batch = writeBatch(db);
-        duplicateIds.forEach((dupId) => {
-          batch.delete(doc(db, WARGA_COL, dupId));
-        });
-        batch.commit().catch((err) => console.warn('Duplicate auto-clean error:', err));
-      }
-
+      // Deduplicate for in-memory view to ensure clean UI presentation
+      const { cleanList } = deduplicateWargaArray(list);
       callback(cleanList);
     }
   }, (err) => {
