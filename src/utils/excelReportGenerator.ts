@@ -128,9 +128,9 @@ export const generateKasReportExcel = async ({
 
   curRow++;
   worksheet.mergeCells(`A${curRow}:C${curRow}`);
-  worksheet.getCell(`A${curRow}`).value = '1. Saldo Awal Periode';
+  worksheet.getCell(`A${curRow}`).value = '1. Saldo Awal Kas (Tersedia)';
   worksheet.getCell(`A${curRow}`).font = { bold: true };
-  worksheet.getCell(`D${curRow}`).value = saldoAwalPeriode;
+  worksheet.getCell(`D${curRow}`).value = Number(saldoAwalPeriode) || 0;
   worksheet.getCell(`D${curRow}`).numFmt = '"Rp "#,##0';
   worksheet.getCell(`D${curRow}`).font = { bold: true, color: { argb: 'FF059669' } };
 

@@ -382,7 +382,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         settings,
         periodText,
         totalSaldoKas: displaySaldoKasBersih,
-        saldoAwalPeriode: filterType === 'bulan' ? displaySaldoAwal : undefined,
+        saldoAwalPeriode: displaySaldoAwal,
         petugasName: petugasName.trim() || undefined,
         bendaharaName: bendaharaName.trim() || settings?.namaBendahara || undefined,
         ketuaRtName: ketuaRtName.trim() || settings?.namaKetuaRt || undefined,
@@ -407,7 +407,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         settings,
         periodText,
         totalSaldoKas: displaySaldoKasBersih,
-        saldoAwalPeriode: filterType === 'bulan' ? displaySaldoAwal : 0,
+        saldoAwalPeriode: displaySaldoAwal,
         petugasName: petugasName.trim() || 'Petugas Ronda RT',
         bendaharaName: bendaharaName.trim() || settings?.namaBendahara || 'Bendahara RT',
         ketuaRtName: ketuaRtName.trim() || settings?.namaKetuaRt || 'Ketua RT',
@@ -970,38 +970,51 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
                   <span>Ringkasan Kas RT Periode Ini</span>
                 </h4>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {/* 1. Saldo Awal (Tersedia) */}
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-200 shadow-2xs">
+                    <span className="block text-[9px] font-extrabold text-emerald-800 uppercase tracking-tight">Saldo Awal (Tersedia)</span>
+                    <span className="text-xs sm:text-sm font-black text-emerald-700 block truncate">
+                      {formatRupiah(displaySaldoAwal)}
+                    </span>
+                    <span className="block text-[8.5px] text-emerald-600 font-semibold">Kas Awal Periode</span>
+                  </div>
+
+                  {/* 2. Jimpitan Masuk */}
                   <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200">
                     <span className="block text-[9px] font-bold text-slate-500 uppercase">Jimpitan Masuk</span>
-                    <span className="text-xs sm:text-sm font-extrabold text-sky-600 block">
+                    <span className="text-xs sm:text-sm font-extrabold text-sky-600 block truncate">
                       {formatRupiah(totalJimpitan)}
                     </span>
                     <span className="block text-[8.5px] text-slate-400">{filteredRecords.length} penarikan</span>
                   </div>
 
+                  {/* 3. Pemasukan Lain */}
                   <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200">
                     <span className="block text-[9px] font-bold text-slate-500 uppercase">Pemasukan Lain</span>
-                    <span className="text-xs sm:text-sm font-extrabold text-emerald-600 block">
+                    <span className="text-xs sm:text-sm font-extrabold text-teal-600 block truncate">
                       {formatRupiah(totalPemasukanLain)}
                     </span>
-                    <span className="block text-[8.5px] text-slate-400">Kas masuk lain</span>
+                    <span className="block text-[8.5px] text-slate-400">Iuran / donasi</span>
                   </div>
 
+                  {/* 4. Pengeluaran */}
                   <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200">
                     <span className="block text-[9px] font-bold text-slate-500 uppercase">Pengeluaran</span>
-                    <span className="text-xs sm:text-sm font-extrabold text-rose-600 block">
+                    <span className="text-xs sm:text-sm font-extrabold text-rose-600 block truncate">
                       - {formatRupiah(totalPengeluaran)}
                     </span>
                     <span className="block text-[8.5px] text-slate-400">{filteredMutations.filter(m => m.jenis === 'keluar').length} transaksi</span>
                   </div>
 
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-sky-50/80 border border-sky-200">
-                    <span className="block text-[9px] font-bold text-sky-900 uppercase">Saldo Kas Bersih</span>
-                    <span className="text-xs sm:text-sm font-black text-sky-700 block">
+                  {/* 5. Saldo Kas Tersedia (Sisa Akhir) */}
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-sky-50/90 border border-sky-300 shadow-2xs col-span-2 sm:col-span-1">
+                    <span className="block text-[9px] font-extrabold text-sky-950 uppercase tracking-tight">Saldo Kas Tersedia</span>
+                    <span className="text-xs sm:text-sm font-black text-sky-700 block truncate">
                       {formatRupiah(displaySaldoKasBersih)}
                     </span>
-                    <span className="block text-[8.5px] text-emerald-700 font-bold">
-                      {filterType === 'bulan' ? `Awal: ${formatRupiah(displaySaldoAwal)}` : 'Kas Aktif'}
+                    <span className="block text-[8.5px] text-sky-800 font-bold">
+                      Sisa Kas Akhir
                     </span>
                   </div>
                 </div>

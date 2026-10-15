@@ -121,59 +121,99 @@ export const generateKasReportPdf = ({
     .reduce((sum, m) => sum + m.nominal, 0);
 
   if (custom.showSummaryCards !== false) {
-    // Box background
+    const cardGap = 2;
+    const numCards = 5;
+    const totalGaps = (numCards - 1) * cardGap;
+    const cardWidth = (pageWidth - margin * 2 - totalGaps) / numCards; // ~34.8mm each
+    const cardHeight = 22;
+    const topY = currentY + 4;
+
+    const saldoAwalVal = saldoAwalPeriode !== undefined ? saldoAwalPeriode : 0;
+
+    // --- CARD 1: SALDO AWAL (KAS TERSEDIA AWAL) ---
+    const x1 = margin;
+    doc.setFillColor(236, 253, 245); // emerald 50
+    doc.setDrawColor(167, 243, 208); // emerald 200
+    doc.roundedRect(x1, currentY, cardWidth, cardHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(6, 95, 70); // emerald 800
+    doc.text('SALDO AWAL KAS', x1 + 2.5, topY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(5, 150, 105); // emerald 600
+    doc.text(formatRupiah(saldoAwalVal), x1 + 2.5, topY + 5.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(16, 185, 129); // emerald 500
+    doc.text('Kas Awal Tersedia', x1 + 2.5, topY + 10);
+
+    // --- CARD 2: TOTAL JIMPITAN ---
+    const x2 = x1 + cardWidth + cardGap;
+    doc.setFillColor(240, 249, 255); // sky 50
+    doc.setDrawColor(186, 230, 253); // sky 200
+    doc.roundedRect(x2, currentY, cardWidth, cardHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(12, 74, 110); // sky 900
+    doc.text('TOTAL JIMPITAN', x2 + 2.5, topY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(2, 132, 199); // sky 600
+    doc.text(formatRupiah(totalJimpitan), x2 + 2.5, topY + 5.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(14, 116, 144); // cyan 700
+    doc.text(`${records.length} Transaksi`, x2 + 2.5, topY + 10);
+
+    // --- CARD 3: PEMASUKAN LAIN ---
+    const x3 = x2 + cardWidth + cardGap;
     doc.setFillColor(248, 250, 252); // slate 50
     doc.setDrawColor(226, 232, 240); // slate 200
-    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 22, 2, 2, 'FD');
+    doc.roundedRect(x3, currentY, cardWidth, cardHeight, 2, 2, 'FD');
 
-    // Summary columns
-    const colWidth = (pageWidth - margin * 2) / 4;
-    const topY = currentY + 5;
-
-    // Col 1: Jimpitan
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('TOTAL JIMPITAN', margin + 4, topY);
-    doc.setFontSize(10);
-    doc.setTextColor(2, 132, 199);
-    doc.text(formatRupiah(totalJimpitan), margin + 4, topY + 5.5);
-    doc.setFontSize(7);
-    doc.setTextColor(148, 163, 184);
-    doc.text(`${records.length} Transaksi`, margin + 4, topY + 10);
+    doc.setFontSize(6.8);
+    doc.setTextColor(51, 65, 85); // slate 700
+    doc.text('PEMASUKAN LAIN', x3 + 2.5, topY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(13, 148, 136); // teal 600
+    doc.text(formatRupiah(totalPemasukanLain), x3 + 2.5, topY + 5.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139); // slate 500
+    doc.text('Iuran / Sumbangan', x3 + 2.5, topY + 10);
 
-    // Col 2: Pemasukan Lain
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('PEMASUKAN LAIN', margin + colWidth + 2, topY);
-    doc.setFontSize(10);
-    doc.setTextColor(16, 185, 129);
-    doc.text(formatRupiah(totalPemasukanLain), margin + colWidth + 2, topY + 5.5);
-    doc.setFontSize(7);
-    doc.setTextColor(148, 163, 184);
-    doc.text('Iuran/Sumbangan', margin + colWidth + 2, topY + 10);
+    // --- CARD 4: PENGELUARAN KAS ---
+    const x4 = x3 + cardWidth + cardGap;
+    doc.setFillColor(255, 241, 242); // rose 50
+    doc.setDrawColor(254, 205, 211); // rose 200
+    doc.roundedRect(x4, currentY, cardWidth, cardHeight, 2, 2, 'FD');
 
-    // Col 3: Pengeluaran
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('PENGELUARAN KAS', margin + colWidth * 2 + 2, topY);
-    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(159, 18, 57); // rose 900
+    doc.text('PENGELUARAN KAS', x4 + 2.5, topY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(225, 29, 72); // rose 600
+    doc.text(`- ${formatRupiah(totalPengeluaran)}`, x4 + 2.5, topY + 5.5);
+    doc.setFontSize(6.5);
     doc.setTextColor(225, 29, 72);
-    doc.text(`- ${formatRupiah(totalPengeluaran)}`, margin + colWidth * 2 + 2, topY + 5.5);
-    doc.setFontSize(7);
-    doc.setTextColor(148, 163, 184);
-    doc.text('Operasional RT', margin + colWidth * 2 + 2, topY + 10);
+    doc.text('Operasional RT', x4 + 2.5, topY + 10);
 
-    // Col 4: Saldo Kas Bersih
-    doc.setFontSize(7.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text('SALDO KAS BERSIH', margin + colWidth * 3 + 2, topY);
-    doc.setFontSize(10.5);
-    doc.setTextColor(3, 105, 161);
-    doc.text(formatRupiah(totalSaldoKas), margin + colWidth * 3 + 2, topY + 5.5);
-    doc.setFontSize(7);
-    doc.setTextColor(16, 185, 129);
-    doc.text(saldoAwalPeriode !== undefined ? `Saldo Awal: ${formatRupiah(saldoAwalPeriode)}` : 'Status: Kas Aktif', margin + colWidth * 3 + 2, topY + 10);
+    // --- CARD 5: SALDO KAS TERSEDIA (AKHIR) ---
+    const x5 = x4 + cardWidth + cardGap;
+    doc.setFillColor(240, 253, 250); // teal 50
+    doc.setDrawColor(94, 234, 212); // teal 300
+    doc.roundedRect(x5, currentY, cardWidth, cardHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(15, 23, 42); // slate 900
+    doc.text('SALDO TERSEDIA', x5 + 2.5, topY);
+    doc.setFontSize(9.5);
+    doc.setTextColor(3, 105, 161); // sky 700
+    doc.text(formatRupiah(totalSaldoKas), x5 + 2.5, topY + 5.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(13, 148, 136); // teal 600
+    doc.text('Sisa Kas Akhir', x5 + 2.5, topY + 10);
 
     currentY += 28;
   }

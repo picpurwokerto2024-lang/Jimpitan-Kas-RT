@@ -24,7 +24,8 @@ import {
   Check,
   ChevronDown,
   SlidersHorizontal,
-  Eye
+  Eye,
+  Coins
 } from 'lucide-react';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, ReguRonda } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
@@ -767,57 +768,75 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
           {/* ========================================================= */}
           {activeTab === 'kas' && (
             <div className="space-y-6 animate-in fade-in">
-              {/* Executive Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-                  <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Saldo Bersih Bulan Ini</span>
-                    <Wallet className="w-4 h-4 text-sky-600" />
+              {/* Executive Summary Cards (5 Financial Pillars) */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {/* 1. Saldo Awal (Kas Tersedia) */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 shadow-xs">
+                  <div className="flex items-center justify-between text-emerald-800 mb-1">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Saldo Awal (Tersedia)</span>
+                    <Coins className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-stone-900">
-                    {formatRupiah(saldoKasBersihAkhirBulan)}
+                  <div className="text-base sm:text-lg font-black text-emerald-700 truncate">
+                    {formatRupiah(saldoAwalBulanIni)}
                   </div>
-                  <div className="text-[10px] text-stone-500 mt-1">
-                    Saldo Awal: {formatRupiah(saldoAwalBulanIni)}
+                  <div className="text-[10px] font-semibold text-emerald-600 mt-1">
+                    Kas awal siap pakai
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+                {/* 2. Jimpitan Terkumpul */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
                   <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Jimpitan Terkumpul</span>
-                    <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">Jimpitan Masuk</span>
+                    <ArrowUpRight className="w-4 h-4 text-sky-600" />
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-emerald-600">
+                  <div className="text-base sm:text-lg font-black text-sky-600 truncate">
                     +{formatRupiah(totalJimpitanPeriod)}
                   </div>
-                  <div className="text-[10px] text-emerald-700 mt-1">
-                    {filteredRecords.length} setoran bulan ini
+                  <div className="text-[10px] text-sky-700 mt-1">
+                    {filteredRecords.length} penarikan
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+                {/* 3. Pemasukan Non-Jimpitan */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
                   <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Pemasukan Non-Jimpitan</span>
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">Pemasukan Lain</span>
                     <TrendingUp className="w-4 h-4 text-teal-600" />
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-teal-600">
+                  <div className="text-base sm:text-lg font-black text-teal-600 truncate">
                     +{formatRupiah(totalPemasukanLain)}
                   </div>
                   <div className="text-[10px] text-teal-700 mt-1">
-                    Donasi, sumbangan & iuran
+                    Iuran, sumbangan & donasi
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
+                {/* 4. Pengeluaran Kas */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
                   <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Pengeluaran Kas</span>
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">Pengeluaran Kas</span>
                     <ArrowDownRight className="w-4 h-4 text-rose-600" />
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-rose-600">
+                  <div className="text-base sm:text-lg font-black text-rose-600 truncate">
                     -{formatRupiah(totalPengeluaranPeriod)}
                   </div>
                   <div className="text-[10px] text-rose-700 mt-1">
-                    {filteredMutationsKeluar.length} nota belanja kas
+                    {filteredMutationsKeluar.length} nota operasional
+                  </div>
+                </div>
+
+                {/* 5. Saldo Kas Tersedia (Sisa Akhir) */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-50/90 border border-sky-300 shadow-xs col-span-2 sm:col-span-1">
+                  <div className="flex items-center justify-between text-sky-900 mb-1">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Saldo Kas Tersedia</span>
+                    <Wallet className="w-4 h-4 text-sky-600" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-sky-700 truncate">
+                    {formatRupiah(saldoKasBersihAkhirBulan)}
+                  </div>
+                  <div className="text-[10px] font-bold text-sky-800 mt-1">
+                    Sisa kas siap digunakan
                   </div>
                 </div>
               </div>

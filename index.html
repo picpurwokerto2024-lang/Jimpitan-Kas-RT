@@ -71,6 +71,38 @@
         to { transform: rotate(360deg); }
       }
     </style>
+    <script>
+      // Clean up lingering service workers and caches in dev preview to prevent blank screen / loading hangs
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+            }
+          }).catch(function() {});
+        }
+        if (window.caches) {
+          caches.keys().then(function(keys) {
+            for (var i = 0; i < keys.length; i++) {
+              caches.delete(keys[i]);
+            }
+          }).catch(function() {});
+        }
+      } catch (e) {}
+
+      // Capture runtime errors for transparent preview debugging
+      window.__appStartupErrors = [];
+      window.addEventListener('error', function(e) {
+        if (e && e.message) {
+          window.__appStartupErrors.push(e.message);
+          var errBox = document.getElementById('splash-debug-error');
+          if (errBox) {
+            errBox.style.display = 'block';
+            errBox.textContent = 'Detail: ' + e.message;
+          }
+        }
+      });
+    </script>
   </head>
   <body class="bg-stone-50 text-stone-800 antialiased selection:bg-purple-200 selection:text-purple-950">
     <div id="root">
@@ -101,8 +133,36 @@
         <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">JIMPITAN RT</div>
         <div style="font-size: 12px; font-weight: 600; color: #fde68a; margin-top: 4px;">Siskamling &amp; Kas Ronda Digital</div>
         <div class="splash-spinner"></div>
+        <div id="splash-status-text" style="font-size: 11px; font-weight: 500; color: rgba(254, 240, 138, 0.9); margin-top: 14px; letter-spacing: 0.02em;">
+          Memuat aplikasi...
+        </div>
+        <div id="splash-debug-error" style="display: none; max-width: 280px; font-size: 10px; color: #fca5a5; background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 8px; margin-top: 10px; word-break: break-all;"></div>
+        <div id="splash-reload-btn" style="display: none; margin-top: 16px;">
+          <button onclick="window.location.reload(true)" style="background: #fbbf24; color: #3b0764; font-weight: 700; font-size: 12px; border: none; padding: 7px 16px; border-radius: 9999px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            Muat Ulang Preview
+          </button>
+        </div>
       </div>
     </div>
+    <script>
+      (function() {
+        var steps = [
+          { t: 800, msg: 'Menyiapkan modul & database...' },
+          { t: 2000, msg: 'Memuat data warga & siskamling...' },
+          { t: 3500, msg: 'Hampir siap...' },
+        ];
+        steps.forEach(function(s) {
+          setTimeout(function() {
+            var el = document.getElementById('splash-status-text');
+            if (el) el.textContent = s.msg;
+          }, s.t);
+        });
+        setTimeout(function() {
+          var btn = document.getElementById('splash-reload-btn');
+          if (btn) btn.style.display = 'block';
+        }, 5000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
