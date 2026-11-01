@@ -30,6 +30,7 @@ interface HeaderProps {
   onToggleSound: () => void;
   onOpenInstallModal?: () => void;
   isSyncing?: boolean;
+  onForceSync?: () => void;
   appMode?: AppMode;
   onSwitchMode?: (mode: AppMode) => void;
   onOpenModeSelector?: () => void;
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   onDateChange,
   onOpenQuickMenu,
   isSyncing = false,
+  onForceSync,
   appMode = 'warga',
   onSwitchMode,
   onOpenModeSelector,
@@ -68,16 +70,23 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>JIMPITAN RT</span>
                 <span className={`w-2 h-2 rounded-full ml-1.5 inline-block ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} title={isOnline ? "Online & Sync Aktif" : "Offline (Tersimpan Lokal)"} />
               </h1>
-              {/* Cloud Sync / Offline indicator badge */}
+              {/* Cloud Sync / Offline indicator badge (clickable to force fresh server sync) */}
               {isOnline ? (
-                <span className={`inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${theme.headerBadgeBg} border ${theme.headerBadgeBorder} text-emerald-300 text-[10px] font-bold`}>
+                <button
+                  type="button"
+                  onClick={onForceSync}
+                  disabled={isSyncing}
+                  title="Klik untuk sinkronisasi ulang data terbaru dari server Cloud"
+                  id="btn-header-force-sync"
+                  className={`inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${theme.headerBadgeBg} border ${theme.headerBadgeBorder} text-emerald-300 hover:text-white text-[10px] font-bold transition-colors cursor-pointer disabled:opacity-75`}
+                >
                   {isSyncing ? (
                     <RefreshCw className="w-2.5 h-2.5 animate-spin text-emerald-400" />
                   ) : (
                     <CloudCheck className="w-3 h-3 text-emerald-400" />
                   )}
-                  <span>SYNC</span>
-                </span>
+                  <span>{isSyncing ? 'SYNC...' : 'SYNC'}</span>
+                </button>
               ) : (
                 <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-500/30 border border-amber-400/50 text-amber-200 text-[10px] font-bold shadow-2xs">
                   <CloudOff className="w-3 h-3 text-amber-300" />

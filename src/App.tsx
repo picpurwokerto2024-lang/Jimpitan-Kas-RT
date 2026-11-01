@@ -69,21 +69,94 @@ import {
   triggerAutoCloudBackup,
   sendPresenceHeartbeat,
   removePresenceSession,
-  subscribeToActivePresences
+  subscribeToActivePresences,
+  forceFetchAuthoritativeCloudData,
+  normalizeJimpitanRecordData,
+  normalizeKasMutationData
 } from './services/firebaseService';
-import { checkWargaDuplicate, deduplicateWargaArray } from './utils/wargaDeduplicator';
+import { checkWargaDuplicate, deduplicateWargaArray, normalizeHouseNumber } from './utils/wargaDeduplicator';
 
-  // Storage keys for local caching
+// Storage keys for local caching & offline outbox
 const STORAGE_KEYS = {
   SETTINGS: 'jimpitan_settings_v1',
   WARGA: 'jimpitan_warga_v1',
   RECORDS: 'jimpitan_records_v1',
   MUTATIONS: 'jimpitan_mutations_v1',
+  OUTBOX_RECORDS: 'jimpitan_outbox_records_v1',
+  OUTBOX_MUTATIONS: 'jimpitan_outbox_mutations_v1',
   REGU: 'jimpitan_regu_v1',
   MONEY_COUNTS: 'jimpitan_money_counter_v1',
   SESSIONS: 'jimpitan_sessions_v1',
   SELECTED_DATE: 'jimpitan_selected_date_v1',
   APP_MODE: 'jimpitan_app_mode_v1',
+};
+
+const readOutboxRecords = (): JimpitanRecord[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.OUTBOX_RECORDS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((r) => normalizeJimpitanRecordData(r, r?.id)) : [];
+  } catch {
+    return [];
+  }
+};
+
+const upsertOutboxRecords = (items: JimpitanRecord[]) => {
+  if (!items.length) return;
+  try {
+    const map = new Map<string, JimpitanRecord>();
+    readOutboxRecords().forEach((r) => map.set(r.id, r));
+    items.forEach((r) => map.set(r.id, normalizeJimpitanRecordData(r, r.id)));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_RECORDS, JSON.stringify(Array.from(map.values())));
+  } catch {
+    // ignore storage quota errors
+  }
+};
+
+const removeOutboxRecordIds = (ids: string[]) => {
+  if (!ids.length) return;
+  try {
+    const removeSet = new Set(ids);
+    const next = readOutboxRecords().filter((r) => !removeSet.has(r.id));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_RECORDS, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+};
+
+const readOutboxMutations = (): KasMutation[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.OUTBOX_MUTATIONS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((m) => normalizeKasMutationData(m, m?.id)) : [];
+  } catch {
+    return [];
+  }
+};
+
+const upsertOutboxMutations = (items: KasMutation[]) => {
+  if (!items.length) return;
+  try {
+    const map = new Map<string, KasMutation>();
+    readOutboxMutations().forEach((m) => map.set(m.id, m));
+    items.forEach((m) => map.set(m.id, normalizeKasMutationData(m, m.id)));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_MUTATIONS, JSON.stringify(Array.from(map.values())));
+  } catch {
+    // ignore storage quota errors
+  }
+};
+
+const removeOutboxMutationIds = (ids: string[]) => {
+  if (!ids.length) return;
+  try {
+    const removeSet = new Set(ids);
+    const next = readOutboxMutations().filter((m) => !removeSet.has(m.id));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_MUTATIONS, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
 };
 
 export default function App() {
@@ -163,11 +236,9 @@ export default function App() {
     }
   };
 
-  // Selected date state (defaults to today's date upon fresh load / refresh)
-  const liveToday = getTodayDateIso();
-  const [selectedDate, setSelectedDateState] = useState<string>(() => {
-    return liveToday;
-  });
+  // Selected date state (defaults to today's date and auto-advances when PWA wakes on a new day)
+  const [liveToday, setLiveToday] = useState<string>(() => getTodayDateIso());
+  const [selectedDate, setSelectedDateState] = useState<string>(() => getTodayDateIso());
 
   const setSelectedDate = (newDate: string | ((prev: string) => string)) => {
     setSelectedDateState((prev) => {
@@ -181,15 +252,54 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    const syncLiveCalendarDay = () => {
+      const freshToday = getTodayDateIso();
+      setLiveToday((prevLive) => {
+        if (prevLive !== freshToday) {
+          setSelectedDateState((prevSelected) => (prevSelected === prevLive ? freshToday : prevSelected));
+          return freshToday;
+        }
+        return prevLive;
+      });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncLiveCalendarDay();
+      }
+    };
+
+    window.addEventListener('focus', syncLiveCalendarDay);
+    document.addEventListener('visibilitychange', onVisibility);
+    const interval = setInterval(syncLiveCalendarDay, 60000);
+    return () => {
+      window.removeEventListener('focus', syncLiveCalendarDay);
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleResetToTodayDate = () => {
     const today = getTodayDateIso();
+    setLiveToday(today);
     setSelectedDate(today);
   };
 
   const isViewingPastDate = selectedDate !== liveToday;
 
-  // Cloud sync indicator state
+  // Cloud sync indicator state & non-blocking toast notifications
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [appToast, setAppToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const pendingDeletedMutationIdsRef = useRef<Set<string>>(new Set());
+  const pendingDeletedRecordIdsRef = useRef<Set<string>>(new Set());
+
+  const showAppToast = (message: string, tone: 'success' | 'error' = 'success') => {
+    setAppToast({ message, tone });
+    setTimeout(() => {
+      setAppToast((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
 
   // App Settings
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -236,7 +346,12 @@ export default function App() {
   const [allRecords, setAllRecords] = useState<JimpitanRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.RECORDS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((r) => normalizeJimpitanRecordData(r, r?.id));
+        }
+      }
     } catch (e) {
       console.warn('Failed to load records', e);
     }
@@ -247,7 +362,12 @@ export default function App() {
   const [kasMutations, setKasMutations] = useState<KasMutation[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.MUTATIONS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((m) => normalizeKasMutationData(m, m?.id));
+        }
+      }
     } catch (e) {
       console.warn('Failed to load mutations', e);
     }
@@ -544,10 +664,27 @@ export default function App() {
   };
 
   // =========================================================================
-  // REAL-TIME FIRESTORE SUBSCRIPTIONS (Automatic multi-device synchronization)
+  // REAL-TIME FIRESTORE SUBSCRIPTIONS (Authoritative multi-device sync)
   // =========================================================================
   useEffect(() => {
     setIsSyncing(true);
+
+    // One-time migration: flush any legacy per-device deleted mutation IDs to Firestore
+    // so all devices (Android & PC) see the exact same mutation list.
+    try {
+      const legacyDeletedRaw = localStorage.getItem('jimpitan_rt_deleted_mutations');
+      if (legacyDeletedRaw) {
+        const legacyIds: string[] = JSON.parse(legacyDeletedRaw);
+        if (Array.isArray(legacyIds) && legacyIds.length > 0) {
+          legacyIds.forEach((id) => {
+            deleteKasMutationCloud(id).catch(() => {});
+          });
+        }
+        localStorage.removeItem('jimpitan_rt_deleted_mutations');
+      }
+    } catch {
+      // ignore
+    }
 
     const unsubSettings = subscribeSettings((cloudSettings) => {
       setSettings(cloudSettings);
@@ -561,65 +698,93 @@ export default function App() {
       setIsSyncing(false);
     });
 
-    const unsubRecords = subscribeJimpitanRecords((cloudRecords) => {
-      setAllRecords((prevLocal) => {
-        const cloudIds = new Set(cloudRecords.map((r) => r.id));
-        const pendingLocal = prevLocal.filter((r) => !cloudIds.has(r.id));
-        
-        // Auto background-sync any local records not in cloud yet
-        if (pendingLocal.length > 0) {
-          console.log(`📡 Syncing ${pendingLocal.length} pending local jimpitan records to cloud...`);
-          pendingLocal.forEach((rec) => {
-            addJimpitanRecordCloud(rec).catch((err) => console.warn('Retrying record sync later:', err));
-          });
-        }
+    const unsubRecords = subscribeJimpitanRecords((cloudRecords, meta) => {
+      const cloudIds = new Set(cloudRecords.map((r) => r.id));
+      const currentOutbox = readOutboxRecords();
 
-        const merged = [...pendingLocal, ...cloudRecords].sort(
-          (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
-        );
-        try {
-          localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(merged));
-        } catch (e) {
-          console.warn('Storage save failed:', e);
+      if (!meta.fromCache && currentOutbox.length > 0) {
+        const syncedIds = currentOutbox.filter((r) => cloudIds.has(r.id)).map((r) => r.id);
+        if (syncedIds.length > 0) {
+          removeOutboxRecordIds(syncedIds);
         }
-        return merged;
+      }
+
+      const remainingOutbox = readOutboxRecords().filter((r) => !cloudIds.has(r.id));
+      if (!meta.fromCache && remainingOutbox.length > 0) {
+        remainingOutbox.forEach((rec) => {
+          addJimpitanRecordCloud(rec)
+            .then(() => removeOutboxRecordIds([rec.id]))
+            .catch((err) => console.warn('Retrying pending outbox record later:', err));
+        });
+      }
+
+      const mergedMap = new Map<string, JimpitanRecord>();
+      cloudRecords.forEach((r) => {
+        if (!pendingDeletedRecordIdsRef.current.has(r.id)) {
+          mergedMap.set(r.id, r);
+        }
       });
+      remainingOutbox.forEach((r) => {
+        if (!pendingDeletedRecordIdsRef.current.has(r.id)) {
+          mergedMap.set(r.id, r);
+        }
+      });
+
+      const merged = Array.from(mergedMap.values()).sort(
+        (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+      );
+
+      setAllRecords(merged);
+      try {
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(merged));
+      } catch (e) {
+        console.warn('Storage save failed:', e);
+      }
       setIsSyncing(false);
     });
 
-    const unsubMutations = subscribeKasMutations((cloudMutations) => {
-      setKasMutations((prevLocal) => {
-        // Read explicitly deleted mutation IDs to prevent zombie items
-        let deletedIds = new Set<string>();
-        try {
-          const deletedSaved = localStorage.getItem('jimpitan_rt_deleted_mutations');
-          if (deletedSaved) deletedIds = new Set(JSON.parse(deletedSaved));
-        } catch (e) {
-          // ignore
-        }
+    const unsubMutations = subscribeKasMutations((cloudMutations, meta) => {
+      const cloudIds = new Set(cloudMutations.map((m) => m.id));
+      const currentOutbox = readOutboxMutations();
 
-        const validCloud = cloudMutations.filter((m) => !deletedIds.has(m.id));
-        const cloudIds = new Set(validCloud.map((m) => m.id));
+      if (!meta.fromCache && currentOutbox.length > 0) {
+        const syncedIds = currentOutbox.filter((m) => cloudIds.has(m.id)).map((m) => m.id);
+        if (syncedIds.length > 0) {
+          removeOutboxMutationIds(syncedIds);
+        }
+      }
 
-        // Keep all local mutations that haven't synced to cloud yet and weren't explicitly deleted
-        const pendingLocal = prevLocal.filter((m) => !cloudIds.has(m.id) && !deletedIds.has(m.id));
-        
-        // Background sync any pending local mutations to Firestore
-        if (pendingLocal.length > 0) {
-          console.log(`📡 Syncing ${pendingLocal.length} pending local mutations to cloud...`);
-          pendingLocal.forEach((mut) => {
-            addKasMutationCloud(mut).catch((err) => console.warn('Retrying mutation sync later:', err));
-          });
+      const remainingOutbox = readOutboxMutations().filter((m) => !cloudIds.has(m.id));
+      if (!meta.fromCache && remainingOutbox.length > 0) {
+        remainingOutbox.forEach((mut) => {
+          addKasMutationCloud(mut)
+            .then(() => removeOutboxMutationIds([mut.id]))
+            .catch((err) => console.warn('Retrying pending outbox mutation later:', err));
+        });
+      }
+
+      const mergedMap = new Map<string, KasMutation>();
+      cloudMutations.forEach((m) => {
+        if (!pendingDeletedMutationIdsRef.current.has(m.id)) {
+          mergedMap.set(m.id, m);
         }
-        
-        const merged = [...pendingLocal, ...validCloud].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        try {
-          localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(merged));
-        } catch (e) {
-          console.warn('Failed to cache mutations in localStorage:', e);
-        }
-        return merged;
       });
+      remainingOutbox.forEach((m) => {
+        if (!pendingDeletedMutationIdsRef.current.has(m.id)) {
+          mergedMap.set(m.id, m);
+        }
+      });
+
+      const merged = Array.from(mergedMap.values()).sort(
+        (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+      );
+
+      setKasMutations(merged);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(merged));
+      } catch (e) {
+        console.warn('Failed to cache mutations in localStorage:', e);
+      }
       setIsSyncing(false);
     });
 
@@ -652,42 +817,116 @@ export default function App() {
     };
   }, []);
 
+  // Force authoritative refresh from Firestore server (1-tap reconciliation across Android & Web)
+  const handleForceCloudSync = async () => {
+    setIsSyncing(true);
+    try {
+      // Check calendar day rollover as well
+      const freshToday = getTodayDateIso();
+      if (freshToday !== liveToday) {
+        setLiveToday(freshToday);
+        if (selectedDate === liveToday) {
+          setSelectedDate(freshToday);
+        }
+      }
+
+      // Flush any offline pending outbox items first
+      const pendingRecs = readOutboxRecords();
+      if (pendingRecs.length > 0) {
+        await addBatchJimpitanRecordsCloud(pendingRecs);
+        removeOutboxRecordIds(pendingRecs.map((r) => r.id));
+      }
+
+      const pendingMuts = readOutboxMutations();
+      if (pendingMuts.length > 0) {
+        for (const mut of pendingMuts) {
+          await addKasMutationCloud(mut);
+          removeOutboxMutationIds([mut.id]);
+        }
+      }
+
+      const fresh = await forceFetchAuthoritativeCloudData();
+      if (fresh.settings) {
+        setSettings(fresh.settings);
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(fresh.settings));
+      }
+      if (fresh.wargaList.length > 0) {
+        setWargaList(fresh.wargaList);
+        localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(fresh.wargaList));
+      }
+      setAllRecords(fresh.records);
+      localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(fresh.records));
+      setKasMutations(fresh.mutations);
+      localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(fresh.mutations));
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then((reg) => reg?.update()).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Force cloud sync fallback:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Derived metrics
   const activeRegu = reguList.find((r) => r.id === selectedReguId) || reguList[0];
 
+  const getEffectiveNominal = (r: JimpitanRecord): number =>
+    r.status === 'kosong' || r.status === 'lewat' ? 0 : Number(r.nominal) || 0;
+
   // Records for selected date
   const recordsTonight = allRecords.filter((r) => r.tanggal === selectedDate);
-  const totalTerkumpulMalamIni = recordsTonight.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalTerkumpulMalamIni = recordsTonight.reduce((sum, r) => sum + getEffectiveNominal(r), 0);
   const totalRumah = wargaList.length;
   const jumlahRumahScanned = recordsTonight.length;
-  const totalTarget = wargaList.reduce((sum, w) => sum + (w.nominalDefault || 1000), 0);
+  const totalTarget = wargaList.reduce(
+    (sum, w) => sum + (w.isActive === false ? 0 : typeof w.nominalDefault === 'number' ? w.nominalDefault : 1000),
+    0
+  );
 
   // Total Kas Balance (Akumulasi Saldo Awal + Seluruh Jimpitan + Mutasi Masuk - Pengeluaran)
   const saldoAwalKas = Number(settings.saldoAwalKas) || 0;
 
   const totalPemasukanMutasi = kasMutations
     .filter((m) => m.jenis === 'masuk')
-    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
 
   const totalPengeluaranMutasi = kasMutations
     .filter((m) => m.jenis === 'keluar')
-    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
 
-  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + getEffectiveNominal(r), 0);
   const saldoKas = saldoAwalKas + totalPemasukanMutasi + totalJimpitanAllTime - totalPengeluaranMutasi;
+
+  const findExistingSameDayRecord = (
+    list: JimpitanRecord[],
+    candidate: Pick<JimpitanRecord, 'tanggal' | 'wargaId' | 'nomorRumah'>
+  ): JimpitanRecord | undefined => {
+    const normHouse = candidate.nomorRumah ? normalizeHouseNumber(candidate.nomorRumah) : '';
+    return list.find((r) => {
+      if (r.tanggal !== candidate.tanggal) return false;
+      if (candidate.wargaId && r.wargaId && r.wargaId === candidate.wargaId) return true;
+      if (normHouse && r.nomorRumah && normalizeHouseNumber(r.nomorRumah) === normHouse) return true;
+      return false;
+    });
+  };
 
   // Handlers for Jimpitan Records (Cloud Synchronized)
   const handleSaveRecord = async (record: Omit<JimpitanRecord, 'id' | 'createdAt'>) => {
-    const existing = allRecords.find(
-      (r) => r.tanggal === record.tanggal && r.wargaId === record.wargaId
+    const existing = findExistingSameDayRecord(allRecords, record);
+
+    const targetId = existing ? existing.id : `jimpitan-${normalizeHouseNumber(record.nomorRumah || record.wargaId)}-${record.tanggal}`;
+    const fullRecord = normalizeJimpitanRecordData(
+      {
+        ...record,
+        id: targetId,
+        createdAt: existing ? existing.createdAt : Date.now(),
+      },
+      targetId
     );
 
-    const targetId = existing ? existing.id : `rec-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-    const fullRecord: JimpitanRecord = {
-      ...record,
-      id: targetId,
-      createdAt: existing ? existing.createdAt : Date.now(),
-    };
+    upsertOutboxRecords([fullRecord]);
 
     // Optimistic local update & instant local storage save
     setAllRecords((prev) => {
@@ -710,8 +949,9 @@ export default function App() {
     // Cloud firestore sync
     try {
       await addJimpitanRecordCloud(fullRecord);
+      removeOutboxRecordIds([fullRecord.id]);
     } catch (err) {
-      console.error('Failed to sync record to cloud:', err);
+      console.error('Failed to sync record to cloud (queued in offline outbox):', err);
     }
   };
 
@@ -719,20 +959,28 @@ export default function App() {
     if (!records || records.length === 0) return;
 
     const fullRecords: JimpitanRecord[] = records.map((r, i) => {
-      const targetId = `jimpitan-${r.nomorRumah}-${r.tanggal}`;
-      return {
-        ...r,
-        id: targetId,
-        createdAt: Date.now() + i,
-      };
+      const existing = findExistingSameDayRecord(allRecords, r);
+      const targetId = existing ? existing.id : `jimpitan-${normalizeHouseNumber(r.nomorRumah || r.wargaId)}-${r.tanggal}`;
+      return normalizeJimpitanRecordData(
+        {
+          ...r,
+          id: targetId,
+          createdAt: existing ? existing.createdAt : Date.now() + i,
+        },
+        targetId
+      );
     });
+
+    upsertOutboxRecords(fullRecords);
 
     // Optimistic local update
     setAllRecords((prev) => {
       const map = new Map<string, JimpitanRecord>();
       prev.forEach((p) => map.set(p.id, p));
       fullRecords.forEach((r) => map.set(r.id, r));
-      const next = Array.from(map.values()).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+      const next = Array.from(map.values()).sort(
+        (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+      );
       try {
         localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(next));
       } catch (e) {
@@ -744,34 +992,49 @@ export default function App() {
     // Cloud firestore sync
     try {
       await addBatchJimpitanRecordsCloud(fullRecords);
+      removeOutboxRecordIds(fullRecords.map((r) => r.id));
     } catch (err) {
-      console.error('Failed to sync batch records to cloud:', err);
+      console.error('Failed to sync batch records to cloud (queued in offline outbox):', err);
     }
   };
 
   const handleUpdateRecord = async (updated: JimpitanRecord) => {
+    const normalized = normalizeJimpitanRecordData(updated, updated.id);
+    upsertOutboxRecords([normalized]);
     setAllRecords((prev) => {
-      const next = prev.map((r) => (r.id === updated.id ? updated : r));
+      const next = prev.map((r) => (r.id === normalized.id ? normalized : r));
       localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(next));
       return next;
     });
     try {
-      await addJimpitanRecordCloud(updated);
+      await addJimpitanRecordCloud(normalized);
+      removeOutboxRecordIds([normalized.id]);
     } catch (err) {
-      console.error('Failed to update record in cloud:', err);
+      console.error('Failed to update record in cloud (queued in offline outbox):', err);
     }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
+    if (!recordId) return;
+    pendingDeletedRecordIdsRef.current.add(recordId);
+    removeOutboxRecordIds([recordId]);
     setAllRecords((prev) => {
       const next = prev.filter((r) => r.id !== recordId);
-      localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
       return next;
     });
     try {
       await deleteJimpitanRecordCloud(recordId);
+      showAppToast('Catatan jimpitan berhasil dihapus dari Cloud.');
     } catch (err) {
       console.error('Failed to delete record in cloud:', err);
+      showAppToast('Gagal menghapus catatan di Cloud. Periksa koneksi internet.', 'error');
+    } finally {
+      pendingDeletedRecordIdsRef.current.delete(recordId);
     }
   };
 
@@ -962,26 +1225,20 @@ export default function App() {
 
   // Handlers for Mutations (Cloud Synchronized)
   const handleAddMutation = async (mut: Omit<KasMutation, 'id' | 'createdAt'>) => {
-    const newMut: KasMutation = {
-      ...mut,
-      id: `mut-${Date.now()}`,
-      createdAt: Date.now(),
-    };
+    const targetId = `mut-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const newMut = normalizeKasMutationData(
+      {
+        ...mut,
+        id: targetId,
+        createdAt: Date.now(),
+      },
+      targetId
+    );
 
-    // Remove from deleted tracking if re-added
-    try {
-      const deletedSaved = localStorage.getItem('jimpitan_rt_deleted_mutations');
-      if (deletedSaved) {
-        const list: string[] = JSON.parse(deletedSaved);
-        const filtered = list.filter(dId => dId !== newMut.id);
-        localStorage.setItem('jimpitan_rt_deleted_mutations', JSON.stringify(filtered));
-      }
-    } catch (e) {
-      // ignore
-    }
+    upsertOutboxMutations([newMut]);
 
     setKasMutations((prev) => {
-      const next = [newMut, ...prev.filter(m => m.id !== newMut.id)];
+      const next = [newMut, ...prev.filter((m) => m.id !== newMut.id)];
       try {
         localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
       } catch (e) {
@@ -991,14 +1248,17 @@ export default function App() {
     });
     try {
       await addKasMutationCloud(newMut);
+      removeOutboxMutationIds([newMut.id]);
     } catch (err) {
-      console.error('Failed to add mutation in cloud:', err);
+      console.error('Failed to add mutation in cloud (queued in offline outbox):', err);
     }
   };
 
   const handleUpdateMutation = async (updated: KasMutation) => {
+    const normalized = normalizeKasMutationData(updated, updated.id);
+    upsertOutboxMutations([normalized]);
     setKasMutations((prev) => {
-      const next = prev.map((m) => (m.id === updated.id ? updated : m));
+      const next = prev.map((m) => (m.id === normalized.id ? normalized : m));
       try {
         localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(next));
       } catch (e) {
@@ -1007,25 +1267,17 @@ export default function App() {
       return next;
     });
     try {
-      await addKasMutationCloud(updated);
+      await addKasMutationCloud(normalized);
+      removeOutboxMutationIds([normalized.id]);
     } catch (err) {
-      console.error('Failed to update mutation in cloud:', err);
+      console.error('Failed to update mutation in cloud (queued in offline outbox):', err);
     }
   };
 
   const handleDeleteMutation = async (id: string) => {
-    // Record in deleted set so snapshot doesn't resurrect it
-    try {
-      let deletedList: string[] = [];
-      const saved = localStorage.getItem('jimpitan_rt_deleted_mutations');
-      if (saved) deletedList = JSON.parse(saved);
-      if (!deletedList.includes(id)) {
-        deletedList.push(id);
-        localStorage.setItem('jimpitan_rt_deleted_mutations', JSON.stringify(deletedList));
-      }
-    } catch (e) {
-      // ignore
-    }
+    if (!id) return;
+    pendingDeletedMutationIdsRef.current.add(id);
+    removeOutboxMutationIds([id]);
 
     setKasMutations((prev) => {
       const next = prev.filter((m) => m.id !== id);
@@ -1038,8 +1290,12 @@ export default function App() {
     });
     try {
       await deleteKasMutationCloud(id);
+      showAppToast('Mutasi kas berhasil dihapus dari sistem & Cloud.');
     } catch (err) {
       console.error('Failed to delete mutation in cloud:', err);
+      showAppToast('Gagal menghapus mutasi di Cloud. Periksa koneksi internet.', 'error');
+    } finally {
+      pendingDeletedMutationIdsRef.current.delete(id);
     }
   };
 
@@ -1097,6 +1353,12 @@ export default function App() {
     const activePin = (settings.pinAdmin && settings.pinAdmin.trim()) ? settings.pinAdmin.trim() : '1234';
     if (pin.trim() === activePin) {
       setIsAdminUnlocked(true);
+      setAppMode('petugas');
+      try {
+        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'petugas');
+      } catch {
+        // ignore
+      }
       return true;
     }
     return false;
@@ -1146,20 +1408,24 @@ export default function App() {
   // Reset & Sample data handlers (Cloud aware)
   const handlePurgeArchiveAndDemoData = async () => {
     try {
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_RECORDS);
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_MUTATIONS);
       const res = await purgeArchiveAndDemoDataCloud();
       setAllRecords([]);
       setKasMutations([]);
       setRondaSessions({});
       setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
       setWargaList((prev) => prev.filter((w) => !['warga-01', 'warga-02', 'warga-03'].includes(w.id)));
-      alert(`Data arsip dan data demo berhasil dibersihkan secara total:\n• Catatan jimpitan: ${res.deletedRecCount} data dibersihkan\n• Mutasi kas: ${res.deletedMutCount} data dibersihkan\n• Sesi ronda: ${res.deletedSessCount} data dibersihkan\n• Data demo warga: ${res.deletedDemoWargaCount} data dibersihkan`);
+      showAppToast(
+        `Arsip & demo dibersihkan (${res.deletedRecCount} jimpitan, ${res.deletedMutCount} mutasi kas, ${res.deletedSessCount} sesi).`
+      );
     } catch (err) {
       console.error('Gagal membersihkan data arsip & demo:', err);
       setAllRecords([]);
       setKasMutations([]);
       setRondaSessions({});
       setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
-      alert('Data arsip dan demo telah dibersihkan dari penyimpanan.');
+      showAppToast('Data arsip dan demo telah dibersihkan dari penyimpanan.');
     }
   };
 
@@ -1177,25 +1443,28 @@ export default function App() {
         }
         return next;
       });
-      alert(`Berhasil menghapus seluruh data bulan September.\n• Jimpitan masuk: ${res.deletedRecCount} data dibersihkan\n• Pengeluaran kas: ${res.deletedMutCount} data dibersihkan\n• Sesi ronda: ${res.deletedSessCount} data dibersihkan`);
+      showAppToast(
+        `Data September dihapus (${res.deletedRecCount} jimpitan, ${res.deletedMutCount} mutasi kas).`
+      );
     } catch (err) {
       console.error('Gagal menghapus data September:', err);
-      // Fallback local cleanup
       setAllRecords((prev) => prev.filter((r) => !r.tanggal || (!r.tanggal.includes('-09-') && !r.tanggal.startsWith('2026-09'))));
       setKasMutations((prev) => prev.filter((m) => !m.tanggal || (!m.tanggal.includes('-09-') && !m.tanggal.startsWith('2026-09'))));
-      alert('Data bulan September berhasil dibersihkan dari memori aplikasi.');
+      showAppToast('Data bulan September berhasil dibersihkan dari memori aplikasi.');
     }
   };
 
   const handleResetAllData = async () => {
     try {
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_RECORDS);
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_MUTATIONS);
       await resetAllCloudData();
-      alert('Data cloud berhasil di-reset bersih.');
+      showAppToast('Data Cloud berhasil di-reset bersih.');
     } catch (e) {
       setAllRecords([]);
       setKasMutations([]);
       setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
-      alert('Data lokal di-reset.');
+      showAppToast('Data lokal berhasil di-reset.');
     }
   };
 
@@ -1209,21 +1478,21 @@ export default function App() {
         allRecords: [],
         moneyCounts: DEFAULT_MONEY_DENOMINATION,
       });
-      alert('Data contoh RT berhasil disinkronkan ke Cloud!');
+      showAppToast('Data contoh RT berhasil disinkronkan ke Cloud!');
     } catch (e) {
       setWargaList(DEFAULT_WARGA);
       setReguList(DEFAULT_REGU);
       setKasMutations(DEFAULT_MUTATIONS);
       setSettings(DEFAULT_SETTINGS);
       setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
-      alert('Data contoh dimuat secara lokal.');
+      showAppToast('Data contoh dimuat secara lokal.');
     }
   };
 
   const handleRestoreFullBackup = async (data: any) => {
     try {
       await restoreFullCloudBackup(data);
-      alert('Data backup berhasil disinkronkan ke seluruh warga dan pengurus RT!');
+      showAppToast('Data backup berhasil disinkronkan ke seluruh warga dan pengurus RT!');
     } catch (err) {
       if (data.settings) setSettings(data.settings);
       if (data.allWarga) setWargaList(data.allWarga);
@@ -1231,7 +1500,7 @@ export default function App() {
       if (data.allMutations) setKasMutations(data.allMutations);
       if (data.reguList) setReguList(data.reguList);
       if (data.moneyCounts) setMoneyCounts(data.moneyCounts);
-      alert('Backup berhasil dipulihkan secara lokal.');
+      showAppToast('Backup berhasil dipulihkan secara lokal.');
     }
   };
 
@@ -1313,6 +1582,7 @@ export default function App() {
         onToggleSound={handleToggleSound}
         onOpenInstallModal={() => setIsInstallModalOpen(true)}
         isSyncing={isSyncing}
+        onForceSync={handleForceCloudSync}
         appMode={appMode}
         onSwitchMode={handleSwitchMode}
         onOpenModeSelector={() => setIsModeSelectorOpen(true)}
@@ -1399,6 +1669,8 @@ export default function App() {
                 onOpenLaporanHub={appMode !== 'warga' ? handleOpenLaporanHub : undefined}
                 onSelectDate={setSelectedDate}
                 onResetToToday={handleResetToTodayDate}
+                onForceSync={handleForceCloudSync}
+                isSyncing={isSyncing}
                 isAdmin={isAdminUnlocked}
                 appMode={appMode}
                 theme={themeState.theme}
@@ -1484,7 +1756,7 @@ export default function App() {
               onUnlockAdmin={handleUnlockAdminWithPin}
               onLockApp={() => {
                 setIsAdminUnlocked(false);
-                alert('Aplikasi terkunci. Mode admin dinonaktifkan.');
+                showAppToast('Aplikasi terkunci. Mode admin dinonaktifkan.');
               }}
               appMode={appMode}
               currentPetugas={petugasNama}
@@ -1719,8 +1991,25 @@ export default function App() {
             activeReguId={selectedReguId}
             saldoKas={saldoKas}
             onOpenShareModal={() => handleOpenShareModal('laporan')}
+            onDeleteMutation={handleDeleteMutation}
+            isAdmin={isAdminUnlocked || appMode === 'petugas'}
           />
         </ErrorBoundary>
+      )}
+
+      {/* Global Action Toast Feedback */}
+      {appToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[70] px-4 w-full max-w-sm pointer-events-none animate-in fade-in slide-in-from-bottom-3">
+          <div
+            className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold shadow-xl border text-center ${
+              appToast.tone === 'error'
+                ? 'bg-rose-900/95 text-rose-50 border-rose-700'
+                : 'bg-stone-900/95 text-emerald-300 border-stone-700'
+            }`}
+          >
+            {appToast.message}
+          </div>
+        </div>
       )}
 
       {/* Exit Toast Notification (Tekan kembali 2 kali pada HP untuk keluar) */}

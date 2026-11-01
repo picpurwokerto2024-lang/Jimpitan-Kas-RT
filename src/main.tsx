@@ -22,13 +22,22 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
   }
 }
 
-// In production, register Service Worker for offline PWA functionality
+// In production, register Service Worker for offline PWA functionality with immediate auto-update
 if (import.meta.env.PROD && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({
+    const updateSW = registerSW({
       immediate: true,
+      onRegisteredSW(_swUrl, registration) {
+        if (registration) {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              registration.update().catch(() => {});
+            }
+          });
+        }
+      },
       onNeedRefresh() {
-        console.log('New content available, reload ready.');
+        updateSW(true);
       },
       onOfflineReady() {
         console.log('App ready to work offline.');

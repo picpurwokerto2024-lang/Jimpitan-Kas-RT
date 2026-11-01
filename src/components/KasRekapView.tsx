@@ -38,6 +38,7 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   RotateCcw,
+  RefreshCw,
   Building,
   Phone,
   CalendarDays,
@@ -230,6 +231,8 @@ interface KasRekapViewProps {
   onOpenLaporanHub?: (tab?: 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan') => void;
   onSelectDate?: (date: string) => void;
   onResetToToday?: () => void;
+  onForceSync?: () => Promise<void> | void;
+  isSyncing?: boolean;
   isAdmin?: boolean;
   appMode?: AppMode;
   theme?: AppTheme;
@@ -256,6 +259,8 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   onOpenLaporanHub,
   onSelectDate,
   onResetToToday,
+  onForceSync,
+  isSyncing = false,
   isAdmin = true,
   appMode = 'warga',
   theme = AVAILABLE_THEMES[0],
@@ -282,6 +287,21 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [editingMutation, setEditingMutation] = useState<KasMutation | null>(null);
   const [editingRecord, setEditingRecord] = useState<JimpitanRecord | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    | { type: 'delete_mutation'; mutation: KasMutation }
+    | { type: 'delete_record'; record: JimpitanRecord }
+    | { type: 'delete_september' }
+    | { type: 'purge_archive' }
+    | null
+  >(null);
+  const [localNotice, setLocalNotice] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+
+  const showNotice = (text: string, tone: 'error' | 'success' = 'success') => {
+    setLocalNotice({ text, tone });
+    setTimeout(() => {
+      setLocalNotice((prev) => (prev?.text === text ? null : prev));
+    }, 3500);
+  };
 
   // Category filter state for mutation list
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('semua');
@@ -313,6 +333,9 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const currentYearMonth = `${currYear}-${currMonth}`;
   const currMonthName = new Date(Number(currYear) || new Date().getFullYear(), Math.max(0, (Number(currMonth) || 1) - 1), 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
+  const getSafeRecordNominal = (r: JimpitanRecord): number =>
+    r.status === 'kosong' || r.status === 'lewat' ? 0 : Number(r.nominal) || 0;
+
   // 1. Master Base Saldo Awal from Settings
   const masterSaldoAwal = Number(settings?.saldoAwalKas) || 0;
 
@@ -320,7 +343,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const pastJimpitan = useMemo(() => {
     return allRecords
       .filter((r) => r.tanggal && r.tanggal < `${currentYearMonth}-01`)
-      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+      .reduce((sum, r) => sum + getSafeRecordNominal(r), 0);
   }, [allRecords, currentYearMonth]);
 
   const pastMutasiMasuk = useMemo(() => {
@@ -329,7 +352,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
         return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'masuk';
       })
-      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+      .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
   }, [kasMutations, currentYearMonth]);
 
   const pastMutasiKeluar = useMemo(() => {
@@ -338,7 +361,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
         return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'keluar';
       })
-      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+      .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
   }, [kasMutations, currentYearMonth]);
 
   // Saldo Awal Bulan Ini (Otomatis ditarik dari Saldo Bersih Akhir Bulan Lalu / seluruh akumulasi lampau)
@@ -348,7 +371,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const thisMonthJimpitan = useMemo(() => {
     return allRecords
       .filter((r) => r.tanggal && r.tanggal.startsWith(currentYearMonth))
-      .reduce((sum, r) => sum + (r.nominal || 0), 0);
+      .reduce((sum, r) => sum + getSafeRecordNominal(r), 0);
   }, [allRecords, currentYearMonth]);
 
   const thisMonthMutasiMasuk = useMemo(() => {
@@ -357,7 +380,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
         return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'masuk';
       })
-      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+      .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
   }, [kasMutations, currentYearMonth]);
 
   const thisMonthMutasiKeluar = useMemo(() => {
@@ -366,7 +389,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
         return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'keluar';
       })
-      .reduce((sum, m) => sum + (m.nominal || 0), 0);
+      .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
   }, [kasMutations, currentYearMonth]);
 
   const thisMonthMasukAll = thisMonthJimpitan + thisMonthMutasiMasuk;
@@ -376,13 +399,13 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   // 4. Global All-Time Calculations
   const totalPemasukanMutasiAllTime = kasMutations
     .filter((m) => m.jenis === 'masuk')
-    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
 
   const totalPengeluaranMutasiAllTime = kasMutations
     .filter((m) => m.jenis === 'keluar')
-    .reduce((sum, m) => sum + (m.nominal || 0), 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
 
-  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalJimpitanAllTime = allRecords.reduce((sum, r) => sum + getSafeRecordNominal(r), 0);
   const totalMasukAllTime = totalPemasukanMutasiAllTime + totalJimpitanAllTime;
   const saldoKasBersihAllTime = masterSaldoAwal + totalMasukAllTime - totalPengeluaranMutasiAllTime;
 
@@ -415,7 +438,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
     return true;
   });
 
-  const totalFilteredNominal = filteredRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
+  const totalFilteredNominal = filteredRecords.reduce((sum, r) => sum + getSafeRecordNominal(r), 0);
 
   // Period-aware Mutations (Menampilkan seluruh catatan pengeluaran & mutasi kas dalam 1 bulan berjalan disemua mode)
   const periodMutations = useMemo(() => {
@@ -502,7 +525,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
       });
     } catch (err) {
       console.error('Error generating Excel:', err);
-      alert('Terjadi kendala saat membuat file Excel.');
+      showNotice('Terjadi kendala saat membuat file Excel.', 'error');
     } finally {
       setIsExportingExcel(false);
     }
@@ -536,7 +559,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   const openEditMutation = (mut: KasMutation) => {
     if (!isAuthorized) {
-      alert('Akses Ditolak: Edit mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
+      showNotice('Akses Ditolak: Edit mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Admin.', 'error');
       return;
     }
     setEditingMutation(mut);
@@ -552,7 +575,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   const openAddMutation = (initialCategory?: string) => {
     if (!isAuthorized) {
-      alert('Akses Ditolak: Pengeluaran dan pencatatan kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
+      showNotice('Akses Ditolak: Pencatatan kas RT hanya dapat dilakukan oleh Mode Petugas / Admin.', 'error');
       return;
     }
     setEditingMutation(null);
@@ -586,7 +609,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const handleSaveMutation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthorized) {
-      alert('Akses Ditolak: Pengeluaran dan mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Pengurus RT.');
+      showNotice('Akses Ditolak: Mutasi kas RT hanya dapat dilakukan oleh Mode Petugas / Admin.', 'error');
       return;
     }
     const finalCategory = (kategoriMutasi === 'Lain-lain' && customKategoriInput.trim()) 
@@ -594,7 +617,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
       : kategoriMutasi;
 
     if (!nominalMutasi || !keteranganMutasi.trim()) {
-      alert('Mohon isi nominal dan keterangan transaksi.');
+      showNotice('Mohon isi nominal dan keterangan transaksi.', 'error');
       return;
     }
 
@@ -643,6 +666,24 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
 
   return (
     <div className="w-full space-y-4 pb-10" id="kas-rekap-view-root">
+      {localNotice && (
+        <div
+          className={`px-4 py-2.5 rounded-2xl border text-xs font-extrabold flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2 ${
+            localNotice.tone === 'error'
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}
+        >
+          <span>{localNotice.text}</span>
+          <button
+            type="button"
+            onClick={() => setLocalNotice(null)}
+            className="ml-2 p-0.5 rounded-lg hover:bg-black/5 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
       {/* 1. TOP CARD: KAS JIMPITAN RT / RW (DYNAMIC THEME) */}
       <div className={`w-full rounded-3xl ${theme.cardGradient} text-white border ${theme.cardBorder} shadow-lg p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-all duration-300`}>
         {/* Date Display & Admin Online Warga Indicator */}
@@ -696,9 +737,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 <div className="flex items-center space-x-1.5">
                   <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 inline-block shrink-0" />
                   <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white/90">
-                    {periodFilter === 'semua'
-                      ? 'SALDO KAS BERSIH (KUMULATIF)'
-                      : `SALDO KAS BERSIH (${currMonthName.toUpperCase()})`}
+                    SALDO KAS BERSIH
                   </span>
                 </div>
 
@@ -728,7 +767,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 <Coins className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
               </div>
               <span className="text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-wide text-white/90 whitespace-nowrap leading-tight">
-                {periodFilter === 'semua' ? 'SALDO AWAL MASTER' : 'SALDO AWAL'}
+                SALDO AWAL
               </span>
             </div>
             <div className="text-[11px] sm:text-sm md:text-base font-extrabold text-emerald-300 truncate pl-0.5">
@@ -773,12 +812,12 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             <Info className="w-3.5 h-3.5 text-white/90 shrink-0" />
             <span className="truncate">
               {periodFilter === 'semua'
-                ? (masterSaldoAwal > 0 ? `Termasuk Saldo Awal Master Rp ${masterSaldoAwal.toLocaleString('id-ID')}` : 'Saldo awal master Rp 0')
+                ? (masterSaldoAwal > 0 ? `Termasuk Saldo Awal Master Rp ${masterSaldoAwal.toLocaleString('id-ID')}` : 'Menampilkan akumulasi seluruh bulan sejak awal.')
                 : `Saldo bersih akhir bulan (${formatRupiah(saldoKasBersihBulanIni)}) otomatis menjadi Saldo Awal di bulan depan.`}
             </span>
           </div>
           <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 text-[9px] sm:text-[10px] font-bold shrink-0 shadow-2xs whitespace-nowrap">
-            {periodFilter === 'semua' ? 'Akumulasi Aktif' : 'Rollover Otomatis'}
+            {periodFilter === 'semua' ? 'Akumulasi Semua' : 'Rollover Otomatis'}
           </span>
         </div>
       </div>
@@ -1120,24 +1159,24 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                   {isAuthorized && (
                     <div className="flex items-center space-x-1 pl-1 border-l border-stone-200">
                       <button
+                        type="button"
                         onClick={() => openEditRecord(record)}
-                        className="p-1.5 rounded-lg text-stone-500 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                        className="p-1.5 rounded-lg text-stone-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
                         title="Edit Catatan Jimpitan"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
 
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Hapus catatan jimpitan Rumah No. ${record.nomorRumah} (${record.namaWarga})?`)) {
-                            if (onDeleteRecord) onDeleteRecord(record.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                        title="Hapus Catatan Jimpitan"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {onDeleteRecord && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmAction({ type: 'delete_record', record })}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Hapus Catatan Jimpitan"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1253,20 +1292,18 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                     {isAuthorized && (
                       <div className="flex items-center space-x-1 pl-1 border-l border-stone-200">
                         <button
+                          type="button"
                           onClick={() => openEditMutation(mut)}
-                          className="p-1 text-stone-500 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors"
+                          className="p-1.5 text-stone-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
                           title="Edit Transaksi Mutasi Kas"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
 
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Hapus catatan mutasi kas "${mut.keterangan}" (${formatRupiah(mut.nominal)})?`)) {
-                              onDeleteMutation(mut.id);
-                            }
-                          }}
-                          className="p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                          type="button"
+                          onClick={() => setConfirmAction({ type: 'delete_mutation', mutation: mut })}
+                          className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                           title="Hapus Transaksi Kas"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1293,18 +1330,14 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
         )}
 
         {/* Action Pembersihan Data Arsip & Demo (Khusus Pengurus RT / Admin SAJA, Dilarang untuk Mode Penginput) */}
-        {isAdmin && appMode === 'petugas' && (
+        {isPetugasOrAdmin && (
           <div className="pt-2 border-t border-stone-100 flex items-center justify-between flex-wrap gap-2">
             <span className="text-[11px] text-stone-500 font-semibold">Pembersihan Data:</span>
             <div className="flex items-center space-x-3">
               {onDeleteSeptemberData && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Hapus seluruh catatan jimpitan dan pengeluaran kas di bulan September?')) {
-                      onDeleteSeptemberData();
-                    }
-                  }}
+                  onClick={() => setConfirmAction({ type: 'delete_september' })}
                   className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 hover:underline cursor-pointer"
                   title="Hapus data transaksi khusus bulan September"
                 >
@@ -1316,11 +1349,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
               {onPurgeArchiveAndDemoData && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('PERINGATAN:\nBersihkan seluruh data arsip transaksi jimpitan, mutasi kas, sesi ronda, dan data demo?\n\n(Data pengaturan RT dan daftar warga asli tetap aman)')) {
-                      onPurgeArchiveAndDemoData();
-                    }
-                  }}
+                  onClick={() => setConfirmAction({ type: 'purge_archive' })}
                   className="text-xs text-rose-700 hover:text-rose-900 font-extrabold flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 cursor-pointer"
                   title="Bersihkan semua transaksi demo dan riwayat arsip lama"
                 >
@@ -1491,13 +1520,24 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
                   className="w-full py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs tracking-wide shadow-md transition-all cursor-pointer"
                 >
                   {editingMutation ? 'SIMPAN PERUBAHAN' : 'SIMPAN TRANSAKSI'}
                 </button>
+
+                {editingMutation && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmAction({ type: 'delete_mutation', mutation: editingMutation })}
+                    className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold text-xs tracking-wide flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>HAPUS CATATAN MUTASI INI</span>
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -1583,15 +1623,113 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
                   className="w-full py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs tracking-wide shadow-md transition-all cursor-pointer"
                 >
                   SIMPAN PERUBAHAN JIMPITAN
                 </button>
+
+                {onDeleteRecord && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmAction({ type: 'delete_record', record: editingRecord })}
+                    className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold text-xs tracking-wide flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>HAPUS CATATAN JIMPITAN INI</span>
+                  </button>
+                )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI PENGHAPUSAN (ANTI-SANDBOX BLOCKING) */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs z-[60] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-sm w-full p-5 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-black text-stone-900 text-sm sm:text-base">
+                  {confirmAction.type === 'delete_mutation' && 'Hapus Catatan Mutasi Kas?'}
+                  {confirmAction.type === 'delete_record' && 'Hapus Catatan Jimpitan?'}
+                  {confirmAction.type === 'delete_september' && 'Hapus Data Bulan September?'}
+                  {confirmAction.type === 'purge_archive' && 'Bersihkan Arsip & Data Demo?'}
+                </h4>
+                <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                  {confirmAction.type === 'delete_mutation' && (
+                    <>
+                      Transaksi{' '}
+                      <strong className="text-stone-900">
+                        &ldquo;{confirmAction.mutation.keterangan}&rdquo;
+                      </strong>{' '}
+                      ({confirmAction.mutation.jenis === 'masuk' ? '+' : '-'}
+                      {formatRupiah(confirmAction.mutation.nominal)} •{' '}
+                      {formatTanggalIndo(confirmAction.mutation.tanggal)}) akan dihapus permanen dari Buku Kas & Cloud.
+                    </>
+                  )}
+                  {confirmAction.type === 'delete_record' && (
+                    <>
+                      Catatan jimpitan Rumah{' '}
+                      <strong className="text-stone-900">
+                        No. {confirmAction.record.nomorRumah} ({confirmAction.record.namaWarga})
+                      </strong>{' '}
+                      senilai {formatRupiah(confirmAction.record.nominal)} pada{' '}
+                      {formatTanggalIndo(confirmAction.record.tanggal)} akan dihapus permanen.
+                    </>
+                  )}
+                  {confirmAction.type === 'delete_september' &&
+                    'Seluruh catatan jimpitan, mutasi kas, dan sesi ronda pada bulan September akan dihapus permanen.'}
+                  {confirmAction.type === 'purge_archive' &&
+                    'Seluruh riwayat arsip jimpitan, mutasi kas, sesi ronda, dan data demo akan dibersihkan (daftar warga asli & pengaturan RT tetap aman).'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                className="py-2.5 px-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmAction;
+                  setConfirmAction(null);
+                  if (action.type === 'delete_mutation') {
+                    onDeleteMutation(action.mutation.id);
+                    if (editingMutation?.id === action.mutation.id) {
+                      setIsAddMutationOpen(false);
+                      setEditingMutation(null);
+                    }
+                    showNotice('Catatan mutasi kas berhasil dihapus.', 'success');
+                  } else if (action.type === 'delete_record') {
+                    if (onDeleteRecord) onDeleteRecord(action.record.id);
+                    if (editingRecord?.id === action.record.id) {
+                      setEditingRecord(null);
+                    }
+                    showNotice('Catatan jimpitan berhasil dihapus.', 'success');
+                  } else if (action.type === 'delete_september') {
+                    if (onDeleteSeptemberData) onDeleteSeptemberData();
+                  } else if (action.type === 'purge_archive') {
+                    if (onPurgeArchiveAndDemoData) onPurgeArchiveAndDemoData();
+                  }
+                }}
+                className="py-2.5 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

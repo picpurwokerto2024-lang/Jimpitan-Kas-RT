@@ -8,11 +8,15 @@ import {
   doc, 
   setDoc, 
   getDocs, 
+  getDocsFromServer,
   deleteDoc, 
   onSnapshot, 
   writeBatch,
   getDoc,
+  getDocFromServer,
   deleteField,
+  query,
+  where,
   Firestore,
   Unsubscribe
 } from 'firebase/firestore';
@@ -53,10 +57,10 @@ export const initFirestoreInstance = (): Firestore => {
 
 export const db: Firestore = initFirestoreInstance();
 
-// Test connection on boot gracefully with local cache fallback
+// Test connection on boot gracefully with server check and local cache fallback
 export const testFirestoreConnection = async (): Promise<boolean> => {
   try {
-    await getDoc(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (err: any) {
     if (err?.message?.includes('the client is offline') || err?.code === 'unavailable') {
@@ -284,80 +288,143 @@ export const seedCleanRecords = async (initialList?: JimpitanRecord[]) => {
   }
 };
 
-export const subscribeJimpitanRecords = (callback: (records: JimpitanRecord[]) => void): Unsubscribe => {
+const VALID_RECORD_STATUSES = new Set(['sukses', 'kosong', 'titip', 'lewat']);
+
+export const normalizeJimpitanRecordData = (raw: Partial<JimpitanRecord>, fallbackId?: string): JimpitanRecord => {
+  const rawStatus = String(raw.status || 'sukses').toLowerCase().trim();
+  const status = (VALID_RECORD_STATUSES.has(rawStatus) ? rawStatus : 'sukses') as JimpitanRecord['status'];
+  const rawNominal = typeof raw.nominal === 'number' ? raw.nominal : Number(raw.nominal) || 0;
+  const nominal = status === 'kosong' || status === 'lewat' ? 0 : Math.max(0, rawNominal);
+  const rawDate = String(raw.tanggal || '').trim().split('T')[0];
+  const tanggal = rawDate.length >= 8 ? rawDate : new Date().toISOString().slice(0, 10);
+  const cleanFallback = fallbackId ? String(fallbackId).trim() : '';
+  const cleanRawId = raw.id ? String(raw.id).trim() : '';
+
+  return {
+    id: cleanFallback || cleanRawId || `rec-${Date.now()}`,
+    tanggal,
+    waktu: String(raw.waktu || '21:00:00'),
+    wargaId: String(raw.wargaId || ''),
+    nomorRumah: String(raw.nomorRumah ?? ''),
+    namaWarga: String(raw.namaWarga || 'Warga RT'),
+    nominal,
+    status,
+    petugas: String(raw.petugas || 'Petugas RT'),
+    reguId: String(raw.reguId || ''),
+    reguNama: String(raw.reguNama || ''),
+    catatan: raw.catatan ? String(raw.catatan) : undefined,
+    createdAt: typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
+  };
+};
+
+export const normalizeKasMutationData = (raw: Partial<KasMutation>, fallbackId?: string): KasMutation => {
+  const rawJenis = String(raw.jenis || (raw as any)?.tipe || 'keluar').toLowerCase().trim();
+  const jenis: 'masuk' | 'keluar' = rawJenis === 'masuk' ? 'masuk' : 'keluar';
+  const rawNominal = typeof raw.nominal === 'number' ? raw.nominal : Number(raw.nominal) || 0;
+  const nominal = Math.max(0, rawNominal);
+  const rawDate = String(raw.tanggal || '').trim().split('T')[0];
+  const tanggal = rawDate.length >= 8
+    ? rawDate
+    : raw.createdAt
+      ? new Date(raw.createdAt).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+  const cleanFallback = fallbackId ? String(fallbackId).trim() : '';
+  const cleanRawId = raw.id ? String(raw.id).trim() : '';
+
+  return {
+    id: cleanFallback || cleanRawId || `mut-${Date.now()}`,
+    tanggal,
+    jenis,
+    nominal,
+    kategori: String(raw.kategori || 'Umum'),
+    keterangan: String(raw.keterangan || raw.kategori || 'Transaksi Kas RT'),
+    petugas: raw.petugas ? String(raw.petugas) : undefined,
+    createdAt: typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
+  };
+};
+
+export interface SnapshotSyncMeta {
+  fromCache: boolean;
+  hasPendingWrites: boolean;
+}
+
+export const subscribeJimpitanRecords = (
+  callback: (records: JimpitanRecord[], meta: SnapshotSyncMeta) => void
+): Unsubscribe => {
   const colRef = collection(db, RECORDS_COL);
-  return onSnapshot(colRef, (snapshot) => {
-    if (snapshot.empty) {
-      callback([]);
-    } else {
-      const list: JimpitanRecord[] = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data();
-        list.push({ 
-          id: docSnap.id, 
-          tanggal: d.tanggal || '',
-          waktu: d.waktu || '',
-          wargaId: d.wargaId || '',
-          nomorRumah: d.nomorRumah || '',
-          namaWarga: d.namaWarga || '',
-          nominal: typeof d.nominal === 'number' ? d.nominal : Number(d.nominal) || 0,
-          status: d.status || 'sukses',
-          petugas: d.petugas || '',
-          reguId: d.reguId || '',
-          reguNama: d.reguNama || '',
-          catatan: d.catatan || undefined,
-          createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
-        } as JimpitanRecord);
-      });
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      callback(list);
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const meta: SnapshotSyncMeta = {
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+      };
+      if (snapshot.empty) {
+        callback([], meta);
+      } else {
+        const list: JimpitanRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push(normalizeJimpitanRecordData(docSnap.data(), docSnap.id));
+        });
+        list.sort(
+          (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+        );
+        callback(list, meta);
+      }
+    },
+    (err) => {
+      console.warn('Records sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Records sync fallback:', err);
-  });
+  );
 };
 
 export const addJimpitanRecordCloud = async (record: JimpitanRecord) => {
-  try {
-    const recRef = doc(db, RECORDS_COL, record.id);
-    const { id, ...data } = record;
-    await setDoc(recRef, cleanFirestoreData({
+  const normalized = normalizeJimpitanRecordData(record, record.id);
+  const recRef = doc(db, RECORDS_COL, normalized.id);
+  const { id, ...data } = normalized;
+  await setDoc(
+    recRef,
+    cleanFirestoreData({
       ...data,
-      nominal: Number(data.nominal) || 0,
       updatedAt: Date.now(),
-    }));
-  } catch (err) {
-    console.error('Failed to add jimpitan record to cloud:', err);
-  }
+    })
+  );
 };
 
 export const addBatchJimpitanRecordsCloud = async (records: JimpitanRecord[]) => {
   if (!records || records.length === 0) return;
-  try {
-    await commitChunkedBatch(records, (batch, record) => {
-      const recRef = doc(db, RECORDS_COL, record.id);
-      const { id, ...data } = record;
-      batch.set(
-        recRef,
-        cleanFirestoreData({
-          ...data,
-          nominal: Number(data.nominal) || 0,
-          updatedAt: Date.now(),
-        }),
-        { merge: true }
-      );
-    });
-  } catch (err) {
-    console.error('Failed to batch save jimpitan records to cloud:', err);
-  }
+  await commitChunkedBatch(records, (batch, record) => {
+    const normalized = normalizeJimpitanRecordData(record, record.id);
+    const recRef = doc(db, RECORDS_COL, normalized.id);
+    const { id, ...data } = normalized;
+    batch.set(
+      recRef,
+      cleanFirestoreData({
+        ...data,
+        updatedAt: Date.now(),
+      }),
+      { merge: true }
+    );
+  });
 };
 
 export const deleteJimpitanRecordCloud = async (recordId: string) => {
+  if (!recordId) return;
+  const recRef = doc(db, RECORDS_COL, recordId);
+  await deleteDoc(recRef);
+
+  // Also clean up any legacy document whose internal `id` field matches recordId
   try {
-    const recRef = doc(db, RECORDS_COL, recordId);
-    await deleteDoc(recRef);
-  } catch (err) {
-    console.error('Failed to delete jimpitan record from cloud:', err);
+    const q = query(collection(db, RECORDS_COL), where('id', '==', recordId));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch {
+    // ignore secondary query error when offline
   }
 };
 
@@ -369,95 +436,146 @@ export const seedCleanMutations = async (initialList?: KasMutation[]) => {
     const listToSeed = initialList && initialList.length > 0 ? initialList : DEFAULT_MUTATIONS;
     if (!listToSeed || listToSeed.length === 0) return;
     await commitChunkedBatch(listToSeed, (batch, m) => {
-      const mutRef = doc(db, MUTATIONS_COL, m.id);
-      const { id, ...data } = m;
+      const normalized = normalizeKasMutationData(m, m.id);
+      const mutRef = doc(db, MUTATIONS_COL, normalized.id);
+      const { id, ...data } = normalized;
       batch.set(
         mutRef,
         cleanFirestoreData({
           ...data,
-          nominal: Number(data.nominal) || 0,
-          createdAt: data.createdAt || Date.now(),
           updatedAt: Date.now(),
         }),
         { merge: true }
       );
     });
-    console.log('✅ Kas mutations seeded to Firestore');
   } catch (err) {
     console.error('Failed to seed kas mutations:', err);
   }
 };
 
-export const subscribeKasMutations = (callback: (mutations: KasMutation[]) => void): Unsubscribe => {
+export const subscribeKasMutations = (
+  callback: (mutations: KasMutation[], meta: SnapshotSyncMeta) => void
+): Unsubscribe => {
   const colRef = collection(db, MUTATIONS_COL);
-  return onSnapshot(colRef, (snapshot) => {
-    if (snapshot.empty) {
-      // Check if localStorage has existing mutations before declaring empty
-      let localList: KasMutation[] = [];
-      try {
-        const saved = localStorage.getItem('jimpitan_rt_kas_mutations');
-        if (saved) localList = JSON.parse(saved);
-      } catch (e) {
-        console.warn('Failed to parse local mutations during empty snapshot', e);
-      }
-
-      if (Array.isArray(localList) && localList.length > 0) {
-        console.log(`📦 Found ${localList.length} local kas mutations. Syncing to empty cloud collection...`);
-        seedCleanMutations(localList).then(() => {
-          callback(localList);
-        });
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const meta: SnapshotSyncMeta = {
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+      };
+      if (snapshot.empty) {
+        callback([], meta);
       } else {
-        callback([]);
+        const list: KasMutation[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push(normalizeKasMutationData(docSnap.data(), docSnap.id));
+        });
+        list.sort(
+          (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+        );
+        callback(list, meta);
       }
-    } else {
-      const list: KasMutation[] = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data();
-        list.push({ 
-          id: docSnap.id, 
-          tanggal: d.tanggal || '',
-          jenis: d.jenis || 'keluar',
-          nominal: typeof d.nominal === 'number' ? d.nominal : Number(d.nominal) || 0,
-          kategori: d.kategori || 'Umum',
-          keterangan: d.keterangan || '',
-          petugas: d.petugas || undefined,
-          createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
-        } as KasMutation);
-      });
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      callback(list);
+    },
+    (err) => {
+      console.warn('Kas mutations sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Kas mutations sync fallback:', err);
-  });
+  );
 };
 
 export const addKasMutationCloud = async (mutation: KasMutation) => {
-  try {
-    const mutRef = doc(db, MUTATIONS_COL, mutation.id);
-    const { id, ...data } = mutation;
-    await setDoc(mutRef, cleanFirestoreData({
+  const normalized = normalizeKasMutationData(mutation, mutation.id);
+  const mutRef = doc(db, MUTATIONS_COL, normalized.id);
+  const { id, ...data } = normalized;
+  await setDoc(
+    mutRef,
+    cleanFirestoreData({
       ...data,
-      nominal: Number(data.nominal) || 0,
-      createdAt: data.createdAt || Date.now(),
       updatedAt: Date.now(),
-    }), { merge: true });
-    console.log(`✅ Kas mutation synchronized to cloud: ${mutation.id} (${mutation.keterangan})`);
-  } catch (err) {
-    console.error('Failed to add kas mutation to cloud:', err);
-    throw err;
-  }
+    }),
+    { merge: true }
+  );
 };
 
 export const deleteKasMutationCloud = async (mutationId: string) => {
+  if (!mutationId) return;
+  const mutRef = doc(db, MUTATIONS_COL, mutationId);
+  await deleteDoc(mutRef);
+
+  // Also clean up any legacy document whose internal `id` field matches mutationId
   try {
-    const mutRef = doc(db, MUTATIONS_COL, mutationId);
-    await deleteDoc(mutRef);
-    console.log(`🗑️ Kas mutation deleted from cloud: ${mutationId}`);
-  } catch (err) {
-    console.error('Failed to delete kas mutation from cloud:', err);
-    throw err;
+    const q = query(collection(db, MUTATIONS_COL), where('id', '==', mutationId));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch {
+    // ignore secondary query error when offline
   }
+};
+
+export const forceFetchAuthoritativeCloudData = async (): Promise<{
+  settings: AppSettings | null;
+  wargaList: Warga[];
+  records: JimpitanRecord[];
+  mutations: KasMutation[];
+}> => {
+  const fetchCollectionFresh = async (colName: string) => {
+    const colRef = collection(db, colName);
+    try {
+      return await getDocsFromServer(colRef);
+    } catch {
+      return await getDocs(colRef);
+    }
+  };
+
+  let settings: AppSettings | null = null;
+  try {
+    const settingsRef = doc(db, 'settings', 'current');
+    let snap;
+    try {
+      snap = await getDocFromServer(settingsRef);
+    } catch {
+      snap = await getDoc(settingsRef);
+    }
+    if (snap.exists()) {
+      const d = snap.data() as AppSettings;
+      settings = {
+        ...DEFAULT_SETTINGS,
+        ...d,
+        saldoAwalKas: d.saldoAwalKas !== undefined ? Number(d.saldoAwalKas) : 0,
+      };
+    }
+  } catch (err) {
+    console.warn('Force fetch settings fallback:', err);
+  }
+
+  const [wargaSnap, recSnap, mutSnap] = await Promise.all([
+    fetchCollectionFresh(WARGA_COL),
+    fetchCollectionFresh(RECORDS_COL),
+    fetchCollectionFresh(MUTATIONS_COL),
+  ]);
+
+  const rawWarga: Warga[] = [];
+  wargaSnap.forEach((d) => rawWarga.push({ id: d.id, ...d.data() } as Warga));
+  const { cleanList: wargaList } = deduplicateWargaArray(rawWarga);
+
+  const records: JimpitanRecord[] = [];
+  recSnap.forEach((d) => records.push(normalizeJimpitanRecordData(d.data(), d.id)));
+  records.sort(
+    (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+  );
+
+  const mutations: KasMutation[] = [];
+  mutSnap.forEach((d) => mutations.push(normalizeKasMutationData(d.data(), d.id)));
+  mutations.sort(
+    (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
+  );
+
+  return { settings, wargaList, records, mutations };
 };
 
 // ==========================================
@@ -856,16 +974,18 @@ export const restoreFullCloudBackup = async (backupData: {
   }
   if (backupData.allRecords && backupData.allRecords.length > 0) {
     await commitChunkedBatch(backupData.allRecords, (batch, r) => {
-      const ref = doc(db, RECORDS_COL, r.id);
-      const { id, ...data } = r;
-      batch.set(ref, cleanFirestoreData(data));
+      const normalized = normalizeJimpitanRecordData(r, r.id);
+      const ref = doc(db, RECORDS_COL, normalized.id);
+      const { id, ...data } = normalized;
+      batch.set(ref, cleanFirestoreData({ ...data, updatedAt: Date.now() }));
     });
   }
   if (backupData.allMutations && backupData.allMutations.length > 0) {
     await commitChunkedBatch(backupData.allMutations, (batch, m) => {
-      const ref = doc(db, MUTATIONS_COL, m.id);
-      const { id, ...data } = m;
-      batch.set(ref, cleanFirestoreData(data));
+      const normalized = normalizeKasMutationData(m, m.id);
+      const ref = doc(db, MUTATIONS_COL, normalized.id);
+      const { id, ...data } = normalized;
+      batch.set(ref, cleanFirestoreData({ ...data, updatedAt: Date.now() }));
     });
   }
   if (backupData.sessions && backupData.sessions.length > 0) {

@@ -25,7 +25,8 @@ import {
   ChevronDown,
   SlidersHorizontal,
   Eye,
-  Coins
+  Coins,
+  Trash2
 } from 'lucide-react';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, ReguRonda } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
@@ -58,6 +59,8 @@ interface LaporanHubModalProps {
   saldoKas?: number;
   onOpenQuickExpense?: () => void;
   onOpenShareModal?: () => void;
+  onDeleteMutation?: (id: string) => void;
+  isAdmin?: boolean;
 }
 
 export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
@@ -76,8 +79,12 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   saldoKas,
   onOpenQuickExpense,
   onOpenShareModal,
+  onDeleteMutation,
+  isAdmin = false,
 }) => {
   const [activeTab, setActiveTab] = useState<LaporanTabKey>(initialTab);
+  const [confirmDeleteMutId, setConfirmDeleteMutId] = useState<string | null>(null);
+  const canDeleteMutation = Boolean(onDeleteMutation && isAdmin);
 
   // Synchronize when initialTab changes on open
   React.useEffect(() => {
@@ -867,12 +874,13 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                         <th className="py-2.5 px-3">Keterangan</th>
                         <th className="py-2.5 px-3">Petugas / PJ</th>
                         <th className="py-2.5 px-3 text-right">Nominal</th>
+                        {canDeleteMutation && <th className="py-2.5 px-3 text-center">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100 font-medium">
                       {filteredMutations.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-stone-400">
+                          <td colSpan={canDeleteMutation ? 7 : 6} className="py-8 text-center text-stone-400">
                             Belum ada mutasi kas khusus di periode {activeMonthLabel}.
                           </td>
                         </tr>
@@ -897,12 +905,46 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                               <td className="py-2.5 px-3 text-stone-600 max-w-xs truncate">{m.keterangan}</td>
                               <td className="py-2.5 px-3 text-stone-500">{m.petugas || '-'}</td>
                               <td
-                                className={`py-2.5 px-3 text-right font-extrabold ${
+                                className={`py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${
                                   isMasuk ? 'text-emerald-600' : 'text-rose-600'
                                 }`}
                               >
                                 {isMasuk ? '+' : '-'} {formatRupiah(m.nominal)}
                               </td>
+                              {canDeleteMutation && (
+                                <td className="py-2 px-3 text-center whitespace-nowrap">
+                                  {confirmDeleteMutId === m.id ? (
+                                    <div className="inline-flex items-center space-x-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setConfirmDeleteMutId(null);
+                                          onDeleteMutation?.(m.id);
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold cursor-pointer"
+                                      >
+                                        Ya, Hapus
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteMutId(null)}
+                                        className="px-2 py-1 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Batal
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteMutId(m.id)}
+                                      className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                      title="Hapus mutasi kas ini"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </td>
+                              )}
                             </tr>
                           );
                         })
@@ -1176,12 +1218,13 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                         <th className="py-2.5 px-3">Keterangan Sumber Dana</th>
                         <th className="py-2.5 px-3">Petugas Penerima</th>
                         <th className="py-2.5 px-3 text-right">Nominal</th>
+                        {canDeleteMutation && <th className="py-2.5 px-3 text-center">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {filteredMutationsMasuk.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-stone-400">
+                          <td colSpan={canDeleteMutation ? 6 : 5} className="py-6 text-center text-stone-400">
                             Belum ada donasi atau kas masuk khusus di periode ini.
                           </td>
                         </tr>
@@ -1192,9 +1235,43 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                             <td className="py-2.5 px-3 font-bold text-stone-800">{m.kategori}</td>
                             <td className="py-2.5 px-3 text-stone-600">{m.keterangan}</td>
                             <td className="py-2.5 px-3 text-stone-500">{m.petugas || '-'}</td>
-                            <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600">
+                            <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600 whitespace-nowrap">
                               +{formatRupiah(m.nominal)}
                             </td>
+                            {canDeleteMutation && (
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                {confirmDeleteMutId === m.id ? (
+                                  <div className="inline-flex items-center space-x-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConfirmDeleteMutId(null);
+                                        onDeleteMutation?.(m.id);
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold cursor-pointer"
+                                    >
+                                      Ya, Hapus
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteMutId(null)}
+                                      className="px-2 py-1 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 text-[10px] font-bold cursor-pointer"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteMutId(m.id)}
+                                    className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Hapus pemasukan ini"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         ))
                       )}
@@ -1343,12 +1420,13 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                         <th className="py-2.5 px-3">Keterangan Nota</th>
                         <th className="py-2.5 px-3">Penanggung Jawab</th>
                         <th className="py-2.5 px-3 text-right">Nominal</th>
+                        {canDeleteMutation && <th className="py-2.5 px-3 text-center">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100 font-medium">
                       {filteredMutationsKeluar.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-stone-400">
+                          <td colSpan={canDeleteMutation ? 6 : 5} className="py-8 text-center text-stone-400">
                             Belum ada catatan pengeluaran kas di periode {activeMonthLabel}.
                           </td>
                         </tr>
@@ -1359,9 +1437,43 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                             <td className="py-2.5 px-3 font-bold text-stone-800">{m.kategori}</td>
                             <td className="py-2.5 px-3 text-stone-600">{m.keterangan}</td>
                             <td className="py-2.5 px-3 text-stone-500">{m.petugas || '-'}</td>
-                            <td className="py-2.5 px-3 text-right font-extrabold text-rose-600">
+                            <td className="py-2.5 px-3 text-right font-extrabold text-rose-600 whitespace-nowrap">
                               -{formatRupiah(m.nominal)}
                             </td>
+                            {canDeleteMutation && (
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                {confirmDeleteMutId === m.id ? (
+                                  <div className="inline-flex items-center space-x-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConfirmDeleteMutId(null);
+                                        onDeleteMutation?.(m.id);
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold cursor-pointer"
+                                    >
+                                      Ya, Hapus
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteMutId(null)}
+                                      className="px-2 py-1 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 text-[10px] font-bold cursor-pointer"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteMutId(m.id)}
+                                    className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Hapus nota pengeluaran ini"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         ))
                       )}
