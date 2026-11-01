@@ -58,6 +58,7 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
   const [catatanKeterangan, setCatatanKeterangan] = useState<string>('');
   const [catatKeKasMutasi, setCatatKeKasMutasi] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Calculation previews
   const sisaSebelumnya = detail?.sisaTunggakanLalu ?? 0;
@@ -79,6 +80,7 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
   const selisihPerubahan = previewSisaAkhir - sisaSebelumnya;
 
   const handleSave = () => {
+    setErrorMessage('');
     setIsSubmitting(true);
     const today = getTodayDateIso();
 
@@ -86,15 +88,17 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
       let updatedWarga: Warga = { ...warga };
 
       if (editMode === 'reset') {
-        // Clear manual overrides
+        // Clear manual overrides so automatic monthly target calculation takes full control
         delete updatedWarga.saldoTunggakanAwal;
         delete updatedWarga.koreksiPiutang;
-        updatedWarga.catatanKoreksiPiutang = `Direset ke hitungan otomatis sistem pada ${formatTanggalIndo(today)} oleh ${currentPetugas}`;
-        updatedWarga.tanggalKoreksiPiutang = today;
+        delete updatedWarga.catatanKoreksiPiutang;
+        delete updatedWarga.tanggalKoreksiPiutang;
       } else if (editMode === 'direct') {
-        // Direct override of remaining arrears
-        // We set saldoTunggakanAwal equal to the exact nominal desired + current pelunasan
-        const targetAwal = Math.max(0, newSisaNominal + detail.pelunasanBulanIni);
+        // Direct override of remaining arrears as of today
+        const pelunasanFromToday = (detail.pelunasanRecords || [])
+          .filter((m) => m.tanggal && m.tanggal >= today)
+          .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
+        const targetAwal = Math.max(0, newSisaNominal + pelunasanFromToday);
         updatedWarga.saldoTunggakanAwal = targetAwal;
         delete updatedWarga.koreksiPiutang;
         
@@ -149,7 +153,7 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
       onClose();
     } catch (err) {
       console.error('Gagal memperbarui sisa piutang:', err);
-      alert('Terjadi kesalahan saat menyimpan perubahan piutang warga.');
+      setErrorMessage('Terjadi kesalahan saat menyimpan perubahan piutang warga.');
     } finally {
       setIsSubmitting(false);
     }
@@ -443,6 +447,13 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
               </span>
             </div>
           </div>
+
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

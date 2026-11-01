@@ -187,10 +187,15 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
           (Number(r.nominal) || 0) > 0
       );
 
-      const percentComplete = dist.targetBulan > 0 ? Math.min(100, Math.round((dist.totalTerbayar / dist.targetBulan) * 100)) : 0;
+      const percentComplete = dist.targetBulan > 0
+        ? Math.min(100, Math.round((dist.totalTerbayar / dist.targetBulan) * 100))
+        : (dist.isLunas ? 100 : 0);
 
       return {
         warga,
+        targetMurniBulan: dist.targetMurniBulan,
+        surplusBulanLalu: dist.surplusBulanLalu,
+        potonganSurplus: dist.potonganSurplus,
         targetBulan: dist.targetBulan,
         totalTerbayar: dist.totalTerbayar,
         selisih: dist.selisih,
@@ -306,7 +311,7 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
           map.set(yr, { year: yr, totalKurang: 0, countWarga: 0 });
         }
         const entry = map.get(yr)!;
-        if (b.kurangNominal > 0) {
+        if (!b.isCoveredByCutoff && b.kurangNominal > 0) {
           entry.totalKurang += b.kurangNominal;
         }
       });
@@ -331,7 +336,7 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
       // Year Filter for Piutang
       if (selectedTunggakanYearFilter !== 'semua') {
         const hasArrearsInYear = item.rincianBulanLampau.some(
-          (b) => String(b.year) === selectedTunggakanYearFilter && b.kurangNominal > 0
+          (b) => !b.isCoveredByCutoff && String(b.year) === selectedTunggakanYearFilter && b.kurangNominal > 0
         );
         if (!hasArrearsInYear) return false;
       }
@@ -392,21 +397,25 @@ export const LaporanBulananWargaView: React.FC<LaporanBulananWargaViewProps> = (
     const phone = cleanWhatsAppPhone(item.warga.nomorHp);
     let statusText = '';
     if (item.status === 'overpaid') {
-      statusText = `*LEBIH BAYAR (Deposit)*: +${formatRupiah(item.nominalLebih)} (${Math.floor(item.nominalLebih / (item.warga.nominalDefault || 1000))} hari bayar di muka)`;
+      statusText = `*SURPLUS / LEBIH BAYAR*: +${formatRupiah(item.nominalLebih)} (Otomatis mengurangi target bulan berikutnya)`;
     } else if (item.status === 'exact') {
-      statusText = `*LUNAS TEPAT*: Sesuai tagihan 1 bulan penuh (Rp 0)`;
+      statusText = `*LUNAS TEPAT*: Sesuai target bulan berjalan (Rp 0)`;
     } else {
       statusText = `*KURANG BAYAR*: -${formatRupiah(item.nominalKurang)} (Kurang ${item.hariKurang} hari)`;
     }
+
+    const surplusPotonganLine = item.potonganSurplus > 0
+      ? `*Target Awal (${daysInMonth} hari):* ${formatRupiah(item.targetMurniBulan)}\n*Potongan Surplus Bulan Lalu:* -${formatRupiah(item.potonganSurplus)}\n*Target Bersih Bulan Ini:* ${formatRupiah(item.targetBulan)}`
+      : `*Target Bulan Ini (${daysInMonth} hari):* ${formatRupiah(item.targetBulan)}`;
 
     const text = `*LAPORAN JIMPITAN BULANAN ${settings.namaRt.toUpperCase()}*
 *Periode:* ${activeMonthLabel}
 ----------------------------------
 *Nama:* ${item.warga.nama}
 *No. Rumah:* ${item.warga.nomorRumah} ${item.warga.blok ? `(${item.warga.blok})` : ''}
-*Tarif Harian:* ${formatRupiah(item.warga.nominalDefault || 1000)} / hari
+*Tarif Harian:* ${formatRupiah(typeof item.warga.nominalDefault === 'number' ? item.warga.nominalDefault : 1000)} / hari
 
-*Target Bulan Ini (${daysInMonth} hari):* ${formatRupiah(item.targetBulan)}
+${surplusPotonganLine}
 *Total Terbayar:* ${formatRupiah(item.totalTerbayar)} (${item.countPaidDays} dari ${daysInMonth} hari)
 *Status Pembayaran:*
 ${statusText}
@@ -427,7 +436,7 @@ _Terima kasih atas partisipasi dan kepedulian Bpk/Ibu dalam mendukung kas jimpit
     }
 
     const phone = cleanWhatsAppPhone(detail.warga.nomorHp);
-    const unpaidMonths = detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0);
+    const unpaidMonths = detail.rincianBulanLampau.filter((b) => !b.isCoveredByCutoff && b.kurangNominal > 0);
     const rincianBulanText = unpaidMonths.length > 0
       ? unpaidMonths.map((b) => `  • ${b.monthLabel}: -${formatRupiah(b.kurangNominal)} (Kurang bayar target ${formatRupiah(b.targetNominal)})`).join('\n')
       : `  • Bulan Lalu (${tunggakanData.prevMonthLabel}): -${formatRupiah(detail.tunggakanBulanLalu)}`;
@@ -1102,7 +1111,15 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
 
                         {/* Target Bulan */}
                         <td className="p-2 text-right font-medium text-stone-600">
-                          {formatRupiah(item.targetBulan)}
+                          <div>{formatRupiah(item.targetBulan)}</div>
+                          {item.potonganSurplus > 0 && (
+                            <span
+                              className="block text-[9px] text-emerald-700 font-bold"
+                              title={`Target awal ${formatRupiah(item.targetMurniBulan)} dikurangi surplus bulan lalu -${formatRupiah(item.potonganSurplus)}`}
+                            >
+                              (-Surplus {formatRupiah(item.potonganSurplus)})
+                            </span>
+                          )}
                         </td>
 
                         {/* Total Terbayar */}
@@ -1113,7 +1130,10 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                         {/* Status & Selisih */}
                         <td className="p-2 text-right font-bold">
                           {item.status === 'overpaid' && (
-                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-extrabold">
+                            <span
+                              className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-extrabold"
+                              title="Surplus ini otomatis mengurangi target bulan depan"
+                            >
                               <span>+{formatRupiah(item.nominalLebih)}</span>
                             </span>
                           )}
@@ -1309,8 +1329,20 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
 
                 {/* Financial Summary Details */}
                 <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200/80 space-y-1.5 text-xs">
+                  {item.potonganSurplus > 0 && (
+                    <>
+                      <div className="flex items-center justify-between text-stone-500">
+                        <span>Target Awal ({daysInMonth} hr):</span>
+                        <span>{formatRupiah(item.targetMurniBulan)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-emerald-700 font-semibold">
+                        <span>Potongan Surplus Lalu:</span>
+                        <span>-{formatRupiah(item.potonganSurplus)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center justify-between text-stone-600">
-                    <span>Target Bulan Ini:</span>
+                    <span>{item.potonganSurplus > 0 ? 'Target Bersih Bulan Ini:' : 'Target Bulan Ini:'}</span>
                     <span className="font-semibold">{formatRupiah(item.targetBulan)}</span>
                   </div>
                   <div className="flex items-center justify-between text-stone-600">
@@ -1320,11 +1352,11 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                   <div className="pt-1 border-t border-stone-200 flex items-center justify-between font-bold">
                     <span>Hitungan Selisih:</span>
                     {item.status === 'overpaid' ? (
-                      <span className="text-amber-800">+{formatRupiah(item.nominalLebih)} (Surplus)</span>
+                      <span className="text-amber-800">+{formatRupiah(item.nominalLebih)} (Surplus ke Bln Depan)</span>
                     ) : item.status === 'underpaid' ? (
                       <span className="text-rose-700">-{formatRupiah(item.nominalKurang)} (Kurang {item.hariKurang} hari)</span>
                     ) : (
-                      <span className="text-emerald-700">Rp 0 (Tepat)</span>
+                      <span className="text-emerald-700">Rp 0 (Lunas Tepat)</span>
                     )}
                   </div>
                 </div>
@@ -1547,9 +1579,9 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
                             <div className="text-[10px] text-stone-400 font-normal">
                               {detail.warga.blok || 'Blok A'} • RT {detail.warga.rt || settings.namaRt}
                             </div>
-                            {detail.rincianBulanLampau && detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0).length > 0 && (
+                            {detail.rincianBulanLampau && detail.rincianBulanLampau.filter((b) => !b.isCoveredByCutoff && b.kurangNominal > 0).length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {detail.rincianBulanLampau.filter((b) => b.kurangNominal > 0).map((b) => {
+                                {detail.rincianBulanLampau.filter((b) => !b.isCoveredByCutoff && b.kurangNominal > 0).map((b) => {
                                   const isYearMatch = selectedTunggakanYearFilter !== 'semua' && String(b.year) === selectedTunggakanYearFilter;
                                   return (
                                     <span
@@ -1629,7 +1661,12 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
 
                           {/* Tagihan Bulan Ini */}
                           <td className="p-3 text-right text-stone-600 font-semibold">
-                            {formatRupiah(detail.targetBulanIni)}
+                            <div>{formatRupiah(detail.targetBulanIni)}</div>
+                            {detail.potonganSurplusBulanIni > 0 && (
+                              <span className="block text-[9.5px] text-emerald-700 font-bold">
+                                (-Surplus {formatRupiah(detail.potonganSurplusBulanIni)})
+                              </span>
+                            )}
                           </td>
 
                           {/* Total Kewajiban Bersih */}

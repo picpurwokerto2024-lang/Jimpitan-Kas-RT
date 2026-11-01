@@ -53,10 +53,12 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
   const [bendaharaName, setBendaharaName] = useState<string>('');
   const [ketuaRtName, setKetuaRtName] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   if (!isOpen) return null;
 
   const handleDownloadPdf = () => {
+    setErrorMessage('');
     setIsGenerating(true);
     try {
       generateLaporanTunggakanPdf({
@@ -71,7 +73,7 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
       });
     } catch (err) {
       console.error('Error generating Tunggakan PDF:', err);
-      alert('Gagal membuat dokumen PDF. Silakan coba lagi.');
+      setErrorMessage('Gagal membuat dokumen PDF. Silakan coba lagi.');
     } finally {
       setIsGenerating(false);
     }
@@ -192,6 +194,13 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
               </div>
             </div>
           </div>
+
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer actions */}

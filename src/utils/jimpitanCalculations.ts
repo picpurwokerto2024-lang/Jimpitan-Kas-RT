@@ -1,4 +1,5 @@
 import { Warga, JimpitanRecord, AppSettings } from '../types';
+import { normalizeHouseNumber } from './wargaDeduplicator';
 
 export interface DailyStatus {
   dayNum: number;
@@ -22,12 +23,15 @@ export interface WargaMonthDistribution {
   month: number;
   daysInMonth: number;
   tarifHarian: number;
-  targetBulan: number;
+  targetMurniBulan: number; // Base monthly target (tarifHarian * daysInMonth)
+  surplusBulanLalu: number; // Carry-over surplus from previous month(s)
+  potonganSurplus: number; // Nominal surplus applied to reduce targetMurniBulan
+  targetBulan: number; // Effective target after surplus deduction: max(0, targetMurniBulan - surplusBulanLalu)
   totalTerbayar: number;
   countPaidDays: number;
   hariKurang: number;
   nominalKurang: number;
-  nominalLebih: number;
+  nominalLebih: number; // End-of-month surplus carried forward to next month
   selisih: number;
   isLunas: boolean;
   status: 'underpaid' | 'exact' | 'overpaid';
@@ -36,9 +40,36 @@ export interface WargaMonthDistribution {
 }
 
 /**
- * Maps payment records directly to their exact transaction dates (1:1 mapping).
- * If a resident pays Rp 25,000 on date 2, only date 2 is marked as paid with nominal Rp 25,000.
- * Other dates without transactions remain unpaid (0 / '-').
+ * Helper to generate continuous chronological YYYY-MM strings from startYm up to endYm (exclusive of endYm)
+ */
+function buildChronologicalMonthsBefore(earliestYm: string, targetYm: string): string[] {
+  if (!earliestYm || earliestYm >= targetYm) return [];
+  const [startY, startM] = earliestYm.split('-').map(Number);
+  const [endY, endM] = targetYm.split('-').map(Number);
+  if (!startY || !startM || !endY || !endM) return [];
+
+  const result: string[] = [];
+  let y = startY;
+  let m = startM;
+  let guard = 0;
+
+  while ((y < endY || (y === endY && m < endM)) && guard < 120) {
+    result.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    guard += 1;
+  }
+
+  return result;
+}
+
+/**
+ * Maps payment records directly to their exact transaction dates (1:1 mapping),
+ * and rolls forward any payment surplus (> monthly target) from previous months
+ * to automatically reduce the next month's target (`targetBulan`).
  */
 export function calculateWargaMonthDistribution(
   warga: Warga,
@@ -49,28 +80,81 @@ export function calculateWargaMonthDistribution(
   const parts = yearMonth.split('-').map(Number);
   const year = parts[0] || new Date().getFullYear();
   const month = parts[1] || new Date().getMonth() + 1;
+  const safeTargetYm = `${year}-${String(month).padStart(2, '0')}`;
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const tarifHarian = warga.nominalDefault || settings?.defaultNominal || 1000;
-  const targetBulan = tarifHarian * daysInMonth;
+  const fallbackTarif =
+    settings?.defaultNominal && settings.defaultNominal > 0 ? settings.defaultNominal : 1000;
+  const isExempt = warga.isActive === false || warga.nominalDefault === 0;
+  const tarifHarian = isExempt
+    ? 0
+    : typeof warga.nominalDefault === 'number' && warga.nominalDefault > 0
+    ? warga.nominalDefault
+    : fallbackTarif;
 
-  // Filter records for this resident in this month with valid payment
-  const monthRecords = allRecords.filter(
-    (r) =>
-      (r.wargaId === warga.id || r.nomorRumah === warga.nomorRumah) &&
-      r.tanggal &&
-      r.tanggal.startsWith(yearMonth) &&
-      r.status !== 'kosong' &&
-      r.status !== 'lewat' &&
-      (Number(r.nominal) || 0) > 0
-  );
+  const targetMurniBulan = tarifHarian * daysInMonth;
+  const normWargaHouse = normalizeHouseNumber(warga.nomorRumah);
 
+  // Deduplicate all valid payment records belonging to this resident across time
+  const uniqueResidentRecordsMap = new Map<string, JimpitanRecord>();
+  allRecords.forEach((r) => {
+    if (!r || !r.tanggal || r.tanggal.length < 7) return;
+    if (r.status === 'kosong' || r.status === 'lewat') return;
+    const nominal = Number(r.nominal) || 0;
+    if (nominal <= 0) return;
+
+    const matchesResident =
+      (warga.id && r.wargaId === warga.id) ||
+      (normWargaHouse && normalizeHouseNumber(r.nomorRumah) === normWargaHouse);
+
+    if (matchesResident) {
+      const recKey = r.id || `${r.tanggal}_${r.wargaId}_${r.nomorRumah}_${nominal}`;
+      uniqueResidentRecordsMap.set(recKey, r);
+    }
+  });
+
+  const residentValidRecords = Array.from(uniqueResidentRecordsMap.values());
+
+  // Compute carry-over surplus chronologically from earliest payment month < safeTargetYm
+  let earliestPastYm: string | null = null;
+  const paidByMonthMap = new Map<string, number>();
+
+  residentValidRecords.forEach((r) => {
+    const ym = r.tanggal.substring(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(ym)) return;
+    paidByMonthMap.set(ym, (paidByMonthMap.get(ym) || 0) + (Number(r.nominal) || 0));
+    if (ym < safeTargetYm) {
+      if (!earliestPastYm || ym < earliestPastYm) {
+        earliestPastYm = ym;
+      }
+    }
+  });
+
+  let carrySurplus = 0;
+  if (!isExempt && earliestPastYm) {
+    const pastMonthsChronological = buildChronologicalMonthsBefore(earliestPastYm, safeTargetYm);
+    pastMonthsChronological.forEach((ym) => {
+      const [y, m] = ym.split('-').map(Number);
+      const dCount = new Date(y, m, 0).getDate();
+      const baseTarget = tarifHarian * dCount;
+      const paidInYm = paidByMonthMap.get(ym) || 0;
+      const netAfterTarget = paidInYm + carrySurplus - baseTarget;
+      carrySurplus = netAfterTarget > 0 ? netAfterTarget : 0;
+    });
+  }
+
+  const surplusBulanLalu = carrySurplus;
+  const potonganSurplus = Math.min(targetMurniBulan, surplusBulanLalu);
+  const targetBulan = Math.max(0, targetMurniBulan - surplusBulanLalu);
+
+  // Records specifically in safeTargetYm
+  const monthRecords = residentValidRecords.filter((r) => r.tanggal.startsWith(safeTargetYm));
   const totalTerbayar = monthRecords.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
 
   // Initialize daily map for all days in the month (1..daysInMonth)
   const dailyMap: Record<number, DailyStatus> = {};
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateIso = `${yearMonth}-${String(d).padStart(2, '0')}`;
+    const dateIso = `${safeTargetYm}-${String(d).padStart(2, '0')}`;
     dailyMap[d] = {
       dayNum: d,
       dateIso,
@@ -117,16 +201,23 @@ export function calculateWargaMonthDistribution(
     dailyList.push(status);
   }
 
-  const hariKurang = Math.max(0, daysInMonth - countPaidDays);
-  const nominalKurang = Math.max(0, targetBulan - totalTerbayar);
-  const nominalLebih = Math.max(0, totalTerbayar - targetBulan);
-  const selisih = totalTerbayar - targetBulan;
-  const isLunas = totalTerbayar >= targetBulan;
+  // Net calculation factoring in carry-over surplus from previous month(s)
+  const netDelta = totalTerbayar + surplusBulanLalu - targetMurniBulan;
+  const nominalKurang = netDelta < 0 ? Math.abs(netDelta) : 0;
+  const nominalLebih = netDelta > 0 ? netDelta : 0;
+  const selisih = netDelta;
+  const isLunas = netDelta >= 0;
+
+  const hariKurang = isLunas
+    ? 0
+    : tarifHarian > 0
+    ? Math.ceil(nominalKurang / tarifHarian)
+    : Math.max(0, daysInMonth - countPaidDays);
 
   let status: 'underpaid' | 'exact' | 'overpaid' = 'exact';
-  if (totalTerbayar < targetBulan) {
+  if (netDelta < 0) {
     status = 'underpaid';
-  } else if (totalTerbayar > targetBulan) {
+  } else if (netDelta > 0) {
     status = 'overpaid';
   }
 
@@ -136,6 +227,9 @@ export function calculateWargaMonthDistribution(
     month,
     daysInMonth,
     tarifHarian,
+    targetMurniBulan,
+    surplusBulanLalu,
+    potonganSurplus,
     targetBulan,
     totalTerbayar,
     countPaidDays,

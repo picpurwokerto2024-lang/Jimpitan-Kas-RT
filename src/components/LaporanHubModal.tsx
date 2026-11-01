@@ -223,6 +223,8 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
 
     return {
       warga: w,
+      targetMurniBulan: dist.targetMurniBulan,
+      potonganSurplus: dist.potonganSurplus,
       targetBulan: dist.targetBulan,
       totalTerbayar: dist.totalTerbayar,
       countPaidDays: dist.countPaidDays,
@@ -1064,7 +1066,17 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                                 {item.countPaidDays} / {daysInMonth} hr
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right text-stone-600">{formatRupiah(item.targetBulan)}</td>
+                            <td className="py-2.5 px-3 text-right text-stone-600">
+                              <div>{formatRupiah(item.targetBulan)}</div>
+                              {item.potonganSurplus > 0 && (
+                                <span
+                                  className="block text-[9.5px] text-emerald-700 font-bold"
+                                  title={`Target awal ${formatRupiah(item.targetMurniBulan)} dikurangi surplus bulan lalu -${formatRupiah(item.potonganSurplus)}`}
+                                >
+                                  (-Surplus {formatRupiah(item.potonganSurplus)})
+                                </span>
+                              )}
+                            </td>
                             <td className="py-2.5 px-3 text-right font-extrabold text-stone-900">
                               {formatRupiah(item.totalTerbayar)}
                             </td>

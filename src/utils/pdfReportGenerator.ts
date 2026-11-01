@@ -564,6 +564,8 @@ export const generateKasReportPdf = ({
 
 export interface WargaMonthlyReportPdfItem {
   warga: Warga;
+  targetMurniBulan?: number;
+  potonganSurplus?: number;
   targetBulan: number;
   totalTerbayar: number;
   countPaidDays: number;
@@ -740,14 +742,28 @@ export const generateWargaMonthlyReportPdf = ({
     const kurangText = item.nominalKurang > 0 ? `-${formatRupiah(item.nominalKurang)}` : '-';
     const lebihText = item.nominalLebih > 0 ? `+${formatRupiah(item.nominalLebih)}` : '-';
 
+    const tarifVal =
+      item.warga.isActive === false || item.warga.nominalDefault === 0
+        ? 0
+        : typeof item.warga.nominalDefault === 'number' && item.warga.nominalDefault > 0
+        ? item.warga.nominalDefault
+        : settings.defaultNominal && settings.defaultNominal > 0
+        ? settings.defaultNominal
+        : 1000;
+
+    const targetText =
+      item.potonganSurplus && item.potonganSurplus > 0
+        ? `${formatRupiah(item.targetBulan)} (-Surplus)`
+        : formatRupiah(item.targetBulan);
+
     return [
       String(idx + 1),
       `No. ${item.warga.nomorRumah}`,
       item.warga.blok || '-',
       item.warga.nama,
-      formatRupiah(item.warga.nominalDefault || 1000),
+      formatRupiah(tarifVal),
       `${item.countPaidDays} / ${daysInMonth} hr`,
-      formatRupiah(item.targetBulan),
+      targetText,
       formatRupiah(item.totalTerbayar),
       statusLabel,
       kurangText,

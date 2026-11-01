@@ -12,6 +12,7 @@ import {
   onSnapshot, 
   writeBatch,
   getDoc,
+  deleteField,
   Firestore,
   Unsubscribe
 } from 'firebase/firestore';
@@ -218,11 +219,28 @@ export const deduplicateCloudWargaNow = async (): Promise<{ cleanedCount: number
   }
 };
 
+const prepareWargaCloudPayload = (warga: Warga) => {
+  const { id, ...data } = warga;
+  const cleaned: Record<string, any> = cleanFirestoreData(data);
+  if (warga.saldoTunggakanAwal === undefined) {
+    cleaned.saldoTunggakanAwal = deleteField();
+  }
+  if (warga.koreksiPiutang === undefined) {
+    cleaned.koreksiPiutang = deleteField();
+  }
+  if (warga.catatanKoreksiPiutang === undefined) {
+    cleaned.catatanKoreksiPiutang = deleteField();
+  }
+  if (warga.tanggalKoreksiPiutang === undefined) {
+    cleaned.tanggalKoreksiPiutang = deleteField();
+  }
+  return cleaned;
+};
+
 export const saveWargaCloud = async (warga: Warga) => {
   try {
     const wargaRef = doc(db, WARGA_COL, warga.id);
-    const { id, ...data } = warga;
-    await setDoc(wargaRef, cleanFirestoreData(data), { merge: true });
+    await setDoc(wargaRef, prepareWargaCloudPayload(warga), { merge: true });
   } catch (err) {
     console.error('Failed to save warga to cloud:', err);
   }
@@ -233,8 +251,7 @@ export const saveBatchWargaCloud = async (wargaList: Warga[]) => {
   try {
     await commitChunkedBatch(wargaList, (batch, w) => {
       const wargaRef = doc(db, WARGA_COL, w.id);
-      const { id, ...data } = w;
-      batch.set(wargaRef, cleanFirestoreData(data), { merge: true });
+      batch.set(wargaRef, prepareWargaCloudPayload(w), { merge: true });
     });
   } catch (err) {
     console.error('Failed to batch save warga to cloud:', err);

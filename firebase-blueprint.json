@@ -29,7 +29,11 @@
         "nomorHp": { "type": "string" },
         "nominalDefault": { "type": "number" },
         "isActive": { "type": "boolean" },
-        "qrCodeData": { "type": "string" }
+        "qrCodeData": { "type": "string" },
+        "saldoTunggakanAwal": { "type": "number" },
+        "koreksiPiutang": { "type": "number" },
+        "catatanKoreksiPiutang": { "type": "string" },
+        "tanggalKoreksiPiutang": { "type": "string" }
       },
       "required": ["nomorRumah", "nama", "qrCodeData"]
     },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   CheckCircle2,
@@ -47,21 +47,29 @@ export const BayarPelunasanTunggakanModal: React.FC<BayarPelunasanTunggakanModal
   const [petugas, setPetugas] = useState<string>(currentPetugas || 'Bendahara RT');
   const [catatan, setCatatan] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  useEffect(() => {
+    const nextSisa = typeof sisaTunggakanLalu === 'number' ? sisaTunggakanLalu : 0;
+    setNominal(nextSisa > 0 ? nextSisa : 10000);
+    setErrorMessage('');
+  }, [sisaTunggakanLalu, warga?.id, isOpen]);
 
   if (!isOpen || !warga) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nominal <= 0) {
-      alert('Masukkan nominal pelunasan yang valid (lebih dari 0).');
+      setErrorMessage('Masukkan nominal pelunasan yang valid (lebih dari Rp 0).');
       return;
     }
 
+    setErrorMessage('');
     setIsSubmitting(true);
     try {
       const defaultKet = catatan.trim()
-        ? `Pelunasan tunggakan bulan ${prevMonthLabel} No. ${warga.nomorRumah} - ${warga.nama} (${catatan.trim()})`
-        : `Pelunasan tunggakan jimpitan bulan ${prevMonthLabel} No. ${warga.nomorRumah} - ${warga.nama}`;
+        ? `Pelunasan tunggakan bulan ${prevMonthLabel} No. ${warga.nomorRumah} - ${warga.nama} (${catatan.trim()}) [${warga.id}]`
+        : `Pelunasan tunggakan jimpitan bulan ${prevMonthLabel} No. ${warga.nomorRumah} - ${warga.nama} [${warga.id}]`;
 
       const newMutation: Omit<KasMutation, 'id' | 'createdAt'> = {
         tanggal,
@@ -88,11 +96,10 @@ export const BayarPelunasanTunggakanModal: React.FC<BayarPelunasanTunggakanModal
         // ignore
       }
 
-      alert(`✅ Pelunasan tunggakan sebesar ${formatRupiah(nominal)} untuk ${warga.nama} (No. ${warga.nomorRumah}) berhasil dicatat di kas RT.`);
       onClose();
     } catch (err) {
       console.error('Failed to submit pelunasan:', err);
-      alert('Terjadi kesalahan saat memproses pelunasan.');
+      setErrorMessage('Terjadi kesalahan saat memproses pelunasan. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -155,6 +162,13 @@ export const BayarPelunasanTunggakanModal: React.FC<BayarPelunasanTunggakanModal
               </div>
             </div>
           </div>
+
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           {/* Form Fields */}
           <div className="space-y-3">

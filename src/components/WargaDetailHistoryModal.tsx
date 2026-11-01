@@ -139,6 +139,8 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
   const {
     daysInMonth,
     tarifHarian: nominalDefault,
+    targetMurniBulan,
+    potonganSurplus,
     targetBulan,
     totalTerbayar: totalPaidThisMonth,
     countPaidDays: distinctDaysPaidThisMonth,
@@ -321,8 +323,20 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
           </button>
         </div>
 
+        {/* Surplus Carry-Over Banner if previous month surplus reduced this month's target */}
+        {potonganSurplus > 0 && (
+          <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3 flex items-start space-x-2.5 shadow-2xs">
+            <Award className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-950 leading-relaxed">
+              <strong className="font-extrabold">Potongan Surplus Bulan Lalu Aktif:</strong> Target {activeMonthLabel} dikurangi{' '}
+              <strong>-{formatRupiah(potonganSurplus)}</strong> (dari {formatRupiah(targetMurniBulan)} menjadi{' '}
+              <strong>{formatRupiah(targetBulan)}</strong>).
+            </div>
+          </div>
+        )}
+
         {/* Advance Payment Banner if resident met monthly target */}
-        {isMonthlyLunas && (
+        {isMonthlyLunas && nominalDefault > 0 && (
           <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/90 rounded-2xl p-3 flex items-start space-x-2.5 shadow-2xs">
             <Award className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-xs">
@@ -335,7 +349,13 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                 </span>
               </div>
               <p className="text-amber-900/90 text-[11px] mt-0.5 leading-relaxed">
-                Tercatat total setoran kas jimpitan sebesar <strong>{formatRupiah(totalPaidThisMonth)}</strong> (Target: {formatRupiah(targetBulan)}).
+                Tercatat setoran kas bulan ini sebesar <strong>{formatRupiah(totalPaidThisMonth)}</strong> (Target bersih:{' '}
+                <strong>{formatRupiah(targetBulan)}</strong>).
+                {nominalLebih > 0 && (
+                  <>
+                    {' '}Kelebihan bayar (surplus) <strong>+{formatRupiah(nominalLebih)}</strong> otomatis mengurangi target bulan berikutnya.
+                  </>
+                )}
               </p>
             </div>
           </div>

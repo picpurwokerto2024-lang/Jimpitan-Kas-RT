@@ -920,17 +920,14 @@ export default function App() {
     }
   };
 
-  // Reset / Pemutihan Piutang Massal: Hapus data piutang lampau & setel default 0 Rupiah
+  // Reset / Pemutihan Piutang Massal: Hapus data piutang lampau & setel default 0 Rupiah hingga tanggal hari ini
   const handleResetAllPiutangToZero = async () => {
-    if (!window.confirm('KONFIRMASI PENGURUS RT: Hapus seluruh data piutang lampau dan buat default 0 Rupiah (pemutihan piutang) untuk SEMUA warga?')) {
-      return;
-    }
     const today = getTodayDateIso();
     const updatedList = wargaList.map((w) => ({
       ...w,
       saldoTunggakanAwal: 0,
-      koreksiPiutang: 0,
-      catatanKoreksiPiutang: `Pemutihan piutang (Default Rp 0) pada ${formatTanggalIndo(today)} oleh ${petugasNama}`,
+      koreksiPiutang: undefined,
+      catatanKoreksiPiutang: `Pemutihan piutang s/d bulan sebelumnya (Default Rp 0) pada ${formatTanggalIndo(today)} oleh ${petugasNama}`,
       tanggalKoreksiPiutang: today,
     }));
 
@@ -938,9 +935,28 @@ export default function App() {
     try {
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
       await saveBatchWargaCloud(updatedList);
-      alert('✅ Berhasil! Seluruh data piutang warga telah direset menjadi 0 Rupiah.');
     } catch (err) {
       console.error('Failed to reset all piutang to zero:', err);
+    }
+  };
+
+  // Kembalikan Perhitungan Piutang Otomatis Murni Berdasarkan Target Bulanan & Riwayat Transaksi
+  const handleRestoreAutoPiutangCalculation = async () => {
+    const updatedList: Warga[] = wargaList.map((w) => {
+      const next = { ...w };
+      delete next.saldoTunggakanAwal;
+      delete next.koreksiPiutang;
+      delete next.catatanKoreksiPiutang;
+      delete next.tanggalKoreksiPiutang;
+      return next;
+    });
+
+    setWargaList(updatedList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
+      await saveBatchWargaCloud(updatedList);
+    } catch (err) {
+      console.error('Failed to restore automatic piutang calculation:', err);
     }
   };
 
@@ -1404,6 +1420,7 @@ export default function App() {
                 onUpdateRecord={handleUpdateRecord}
                 onUpdateWarga={handleUpdateWarga}
                 onResetAllPiutangToZero={handleResetAllPiutangToZero}
+                onRestoreAutoPiutang={handleRestoreAutoPiutangCalculation}
                 settings={settings}
                 selectedDate={selectedDate}
                 isAdmin={isAdminUnlocked}

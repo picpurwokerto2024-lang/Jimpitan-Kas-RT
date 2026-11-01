@@ -465,7 +465,15 @@ export const MenuView: React.FC<MenuViewProps> = ({
     });
 
     const totalTerkumpul = monthRecords.reduce((sum, r) => sum + (r.nominal || 0), 0);
-    const totalTarget = allWarga.reduce((sum, w) => sum + (w.nominalDefault || 1000) * daysInMonth, 0);
+    let totalTarget = 0;
+    let totalKurangBayar = 0;
+    let totalLebihBayar = 0;
+    allWarga.forEach((w) => {
+      const dist = calculateWargaMonthDistribution(w, allRecords, ym, settings);
+      totalTarget += dist.targetBulan;
+      totalKurangBayar += dist.nominalKurang;
+      totalLebihBayar += dist.nominalLebih;
+    });
     const totalPemasukanMutasi = monthMutations.filter((m) => m.jenis === 'masuk').reduce((sum, m) => sum + (m.nominal || 0), 0);
     const totalPengeluaranMutasi = monthMutations.filter((m) => m.jenis === 'keluar').reduce((sum, m) => sum + (m.nominal || 0), 0);
 
@@ -476,8 +484,8 @@ export const MenuView: React.FC<MenuViewProps> = ({
       totalWarga: allWarga.length,
       totalTarget,
       totalTerkumpul,
-      totalKurangBayar: Math.max(0, totalTarget - totalTerkumpul),
-      totalLebihBayar: Math.max(0, totalTerkumpul - totalTarget),
+      totalKurangBayar,
+      totalLebihBayar,
       saldoAwalBulan: Number(settings.saldoAwalKas) || 0,
       totalPemasukanMutasi,
       totalPengeluaranMutasi,
