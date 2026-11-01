@@ -125,14 +125,6 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
     }
   }, [selectedDate, isOpen]);
 
-  useEffect(() => {
-    if (isOpen && initialPreset && initialPreset !== 'lengkap') {
-      applyPreset(initialPreset);
-    }
-  }, [isOpen, initialPreset]);
-
-  if (!isOpen) return null;
-
   // Apply Quick Presets
   const applyPreset = (preset: ReportPresetKey) => {
     setActivePreset(preset);
@@ -217,6 +209,12 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       }));
     }
   };
+
+  useEffect(() => {
+    if (isOpen && initialPreset && initialPreset !== 'lengkap') {
+      applyPreset(initialPreset);
+    }
+  }, [isOpen, initialPreset]);
 
   const updateCustom = (updater: (prev: KasReportCustomOptions) => KasReportCustomOptions) => {
     setActivePreset('kustom');
@@ -354,6 +352,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       return numA - numB;
     });
   }, [wargaList, filteredRecords]);
+
+  if (!isOpen) return null;
 
   // Period label text
   let periodText = '';

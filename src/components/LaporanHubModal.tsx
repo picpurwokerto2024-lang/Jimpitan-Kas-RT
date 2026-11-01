@@ -123,8 +123,6 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     setShowCustomPdfReportModal(true);
   };
 
-  if (!isOpen) return null;
-
   // Month label calculation
   const ymParts = (selectedYearMonth || defaultYearMonth).split('-');
   const yearNum = parseInt(ymParts[0], 10) || today.getFullYear();
@@ -189,6 +187,8 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       })
       .reduce((sum, m) => sum + (m.nominal || 0), 0);
   }, [safeMutations, selectedYearMonth]);
+
+  if (!isOpen) return null;
 
   const saldoAwalBulanIni = masterSaldoAwal + pastJimpitanBulan + pastMutasiMasukBulan - pastMutasiKeluarBulan;
   const saldoKasBersihAkhirBulan = saldoAwalBulanIni + totalPemasukanAll - totalPengeluaranPeriod;

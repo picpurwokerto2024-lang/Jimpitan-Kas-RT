@@ -46,8 +46,6 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
   selectedDate,
   settings,
 }) => {
-  if (!isOpen || !warga) return null;
-
   // Month navigation state: 'YYYY-MM'
   const initialYearMonth = useMemo(() => {
     if (selectedDate && selectedDate.includes('-')) {
@@ -116,6 +114,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
 
   // Filter records specifically for this resident
   const residentRecords = useMemo(() => {
+    if (!warga) return [];
     return allRecords.filter(
       (r) => r.wargaId === warga.id || r.nomorRumah === warga.nomorRumah
     );
@@ -133,24 +132,23 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
 
   // Calculated accurate monthly distribution
   const monthDistribution = useMemo(() => {
+    if (!warga) return null;
     return calculateWargaMonthDistribution(warga, allRecords, activeYearMonth, settings);
   }, [warga, allRecords, activeYearMonth, settings]);
 
-  const {
-    daysInMonth,
-    tarifHarian: nominalDefault,
-    targetMurniBulan,
-    potonganSurplus,
-    targetBulan,
-    totalTerbayar: totalPaidThisMonth,
-    countPaidDays: distinctDaysPaidThisMonth,
-    hariKurang,
-    nominalKurang,
-    nominalLebih,
-    isLunas: isMonthlyLunas,
-    status: monthlyStatus,
-    dailyList: dailyDistributionList,
-  } = monthDistribution;
+  const daysInMonth = monthDistribution?.daysInMonth ?? 30;
+  const nominalDefault = monthDistribution?.tarifHarian ?? 1000;
+  const targetMurniBulan = monthDistribution?.targetMurniBulan ?? 30000;
+  const potonganSurplus = monthDistribution?.potonganSurplus ?? 0;
+  const targetBulan = monthDistribution?.targetBulan ?? 30000;
+  const totalPaidThisMonth = monthDistribution?.totalTerbayar ?? 0;
+  const distinctDaysPaidThisMonth = monthDistribution?.countPaidDays ?? 0;
+  const hariKurang = monthDistribution?.hariKurang ?? 0;
+  const nominalKurang = monthDistribution?.nominalKurang ?? 0;
+  const nominalLebih = monthDistribution?.nominalLebih ?? 0;
+  const isMonthlyLunas = monthDistribution?.isLunas ?? false;
+  const monthlyStatus = monthDistribution?.status ?? 'exact';
+  const dailyDistributionList = monthDistribution?.dailyList ?? [];
 
   // Primary 1-Month advance record if any
   const monthlyAdvanceRecord = useMemo(() => {
@@ -199,6 +197,7 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
 
   // Generate WhatsApp Share URL
   const waShareUrl = useMemo(() => {
+    if (!warga) return '';
     const phone = cleanWhatsAppPhone(warga.nomorHp);
     const encodedText = generateWhatsAppWargaMonthlyRecap(
       warga,
@@ -234,6 +233,8 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
 
     return days;
   }, [activeYear, activeMonth, activeYearMonth, daysInMonth]);
+
+  if (!isOpen || !warga) return null;
 
   const daysHeader = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 

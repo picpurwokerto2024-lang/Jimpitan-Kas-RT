@@ -41,8 +41,6 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
   settings,
   currentPetugas = 'Admin RT',
 }) => {
-  if (!isOpen || !warga || !detail) return null;
-
   // Edit Mode: 'direct' (Tetapkan Nominal Baru Langsung) | 'adjust' (Tambah/Kurang Nominal) | 'reset' (Kembalikan ke Hitungan Sistem)
   const [editMode, setEditMode] = useState<'direct' | 'adjust' | 'reset'>('direct');
 
@@ -59,6 +57,8 @@ export const EditSisaPiutangModal: React.FC<EditSisaPiutangModalProps> = ({
   const [catatKeKasMutasi, setCatatKeKasMutasi] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  if (!isOpen || !warga || !detail) return null;
 
   // Calculation previews
   const sisaSebelumnya = detail?.sisaTunggakanLalu ?? 0;
