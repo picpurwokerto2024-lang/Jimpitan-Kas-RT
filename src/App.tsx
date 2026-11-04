@@ -38,6 +38,7 @@ import { ModeSelectorModal } from './components/ModeSelectorModal';
 import { LaporanHubModal, LaporanTabKey } from './components/LaporanHubModal';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { DownloadStatusToast } from './components/DownloadStatusToast';
 import { AppTheme, initializeAppTheme } from './utils/themeManager';
 import { getTodayDateIso, formatTanggalIndo } from './utils/formatters';
 import { 
@@ -2024,6 +2025,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Download Status & Fallback Action Bar (PDF / Excel / CSV / JSON) */}
+      <DownloadStatusToast />
 
       {/* Persistent Bottom Navigation (Filtered based on appMode) */}
       <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} appMode={appMode} theme={themeState.theme} />

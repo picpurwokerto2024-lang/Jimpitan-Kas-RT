@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { AppSettings, ReguRonda, Warga, JimpitanRecord, KasMutation, AppBackup, MonthlyArchive } from '../types';
 import { TabType } from './BottomNav';
-import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
+import { formatRupiah, formatTanggalIndo, getTodayDateIso } from '../utils/formatters';
 import { LaporanTabKey } from './LaporanHubModal';
 import { 
   FileText, 
@@ -47,6 +47,7 @@ import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../util
 import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 import { PdfReportModal } from './PdfReportModal';
 import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
+import { triggerFileDownload, triggerCsvDownload, notifyDownloadError } from '../utils/fileDownloader';
 import { 
   saveCloudBackup, 
   getCloudBackups, 
@@ -144,10 +145,10 @@ export const MenuView: React.FC<MenuViewProps> = ({
         periodText: currMonthLabel,
         totalSaldoKas: totalKas,
         saldoAwalPeriode: Number(settings.saldoAwalKas) || 0,
+        wargaList: allWarga,
       });
     } catch (err) {
-      console.error('Error generating Excel in Menu:', err);
-      alert('Terjadi kendala saat mengunduh Excel.');
+      notifyDownloadError('Terjadi kendala saat mengunduh file Excel Kas.', err);
     } finally {
       setIsExportingKasExcel(false);
     }
@@ -162,9 +163,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const daysInMonth = new Date(year, month, 0).getDate();
       const currMonthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
       const currentYearMonth = `${year}-${String(month).padStart(2, '0')}`;
-
-      const targetPerDay = Number(settings.defaultNominal) || 1000;
-      const targetBulanPerWarga = targetPerDay * daysInMonth;
 
       const wargaData = allWarga.map((warga) => {
         const dist = calculateWargaMonthDistribution(warga, allRecords, currentYearMonth, settings);
@@ -192,10 +190,37 @@ export const MenuView: React.FC<MenuViewProps> = ({
         daysInMonth,
       });
     } catch (err) {
-      console.error('Error generating Matriks Excel in Menu:', err);
-      alert('Terjadi kendala saat mengunduh Excel Matriks.');
+      notifyDownloadError('Terjadi kendala saat mengunduh file Excel Matriks.', err);
     } finally {
       setIsExportingMatriksExcel(false);
+    }
+  };
+
+  const handleExportCsvMenu = () => {
+    try {
+      const escapeCsvCell = (val: unknown) =>
+        `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+      const headers = ['ID', 'Tanggal', 'Waktu', 'Nomor Rumah', 'Nama Warga', 'Nominal', 'Status', 'Petugas', 'Regu', 'Catatan'];
+      const rows = allRecords.map((r) => [
+        escapeCsvCell(r.id),
+        escapeCsvCell(r.tanggal),
+        escapeCsvCell(r.waktu),
+        escapeCsvCell(r.nomorRumah),
+        escapeCsvCell(r.namaWarga),
+        Number(r.nominal) || 0,
+        escapeCsvCell(r.status),
+        escapeCsvCell(r.petugas),
+        escapeCsvCell(r.reguNama),
+        escapeCsvCell(r.catatan || ''),
+      ].join(','));
+
+      triggerCsvDownload(
+        [headers.join(','), ...rows],
+        `Rekap_Jimpitan_${settings?.namaRt || 'RT08'}_${getTodayDateIso()}.csv`
+      );
+    } catch (err) {
+      notifyDownloadError('Gagal mengekspor data CSV.', err);
     }
   };
 
@@ -516,24 +541,26 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   // Export full JSON Backup
   const handleExportBackup = () => {
-    const backupObj = {
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      settings: formData,
-      reguList,
-      allWarga,
-      allRecords,
-      allMutations,
-    };
+    try {
+      const backupObj = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        settings: formData,
+        reguList,
+        allWarga,
+        allRecords,
+        allMutations,
+      };
 
-    const jsonStr = JSON.stringify(backupObj, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `backup_jimpitan_${formData.namaRt}_${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+      const jsonStr = JSON.stringify(backupObj, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+      triggerFileDownload(
+        blob,
+        `Backup_Jimpitan_${formData?.namaRt || 'RT08'}_${new Date().toISOString().slice(0, 10)}.json`
+      );
+    } catch (err) {
+      notifyDownloadError('Gagal mengunduh file cadangan JSON.', err);
+    }
   };
 
   // Restore JSON Backup
@@ -595,16 +622,28 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 </div>
               </div>
 
-              {onOpenLaporanHub && (
+              <div className="flex items-center space-x-1.5">
                 <button
-                  onClick={() => onOpenLaporanHub('kas')}
-                  className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-extrabold text-xs flex items-center space-x-1 shadow-xs transition-colors cursor-pointer"
-                  title="Buka Pusat Hub Laporan RT"
+                  type="button"
+                  onClick={handleExportCsvMenu}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs flex items-center space-x-1 transition-colors cursor-pointer"
+                  title="Unduh Data Mentah Format CSV"
+                  id="btn-menu-export-csv"
                 >
-                  <span>Pusat Hub</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 text-sky-300" />
+                  <span>CSV</span>
                 </button>
-              )}
+                {onOpenLaporanHub && (
+                  <button
+                    onClick={() => onOpenLaporanHub('kas')}
+                    className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-extrabold text-xs flex items-center space-x-1 shadow-xs transition-colors cursor-pointer"
+                    title="Buka Pusat Hub Laporan RT"
+                  >
+                    <span>Pusat Hub</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* BAR MENU CEPAT: PRATINJAU PDF, UNDUH EXCEL, KIRIM WA, PUSAT HUB */}
@@ -1575,7 +1614,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
         allRecords={allRecords}
         kasMutations={allMutations}
         settings={settings}
-        selectedDate={new Date().toISOString().split('T')[0]}
+        selectedDate={getTodayDateIso()}
         wargaList={allWarga}
       />
 

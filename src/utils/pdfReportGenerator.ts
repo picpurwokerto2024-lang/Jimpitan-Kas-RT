@@ -1,7 +1,16 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, KasReportCustomOptions } from '../types';
 import { formatRupiah, formatTanggalIndo, formatCompactNominal, formatMatrixNominalFull } from './formatters';
+import { triggerFileDownload } from './fileDownloader';
+
+const runAutoTable = (doc: jsPDF, options: any): number => {
+  const fn = typeof autoTable === 'function' ? autoTable : (autoTable as any)?.default;
+  if (typeof fn === 'function') {
+    fn(doc, options);
+  }
+  return (doc as any).lastAutoTable?.finalY ?? ((options?.startY || 20) + 14);
+};
 
 export interface GeneratePdfOptions {
   records: JimpitanRecord[];
@@ -112,13 +121,13 @@ export const generateKasReportPdf = ({
   currentY += 10;
 
   // 3. EXECUTIVE FINANCIAL SUMMARY BOX
-  const totalJimpitan = records.reduce((sum, r) => sum + r.nominal, 0);
+  const totalJimpitan = records.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
   const totalPemasukanLain = mutations
     .filter((m) => m.jenis === 'masuk')
-    .reduce((sum, m) => sum + m.nominal, 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
   const totalPengeluaran = mutations
     .filter((m) => m.jenis === 'keluar')
-    .reduce((sum, m) => sum + m.nominal, 0);
+    .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
 
   if (custom.showSummaryCards !== false) {
     const cardGap = 2;
@@ -262,20 +271,29 @@ export const generateKasReportPdf = ({
     if (mutCols.petugas) { mutHead.push('Petugas/PJ'); colStyles[cIdx] = { cellWidth: 26 }; cIdx++; }
     if (mutCols.nominal) { mutHead.push('Nominal'); colStyles[cIdx] = { cellWidth: 26, halign: 'right', fontStyle: 'bold' }; cIdx++; }
 
-    const mutationRows = filteredMut.length > 0 
+    if (mutHead.length === 0) {
+      mutHead.push('Keterangan', 'Nominal');
+      colStyles[0] = { cellWidth: 'auto' };
+      colStyles[1] = { cellWidth: 30, halign: 'right', fontStyle: 'bold' };
+    }
+
+    const mutationRows: any[] = filteredMut.length > 0 
       ? filteredMut.map((m, idx) => {
           const row: string[] = [];
           if (mutCols.no) row.push(String(idx + 1));
-          if (mutCols.tanggal) row.push(m.tanggal);
-          if (mutCols.kategori) row.push(m.kategori);
-          if (mutCols.keterangan) row.push(m.keterangan);
+          if (mutCols.tanggal) row.push(m.tanggal || '-');
+          if (mutCols.kategori) row.push(m.kategori || '-');
+          if (mutCols.keterangan) row.push(m.keterangan || '-');
           if (mutCols.petugas) row.push(m.petugas || '-');
-          if (mutCols.nominal) row.push(m.jenis === 'masuk' ? `+ ${formatRupiah(m.nominal)}` : `- ${formatRupiah(m.nominal)}`);
+          if (mutCols.nominal) row.push(m.jenis === 'masuk' ? `+ ${formatRupiah(Number(m.nominal) || 0)}` : `- ${formatRupiah(Number(m.nominal) || 0)}`);
+          if (row.length === 0) {
+            row.push(m.keterangan || '-', formatRupiah(Number(m.nominal) || 0));
+          }
           return row;
         })
-      : [['Tidak ada catatan mutasi kas pada kriteria ini']];
+      : [[{ content: 'Tidak ada catatan mutasi kas pada kriteria ini', colSpan: mutHead.length, styles: { halign: 'center', fontStyle: 'italic' } }]];
 
-    autoTable(doc, {
+    const mutFinalY = runAutoTable(doc, {
       startY: currentY + 2,
       head: [mutHead],
       body: mutationRows,
@@ -295,7 +313,7 @@ export const generateKasReportPdf = ({
       margin: { left: margin, right: margin },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 8;
+    currentY = mutFinalY + 8;
   }
 
   // 5. TABEL 2: REKAP JIMPITAN WARGA
@@ -345,34 +363,46 @@ export const generateKasReportPdf = ({
     if (jimpCols.petugas) { jimpHead.push('Petugas'); colStyles[cIdx] = { cellWidth: 26 }; cIdx++; }
     if (jimpCols.nominal) { jimpHead.push('Nominal'); colStyles[cIdx] = { cellWidth: 24, halign: 'right', fontStyle: 'bold' }; cIdx++; }
 
+    if (jimpHead.length === 0) {
+      jimpHead.push('Nama Kepala Keluarga', 'Nominal');
+      colStyles[0] = { cellWidth: 'auto' };
+      colStyles[1] = { cellWidth: 26, halign: 'right', fontStyle: 'bold' };
+    }
+
     const wargaMap = new Map<string, string>();
     if (Array.isArray(wargaList)) {
       wargaList.forEach((w) => {
-        if (w.id) wargaMap.set(w.id, w.nama);
-        if (w.nomorRumah) wargaMap.set(`no_${w.nomorRumah}`, w.nama);
+        if (w?.id) wargaMap.set(w.id, w.nama || '-');
+        if (w?.nomorRumah !== undefined && w?.nomorRumah !== null) {
+          wargaMap.set(`no_${w.nomorRumah}`, w.nama || '-');
+        }
       });
     }
 
-    const jimpitanRows = filteredRecs.length > 0
+    const jimpitanRows: any[] = filteredRecs.length > 0
       ? filteredRecs.map((r, idx) => {
           const citizenName =
             (r.wargaId && wargaMap.get(r.wargaId)) ||
             (r.nomorRumah && wargaMap.get(`no_${r.nomorRumah}`)) ||
-            r.namaWarga;
+            r.namaWarga ||
+            '-';
 
           const row: string[] = [];
           if (jimpCols.no) row.push(String(idx + 1));
-          if (jimpCols.waktu) row.push(`${r.tanggal} ${r.waktu || ''}`.trim());
-          if (jimpCols.nomorRumah) row.push(`No. ${r.nomorRumah}`);
+          if (jimpCols.waktu) row.push(`${r.tanggal || ''} ${r.waktu || ''}`.trim() || '-');
+          if (jimpCols.nomorRumah) row.push(`No. ${r.nomorRumah ?? '-'}`);
           if (jimpCols.namaWarga) row.push(citizenName);
-          if (jimpCols.status) row.push(r.status.toUpperCase());
+          if (jimpCols.status) row.push(String(r.status || 'sukses').toUpperCase());
           if (jimpCols.petugas) row.push(r.petugas || r.reguNama || '-');
-          if (jimpCols.nominal) row.push(formatRupiah(r.nominal));
+          if (jimpCols.nominal) row.push(formatRupiah(Number(r.nominal) || 0));
+          if (row.length === 0) {
+            row.push(citizenName, formatRupiah(Number(r.nominal) || 0));
+          }
           return row;
         })
-      : [['Tidak ada data jimpitan pada kriteria ini']];
+      : [[{ content: 'Tidak ada data jimpitan pada kriteria ini', colSpan: jimpHead.length, styles: { halign: 'center', fontStyle: 'italic' } }]];
 
-    autoTable(doc, {
+    const jimpFinalY = runAutoTable(doc, {
       startY: currentY + 2,
       head: [jimpHead],
       body: jimpitanRows,
@@ -392,7 +422,7 @@ export const generateKasReportPdf = ({
       margin: { left: margin, right: margin },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 8;
+    currentY = jimpFinalY + 8;
   }
 
   // 6. TABEL 3: REKAP TOTAL PER RUMAH / WARGA (OPSIONAL)
@@ -410,36 +440,38 @@ export const generateKasReportPdf = ({
     const mapHouseTotal = new Map<string, { noRumah: string; nama: string; total: number; count: number }>();
     if (Array.isArray(wargaList)) {
       wargaList.forEach((w) => {
-        mapHouseTotal.set(w.nomorRumah, { noRumah: w.nomorRumah, nama: w.nama, total: 0, count: 0 });
+        const key = String(w.nomorRumah ?? '');
+        mapHouseTotal.set(key, { noRumah: key, nama: w.nama || '-', total: 0, count: 0 });
       });
     }
     records.forEach((r) => {
-      const existing = mapHouseTotal.get(r.nomorRumah);
+      const key = String(r.nomorRumah ?? '');
+      const existing = mapHouseTotal.get(key);
       if (existing) {
-        existing.total += (r.nominal || 0);
-        if ((r.nominal || 0) > 0 || r.status === 'sukses' || r.status === 'titip') {
+        existing.total += (Number(r.nominal) || 0);
+        if ((Number(r.nominal) || 0) > 0 || r.status === 'sukses' || r.status === 'titip') {
           existing.count += 1;
         }
       } else {
-        mapHouseTotal.set(r.nomorRumah, { noRumah: r.nomorRumah, nama: r.namaWarga, total: r.nominal || 0, count: 1 });
+        mapHouseTotal.set(key, { noRumah: key, nama: r.namaWarga || '-', total: Number(r.nominal) || 0, count: 1 });
       }
     });
 
     const rekapRows = Array.from(mapHouseTotal.values())
       .sort((a, b) => {
-        const numA = parseInt(a.noRumah.replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(b.noRumah.replace(/\D/g, ''), 10) || 0;
+        const numA = parseInt(String(a.noRumah || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.noRumah || '').replace(/\D/g, ''), 10) || 0;
         return numA - numB;
       })
       .map((item, idx) => [
         String(idx + 1),
-        `No. ${item.noRumah}`,
-        item.nama,
+        `No. ${item.noRumah || '-'}`,
+        item.nama || '-',
         `${item.count} Kali`,
         formatRupiah(item.total),
       ]);
 
-    autoTable(doc, {
+    const rekapFinalY = runAutoTable(doc, {
       startY: currentY + 2,
       head: [['No', 'Rumah', 'Nama Kepala Keluarga', 'Frekuensi Setor', 'Total Terkumpul']],
       body: rekapRows,
@@ -464,7 +496,7 @@ export const generateKasReportPdf = ({
       margin: { left: margin, right: margin },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 8;
+    currentY = rekapFinalY + 8;
   }
 
   // 7. CATATAN & KETERANGAN TAMBAHAN PENGURUS
@@ -557,9 +589,10 @@ export const generateKasReportPdf = ({
     );
   }
 
-  // Save PDF file
-  const filename = `Laporan_Kas_RT08_RW06_Pliken_${periodText.replace(/\s+/g, '_')}.pdf`;
-  doc.save(filename);
+  // Save PDF file reliably across browser, iframe, and Android PWA
+  const filename = `Laporan_Kas_${settings?.namaRt || 'RT08'}_${settings?.namaRw || 'RW06'}_Pliken_${periodText}.pdf`;
+  const pdfBlob = doc.output('blob');
+  return triggerFileDownload(pdfBlob, filename);
 };
 
 export interface WargaMonthlyReportPdfItem {
@@ -840,7 +873,7 @@ export const generateWargaMonthlyReportPdf = ({
     margin: { left: margin, right: margin },
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 8;
+  currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : currentY + 20;
 
   // 5. TABEL 2: MATRIKS PRESENSI & SETORAN JIMPITAN TANGGAL 1 S/D 31 (Optional / Included)
   if (includeMatrixTable) {
@@ -947,7 +980,7 @@ export const generateWargaMonthlyReportPdf = ({
       margin: { left: margin, right: margin },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 8;
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : currentY + 20;
   }
 
   // 6. LEMBAR PENGESAHAN & 2 TANDA TANGAN (Bendahara RT, Ketua RT)
@@ -958,6 +991,8 @@ export const generateWargaMonthlyReportPdf = ({
   }
 
   const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -979,14 +1014,15 @@ export const generateWargaMonthlyReportPdf = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  const displayBendahara = bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( .................................................. )';
+  const effBendahara = (bendaharaName || settings?.namaBendahara || '').trim();
+  const displayBendahara = effBendahara ? `( ${effBendahara} )` : '( .................................................. )';
   doc.text(displayBendahara, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
   // Signature 2: Ketua RT (Kanan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
+  doc.text(`Ketua ${safeRt} ${safeRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
@@ -994,7 +1030,8 @@ export const generateWargaMonthlyReportPdf = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  const displayKetua = ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( .................................................. )';
+  const effKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim();
+  const displayKetua = effKetua ? `( ${effKetua} )` : '( .................................................. )';
   doc.text(displayKetua, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   // 7. FOOTER PADA SETIAP HALAMAN
@@ -1005,16 +1042,17 @@ export const generateWargaMonthlyReportPdf = ({
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Laporan Rekapitulasi Jimpitan Bulanan Pertanggal ${settings.namaRt}/${settings.namaRw} Desa Pliken Kembaran - Dicetak otomatis via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
+      `Laporan Rekapitulasi Jimpitan Bulanan Pertanggal ${safeRt}/${safeRw} Desa Pliken Kembaran - Dicetak otomatis via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
       pageWidth / 2,
       pageHeight - 6,
       { align: 'center' }
     );
   }
 
-  // Save PDF file
-  const filename = `Laporan_Jimpitan_Bulanan_Pertanggal_${settings.namaRt.replace(/\s+/g, '_')}_${activeYearMonth}.pdf`;
-  doc.save(filename);
+  // Save PDF file reliably
+  const filename = `Laporan_Jimpitan_Bulanan_Pertanggal_${safeRt}_${activeYearMonth}.pdf`;
+  const pdfBlob = doc.output('blob');
+  return triggerFileDownload(pdfBlob, filename);
 };
 
 export interface GenerateLaporanTunggakanPdfOptions {
@@ -1264,7 +1302,7 @@ export const generateLaporanTunggakanPdf = ({
     margin: { left: margin, right: margin },
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 8;
+  currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : currentY + 20;
 
   // 5. LEMBAR PENGESAHAN & 2 TANDA TANGAN (Bendahara RT, Ketua RT)
   if (currentY > 155) {
@@ -1273,6 +1311,8 @@ export const generateLaporanTunggakanPdf = ({
   }
 
   const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -1294,14 +1334,15 @@ export const generateLaporanTunggakanPdf = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  const displayBendahara = bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( .................................................. )';
+  const effBendahara = (bendaharaName || settings?.namaBendahara || '').trim();
+  const displayBendahara = effBendahara ? `( ${effBendahara} )` : '( .................................................. )';
   doc.text(displayBendahara, margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
   // Signature 2: Ketua RT (Kanan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
+  doc.text(`Ketua ${safeRt} ${safeRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
@@ -1309,7 +1350,8 @@ export const generateLaporanTunggakanPdf = ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  const displayKetua = ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( .................................................. )';
+  const effKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim();
+  const displayKetua = effKetua ? `( ${effKetua} )` : '( .................................................. )';
   doc.text(displayKetua, margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   // 6. FOOTER PADA SETIAP HALAMAN
@@ -1320,16 +1362,17 @@ export const generateLaporanTunggakanPdf = ({
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Laporan Rekapitulasi Tunggakan & Pelunasan Jimpitan ${settings.namaRt}/${settings.namaRw} Desa Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
+      `Laporan Rekapitulasi Tunggakan & Pelunasan Jimpitan ${safeRt}/${safeRw} Desa Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
       pageWidth / 2,
       pageHeight - 6,
       { align: 'center' }
     );
   }
 
-  // Save PDF file
-  const filename = `Laporan_Tunggakan_Pelunasan_${settings.namaRt.replace(/\s+/g, '_')}_${activeMonthLabel.replace(/\s+/g, '_')}.pdf`;
-  doc.save(filename);
+  // Save PDF file reliably
+  const filename = `Laporan_Tunggakan_Pelunasan_${safeRt}_${activeMonthLabel}.pdf`;
+  const pdfBlob = doc.output('blob');
+  return triggerFileDownload(pdfBlob, filename);
 };
 
 export interface GenerateLaporanPemasukanPdfOptions {
@@ -1499,16 +1542,16 @@ export const generateLaporanPemasukanPdf = ({
   const jimpitanRows = records.length > 0
     ? records.map((r, idx) => [
         String(idx + 1),
-        `${r.tanggal} ${r.waktu || ''}`,
-        `No. ${r.nomorRumah}`,
-        r.namaWarga,
-        r.status.toUpperCase(),
+        `${r.tanggal || ''} ${r.waktu || ''}`.trim() || '-',
+        `No. ${r.nomorRumah ?? '-'}`,
+        r.namaWarga || '-',
+        String(r.status || 'sukses').toUpperCase(),
         r.petugas || r.reguNama || '-',
-        formatRupiah(r.nominal),
+        formatRupiah(Number(r.nominal) || 0),
       ])
     : [['-', '-', '-', 'Tidak ada data jimpitan pada periode ini', '-', '-', '-']];
 
-  autoTable(doc, {
+  runAutoTable(doc, {
     startY: currentY + 2,
     head: [['No', 'Waktu', 'Rumah', 'Nama Kepala Keluarga', 'Status', 'Petugas', 'Nominal']],
     body: jimpitanRows,
@@ -1534,12 +1577,14 @@ export const generateLaporanPemasukanPdf = ({
   });
 
   // Tanda Tangan
-  let signY = (doc as any).lastAutoTable.finalY + 12;
+  let signY = ((doc as any).lastAutoTable?.finalY ?? currentY + 14) + 12;
   if (signY > 240) {
     doc.addPage();
     signY = 25;
   }
 
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
   const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -1550,6 +1595,7 @@ export const generateLaporanPemasukanPdf = ({
   const signTop = signY + 6;
 
   // Sign 1: Bendahara
+  const effBendahara = (bendaharaName || settings?.namaBendahara || '').trim();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
@@ -1558,16 +1604,17 @@ export const generateLaporanPemasukanPdf = ({
   doc.text('Pencatat Kas & Keuangan', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
+  doc.text(effBendahara ? `( ${effBendahara} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
   // Sign 2: Ketua RT
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
+  const effKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim();
+  doc.text(`Ketua ${safeRt} ${safeRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.text('Mengetahui & Menyetujui', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+  doc.text(effKetua ? `( ${effKetua} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -1576,14 +1623,16 @@ export const generateLaporanPemasukanPdf = ({
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Laporan Penerimaan Pemasukan Kas ${settings.namaRt}/${settings.namaRw} Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
+      `Laporan Penerimaan Pemasukan Kas ${safeRt}/${safeRw} Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
       pageWidth / 2,
       290,
       { align: 'center' }
     );
   }
 
-  doc.save(`Laporan_Pemasukan_Kas_${settings.namaRt.replace(/\s+/g, '_')}_${periodText.replace(/\s+/g, '_')}.pdf`);
+  const filename = `Laporan_Pemasukan_Kas_${safeRt}_${periodText}.pdf`;
+  const pdfBlob = doc.output('blob');
+  return triggerFileDownload(pdfBlob, filename);
 };
 
 export interface GenerateLaporanPengeluaranPdfOptions {
@@ -1782,12 +1831,14 @@ export const generateLaporanPengeluaranPdf = ({
   });
 
   // Tanda Tangan
-  let signY = (doc as any).lastAutoTable.finalY + 12;
+  let signY = ((doc as any).lastAutoTable?.finalY ?? currentY + 14) + 12;
   if (signY > 240) {
     doc.addPage();
     signY = 25;
   }
 
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
   const todayStr = formatTanggalIndo(new Date().toISOString().split('T')[0]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -1798,6 +1849,7 @@ export const generateLaporanPengeluaranPdf = ({
   const signTop = signY + 6;
 
   // Sign 1: Bendahara
+  const effBendahara = (bendaharaName || settings?.namaBendahara || '').trim();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.text('Bendahara Kas RT', margin + signColWidth / 2, signTop, { align: 'center' });
@@ -1806,16 +1858,17 @@ export const generateLaporanPengeluaranPdf = ({
   doc.text('Pencatat & Verifikator Nota', margin + signColWidth / 2, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(bendaharaName.trim() ? `( ${bendaharaName.trim()} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
+  doc.text(effBendahara ? `( ${effBendahara} )` : '( ....................................... )', margin + signColWidth / 2, signTop + 24, { align: 'center' });
 
   // Sign 2: Ketua RT
-  doc.text(`Ketua ${settings.namaRt} ${settings.namaRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
+  const effKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim();
+  doc.text(`Ketua ${safeRt} ${safeRw}`, margin + signColWidth * 1.5, signTop, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.text('Menyetujui Pengeluaran', margin + signColWidth * 1.5, signTop + 4, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text(ketuaRtName.trim() ? `( ${ketuaRtName.trim()} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
+  doc.text(effKetua ? `( ${effKetua} )` : '( ....................................... )', margin + signColWidth * 1.5, signTop + 24, { align: 'center' });
 
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -1824,14 +1877,16 @@ export const generateLaporanPengeluaranPdf = ({
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Laporan Pengeluaran Kas RT ${settings.namaRt}/${settings.namaRw} Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
+      `Laporan Pengeluaran Kas RT ${safeRt}/${safeRw} Pliken Kembaran - Dicetak via Sistem Jimpitan Digital RT | Halaman ${i} dari ${totalPages}`,
       pageWidth / 2,
       290,
       { align: 'center' }
     );
   }
 
-  doc.save(`Laporan_Pengeluaran_Kas_${settings.namaRt.replace(/\s+/g, '_')}_${periodText.replace(/\s+/g, '_')}.pdf`);
+  const filename = `Laporan_Pengeluaran_Kas_${safeRt}_${periodText}.pdf`;
+  const pdfBlob = doc.output('blob');
+  return triggerFileDownload(pdfBlob, filename);
 };
 
 

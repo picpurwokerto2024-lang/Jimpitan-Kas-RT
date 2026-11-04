@@ -4,6 +4,8 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  memoryLocalCache,
+  setLogLevel,
   collection, 
   doc, 
   setDoc, 
@@ -37,21 +39,45 @@ import {
 import { DEFAULT_SETTINGS, DEFAULT_REGU, DEFAULT_WARGA, DEFAULT_MUTATIONS } from '../data/defaultData';
 import { deduplicateWargaArray } from '../utils/wargaDeduplicator';
 
+// Suppress noisy internal @firebase/firestore 10s offline-mode console.error logs
+// (App handles offline state gracefully via OfflineBanner + localStorage outbox)
+try {
+  setLogLevel('silent');
+} catch {
+  // ignore
+}
+
 // Initialize Firebase App instance
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with offline persistence and specific database ID
+// Initialize Firestore with auto-detected long polling (prevents 10s WebChannel timeout
+// behind proxies, mobile carriers, and sandboxed iframes) + resilient cache fallback
 export const initFirestoreInstance = (): Firestore => {
+  const dbId = firebaseConfig.firestoreDatabaseId || undefined;
   try {
-    return initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    }, firebaseConfig.firestoreDatabaseId || undefined);
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      },
+      dbId
+    );
   } catch {
-    return firebaseConfig.firestoreDatabaseId 
-      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(app);
+    try {
+      return initializeFirestore(
+        app,
+        {
+          experimentalAutoDetectLongPolling: true,
+          localCache: memoryLocalCache(),
+        },
+        dbId
+      );
+    } catch {
+      return dbId ? getFirestore(app, dbId) : getFirestore(app);
+    }
   }
 };
 
@@ -59,14 +85,17 @@ export const db: Firestore = initFirestoreInstance();
 
 // Test connection on boot gracefully with server check and local cache fallback
 export const testFirestoreConnection = async (): Promise<boolean> => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return false;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (err: any) {
     if (err?.message?.includes('the client is offline') || err?.code === 'unavailable') {
-      console.warn('ℹ️ Firestore operating in offline cache mode (will auto-sync when online)');
+      console.info('ℹ️ Firestore operating in offline cache mode (will auto-sync when online)');
     } else {
-      console.log('ℹ️ Firestore status checked');
+      console.info('ℹ️ Firestore status checked');
     }
     return true;
   }

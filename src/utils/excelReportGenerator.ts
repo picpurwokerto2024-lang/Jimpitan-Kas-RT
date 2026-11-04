@@ -1,6 +1,18 @@
 import ExcelJS from 'exceljs';
 import { JimpitanRecord, KasMutation, AppSettings, Warga, KasReportCustomOptions } from '../types';
 import { formatTanggalIndo } from './formatters';
+import { triggerFileDownload } from './fileDownloader';
+
+const createExcelWorkbook = () => {
+  const WorkbookCtor =
+    (ExcelJS as any)?.Workbook ||
+    (ExcelJS as any)?.default?.Workbook ||
+    (typeof window !== 'undefined' ? (window as any)?.ExcelJS?.Workbook : undefined);
+  if (!WorkbookCtor) {
+    throw new Error('Modul pembuat Excel (Workbook) gagal dimuat.');
+  }
+  return new WorkbookCtor();
+};
 
 interface GenerateExcelOptions {
   records: JimpitanRecord[];
@@ -29,8 +41,10 @@ export const generateKasReportExcel = async ({
   wargaList = [],
   customOptions,
 }: GenerateExcelOptions) => {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Sistem Jimpitan Digital RT 08 RW 06 Pliken';
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
+  const workbook = createExcelWorkbook();
+  workbook.creator = `Sistem Jimpitan Digital ${safeRt} ${safeRw} Pliken`;
   workbook.created = new Date();
 
   const worksheet = workbook.addWorksheet('Laporan Kas RT', {
@@ -88,7 +102,7 @@ export const generateKasReportExcel = async ({
   worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
 
   worksheet.mergeCells('A2:H2');
-  worksheet.getCell('A2').value = `DESA PLIKEN, KECAMATAN KEMBARAN - ${settings.namaRt} / ${settings.namaRw}`;
+  worksheet.getCell('A2').value = `DESA PLIKEN, KECAMATAN KEMBARAN - ${safeRt} / ${safeRw}`;
   worksheet.getCell('A2').font = { name: 'Calibri', size: 15, bold: true, color: { argb: primaryColor } };
   worksheet.getCell('A2').alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -221,10 +235,10 @@ export const generateKasReportExcel = async ({
       worksheet.getCell(curRow, 5).value = m.keterangan || '-';
       worksheet.getCell(curRow, 6).value = m.petugas || '-';
 
-      worksheet.getCell(curRow, 7).value = m.jenis === 'masuk' ? m.nominal : 0;
+      worksheet.getCell(curRow, 7).value = m.jenis === 'masuk' ? Number(m.nominal) || 0 : 0;
       worksheet.getCell(curRow, 7).numFmt = '"Rp "#,##0';
 
-      worksheet.getCell(curRow, 8).value = m.jenis === 'keluar' ? m.nominal : 0;
+      worksheet.getCell(curRow, 8).value = m.jenis === 'keluar' ? Number(m.nominal) || 0 : 0;
       worksheet.getCell(curRow, 8).numFmt = '"Rp "#,##0';
 
       for (let c = 1; c <= 8; c++) {
@@ -296,13 +310,13 @@ export const generateKasReportExcel = async ({
 
         worksheet.getCell(curRow, 5).value = citizenName;
 
-        worksheet.getCell(curRow, 6).value = r.status.toUpperCase();
+        worksheet.getCell(curRow, 6).value = String(r.status || 'sukses').toUpperCase();
         worksheet.getCell(curRow, 6).alignment = { horizontal: 'center' };
-        worksheet.getCell(curRow, 6).font = { bold: true, color: { argb: r.status === 'sukses' ? 'FF059669' : 'FFE11D48' } };
+        worksheet.getCell(curRow, 6).font = { bold: true, color: { argb: (r.status || 'sukses') === 'sukses' ? 'FF059669' : 'FFE11D48' } };
 
         worksheet.getCell(curRow, 7).value = r.petugas || '-';
 
-        worksheet.getCell(curRow, 8).value = r.nominal || 0;
+        worksheet.getCell(curRow, 8).value = Number(r.nominal) || 0;
         worksheet.getCell(curRow, 8).numFmt = '"Rp "#,##0';
 
         for (let c = 1; c <= 8; c++) {
@@ -352,7 +366,7 @@ export const generateKasReportExcel = async ({
 
   // Kolom 2 (Kanan): Ketua RT
   worksheet.mergeCells(`E${signHeaderRow}:H${signHeaderRow}`);
-  worksheet.getCell(`E${signHeaderRow}`).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
+  worksheet.getCell(`E${signHeaderRow}`).value = `Ketua ${safeRt} ${safeRw}`;
   worksheet.getCell(`E${signHeaderRow}`).font = { bold: true, size: 10 };
   worksheet.getCell(`E${signHeaderRow}`).alignment = { horizontal: 'center' };
 
@@ -364,32 +378,29 @@ export const generateKasReportExcel = async ({
   // Signature Names (After 4 empty rows for ink sign)
   const signNameRow = signHeaderRow + 5;
 
-  const displayBendahara = (bendaharaName || settings.namaBendahara || '').trim() 
-    ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` 
+  const displayBendahara = (bendaharaName || settings?.namaBendahara || '').trim() 
+    ? `( ${(bendaharaName || settings?.namaBendahara)!.trim()} )` 
     : '( .................................................. )';
   worksheet.mergeCells(`A${signNameRow}:D${signNameRow}`);
   worksheet.getCell(`A${signNameRow}`).value = displayBendahara;
   worksheet.getCell(`A${signNameRow}`).font = { bold: true, size: 9.5 };
   worksheet.getCell(`A${signNameRow}`).alignment = { horizontal: 'center' };
 
-  const displayKetua = (ketuaRtName || settings.namaKetuaRt || '').trim() 
-    ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` 
+  const displayKetua = (ketuaRtName || settings?.namaKetuaRt || '').trim() 
+    ? `( ${(ketuaRtName || settings?.namaKetuaRt)!.trim()} )` 
     : '( .................................................. )';
   worksheet.mergeCells(`E${signNameRow}:H${signNameRow}`);
   worksheet.getCell(`E${signNameRow}`).value = displayKetua;
   worksheet.getCell(`E${signNameRow}`).font = { bold: true, size: 9.5 };
   worksheet.getCell(`E${signNameRow}`).alignment = { horizontal: 'center' };
 
-  // Write and trigger download
+  // Write and trigger reliable download
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = window.URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  const fileNameClean = `Laporan_Kas_${settings.namaRt.replace(/\s+/g, '_')}_${periodText.replace(/\s+/g, '_')}.xlsx`;
-  anchor.download = fileNameClean;
-  anchor.click();
-  window.URL.revokeObjectURL(url);
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const fileNameRaw = `Laporan_Kas_${safeRt}_${periodText}.xlsx`;
+  return triggerFileDownload(blob, fileNameRaw);
 };
 
 // 2. EXCEL BULANAN MATRIKS (1-31) PER WARGA
@@ -425,13 +436,16 @@ export const generateWargaMonthlyReportExcel = async ({
   bendaharaName?: string;
   ketuaRtName?: string;
 }) => {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Sistem Jimpitan Digital RT 08 RW 06 Pliken';
+  const safeRt = settings?.namaRt || 'RT 08';
+  const safeRw = settings?.namaRw || 'RW 06';
+  const workbook = createExcelWorkbook();
+  workbook.creator = `Sistem Jimpitan Digital ${safeRt} ${safeRw} Pliken`;
   const worksheet = workbook.addWorksheet('Matriks Jimpitan Bulanan', {
     views: [{ showGridLines: true }],
   });
 
-  const totalCols = 5 + daysInMonth;
+  const safeDays = Math.max(2, Number(daysInMonth) || 30);
+  const totalCols = 5 + safeDays;
 
   // Setup columns
   const cols: Array<{ key: string; width: number }> = [
@@ -440,7 +454,7 @@ export const generateWargaMonthlyReportExcel = async ({
     { key: 'nama', width: 24 },
     { key: 'status', width: 12 },
   ];
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = 1; d <= safeDays; d++) {
     cols.push({ key: `d${d}`, width: 6 });
   }
   cols.push({ key: 'total', width: 15 });
@@ -448,12 +462,12 @@ export const generateWargaMonthlyReportExcel = async ({
 
   // Kop Surat
   worksheet.mergeCells(1, 1, 1, totalCols);
-  worksheet.getCell(1, 1).value = `PENGURUS ${settings.namaRt.toUpperCase()} / ${settings.namaRw.toUpperCase()} DESA PLIKEN, KEMBARAN`;
+  worksheet.getCell(1, 1).value = `PENGURUS ${safeRt.toUpperCase()} / ${safeRw.toUpperCase()} DESA PLIKEN, KEMBARAN`;
   worksheet.getCell(1, 1).font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF334155' } };
   worksheet.getCell(1, 1).alignment = { horizontal: 'center' };
 
   worksheet.mergeCells(2, 1, 2, totalCols);
-  worksheet.getCell(2, 1).value = `REKAPITULASI MATRIKS JIMPITAN WARGA TANGGAL 1 - ${daysInMonth} (${activeMonthLabel.toUpperCase()})`;
+  worksheet.getCell(2, 1).value = `REKAPITULASI MATRIKS JIMPITAN WARGA TANGGAL 1 - ${safeDays} (${String(activeMonthLabel || '').toUpperCase()})`;
   worksheet.getCell(2, 1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF0284C7' } };
   worksheet.getCell(2, 1).alignment = { horizontal: 'center' };
 
@@ -566,30 +580,28 @@ export const generateWargaMonthlyReportExcel = async ({
 
   // Ketua RT (Right)
   worksheet.mergeCells(sRow, totalCols - 6, sRow, totalCols);
-  worksheet.getCell(sRow, totalCols - 6).value = `Ketua ${settings.namaRt} ${settings.namaRw}`;
+  worksheet.getCell(sRow, totalCols - 6).value = `Ketua ${safeRt} ${safeRw}`;
   worksheet.getCell(sRow, totalCols - 6).font = { bold: true, size: 9.5 };
   worksheet.getCell(sRow, totalCols - 6).alignment = { horizontal: 'center' };
 
   // Names after 4 rows
   const nameRow = sRow + 5;
-  const dispBen = (bendaharaName || settings.namaBendahara || '').trim() ? `( ${(bendaharaName || settings.namaBendahara)!.trim()} )` : '( .................................................. )';
+  const dispBen = (bendaharaName || settings?.namaBendahara || '').trim() ? `( ${(bendaharaName || settings?.namaBendahara)!.trim()} )` : '( .................................................. )';
   worksheet.mergeCells(nameRow, 1, nameRow, 6);
   worksheet.getCell(nameRow, 1).value = dispBen;
   worksheet.getCell(nameRow, 1).font = { bold: true, size: 9 };
   worksheet.getCell(nameRow, 1).alignment = { horizontal: 'center' };
 
-  const dispKet = (ketuaRtName || settings.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings.namaKetuaRt)!.trim()} )` : '( .................................................. )';
+  const dispKet = (ketuaRtName || settings?.namaKetuaRt || '').trim() ? `( ${(ketuaRtName || settings?.namaKetuaRt)!.trim()} )` : '( .................................................. )';
   worksheet.mergeCells(nameRow, totalCols - 6, nameRow, totalCols);
   worksheet.getCell(nameRow, totalCols - 6).value = dispKet;
   worksheet.getCell(nameRow, totalCols - 6).font = { bold: true, size: 9 };
   worksheet.getCell(nameRow, totalCols - 6).alignment = { horizontal: 'center' };
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Matriks_Bulanan_${settings.namaRt.replace(/\s+/g, '_')}_${activeMonthLabel.replace(/\s+/g, '_')}.xlsx`;
-  a.click();
-  window.URL.revokeObjectURL(url);
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const fileNameRaw = `Matriks_Bulanan_${safeRt}_${activeMonthLabel || 'Bulanan'}.xlsx`;
+  return triggerFileDownload(blob, fileNameRaw);
 };

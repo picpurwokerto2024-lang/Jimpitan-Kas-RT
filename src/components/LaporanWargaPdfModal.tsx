@@ -20,6 +20,7 @@ import {
   WargaMonthlyReportPdfItem,
   WargaMonthlyPdfSummaryKpis
 } from '../utils/pdfReportGenerator';
+import { notifyDownloadError } from '../utils/fileDownloader';
 
 interface LaporanWargaPdfModalProps {
   isOpen: boolean;
@@ -43,8 +44,8 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
   activeYearMonth,
 }) => {
   const [petugasName, setPetugasName] = useState<string>('');
-  const [bendaharaName, setBendaharaName] = useState<string>('');
-  const [ketuaRtName, setKetuaRtName] = useState<string>('');
+  const [bendaharaName, setBendaharaName] = useState<string>(settings?.namaBendahara || '');
+  const [ketuaRtName, setKetuaRtName] = useState<string>(settings?.namaKetuaRt || '');
   const [includeMatrixTable, setIncludeMatrixTable] = useState<boolean>(true);
   const [matrixCellDisplay, setMatrixCellDisplay] = useState<'nominal_k' | 'nominal_raw' | 'symbol'>('nominal_k');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -68,8 +69,7 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
         matrixCellDisplay,
       });
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Gagal membuat dokumen PDF. Silakan coba lagi.');
+      notifyDownloadError('Gagal membuat dokumen PDF Laporan Bulanan Warga.', err);
     } finally {
       setIsGenerating(false);
     }

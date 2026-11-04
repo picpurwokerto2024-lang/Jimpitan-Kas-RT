@@ -50,6 +50,10 @@
   header, nav, .print\:hidden {
     display: none !important;
   }
+  body:has(#pdf-report-preview-modal) > #root,
+  body:has(#cetak-qr-print-modal) > #root {
+    display: none !important;
+  }
   @page {
     size: A4 portrait;
     margin: 12mm;

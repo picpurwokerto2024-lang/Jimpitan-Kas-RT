@@ -48,6 +48,7 @@ import { InputJimpitanMingguanModal } from './InputJimpitanMingguanModal';
 import { BayarPelunasanTunggakanModal } from './BayarPelunasanTunggakanModal';
 import { EditSisaPiutangModal } from './EditSisaPiutangModal';
 import { calculateTunggakanRekap, WargaTunggakanDetail } from '../utils/tunggakanCalculator';
+import { triggerCsvDownload, notifyDownloadError } from '../utils/fileDownloader';
 
 interface LaporanBulananWargaViewProps {
   wargaList: Warga[];
@@ -506,53 +507,56 @@ _Data terhitung otomatis dan terintegrasi dalam buku kas & laporan jimpitan digi
     window.open(url, '_blank');
   };
 
-  // Export CSV
+  // Export CSV safely with UTF-8 BOM Blob
   const handleExportCSV = () => {
-    const headers = [
-      'No',
-      'No. Rumah',
-      'Blok',
-      'Nama Warga',
-      'Tarif Default',
-      'Target Bulan (Rp)',
-      'Total Terbayar (Rp)',
-      'Hari Terbayar',
-      'Hari Kurang',
-      'Status',
-      'Selisih (Rp)',
-      'Nominal Kurang (Rp)',
-      'Nominal Lebih (Rp)',
-      ...daysArray.map((d) => `Tgl ${d}`),
-    ];
+    try {
+      const escapeCsvCell = (val: unknown) =>
+        `"${String(val ?? '').replace(/"/g, '""')}"`;
 
-    const rows = wargaMonthlyReportData.map((item, idx) => {
-      const dayValues = daysArray.map((d) => (item.dailyMap[d]?.isPaid ? item.dailyMap[d].nominal : 0));
-      return [
-        idx + 1,
-        `"${item.warga.nomorRumah}"`,
-        `"${item.warga.blok || ''}"`,
-        `"${item.warga.nama}"`,
-        item.warga.nominalDefault || 1000,
-        item.targetBulan,
-        item.totalTerbayar,
-        item.countPaidDays,
-        item.hariKurang,
-        item.status === 'overpaid' ? 'LEBIH BAYAR' : item.status === 'underpaid' ? 'KURANG BAYAR' : 'LUNAS TEPAT',
-        item.selisih,
-        item.nominalKurang,
-        item.nominalLebih,
-        ...dayValues,
-      ].join(',');
-    });
+      const headers = [
+        'No',
+        'No. Rumah',
+        'Blok',
+        'Nama Warga',
+        'Tarif Default',
+        'Target Bulan (Rp)',
+        'Total Terbayar (Rp)',
+        'Hari Terbayar',
+        'Hari Kurang',
+        'Status',
+        'Selisih (Rp)',
+        'Nominal Kurang (Rp)',
+        'Nominal Lebih (Rp)',
+        ...daysArray.map((d) => `Tgl ${d}`),
+      ];
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Laporan_Jimpitan_${settings.namaRt.replace(/\s+/g, '_')}_${activeYearMonth}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const rows = wargaMonthlyReportData.map((item, idx) => {
+        const dayValues = daysArray.map((d) => (item.dailyMap[d]?.isPaid ? item.dailyMap[d].nominal : 0));
+        return [
+          idx + 1,
+          escapeCsvCell(item.warga.nomorRumah),
+          escapeCsvCell(item.warga.blok || ''),
+          escapeCsvCell(item.warga.nama),
+          item.warga.nominalDefault || 1000,
+          item.targetBulan,
+          item.totalTerbayar,
+          item.countPaidDays,
+          item.hariKurang,
+          item.status === 'overpaid' ? 'LEBIH BAYAR' : item.status === 'underpaid' ? 'KURANG BAYAR' : 'LUNAS TEPAT',
+          item.selisih,
+          item.nominalKurang,
+          item.nominalLebih,
+          ...dayValues,
+        ].join(',');
+      });
+
+      triggerCsvDownload(
+        [headers.join(','), ...rows],
+        `Laporan_Jimpitan_${settings?.namaRt || 'RT08'}_${activeYearMonth}.csv`
+      );
+    } catch (err) {
+      notifyDownloadError('Gagal mengekspor CSV Laporan Bulanan Warga.', err);
+    }
   };
 
   return (

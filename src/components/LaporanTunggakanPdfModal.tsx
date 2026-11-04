@@ -12,6 +12,7 @@ import {
 import { AppSettings, Warga } from '../types';
 import { formatRupiah } from '../utils/formatters';
 import { generateLaporanTunggakanPdf } from '../utils/pdfReportGenerator';
+import { notifyDownloadError } from '../utils/fileDownloader';
 
 interface LaporanTunggakanPdfModalProps {
   isOpen: boolean;
@@ -50,8 +51,8 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
   prevMonthLabel,
 }) => {
   const [petugasName, setPetugasName] = useState<string>('');
-  const [bendaharaName, setBendaharaName] = useState<string>('');
-  const [ketuaRtName, setKetuaRtName] = useState<string>('');
+  const [bendaharaName, setBendaharaName] = useState<string>(settings?.namaBendahara || '');
+  const [ketuaRtName, setKetuaRtName] = useState<string>(settings?.namaKetuaRt || '');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
@@ -72,8 +73,8 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
         ketuaRtName,
       });
     } catch (err) {
-      console.error('Error generating Tunggakan PDF:', err);
       setErrorMessage('Gagal membuat dokumen PDF. Silakan coba lagi.');
+      notifyDownloadError('Gagal membuat dokumen PDF Laporan Tunggakan.', err);
     } finally {
       setIsGenerating(false);
     }

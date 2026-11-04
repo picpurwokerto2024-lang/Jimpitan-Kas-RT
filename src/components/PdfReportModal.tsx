@@ -29,6 +29,7 @@ import { JimpitanRecord, KasMutation, AppSettings, Warga, KasReportCustomOptions
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
 import { generateKasReportPdf } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel } from '../utils/excelReportGenerator';
+import { notifyDownloadError } from '../utils/fileDownloader';
 
 interface PdfReportModalProps {
   isOpen: boolean;
@@ -347,8 +348,8 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
       }
     });
     return Array.from(mapHouseTotal.values()).sort((a, b) => {
-      const numA = parseInt(a.noRumah.replace(/\D/g, ''), 10) || 0;
-      const numB = parseInt(b.noRumah.replace(/\D/g, ''), 10) || 0;
+      const numA = parseInt(String(a.noRumah || '').replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(String(b.noRumah || '').replace(/\D/g, ''), 10) || 0;
       return numA - numB;
     });
   }, [wargaList, filteredRecords]);
@@ -390,8 +391,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         customOptions,
       });
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Gagal membuat file PDF. Silakan gunakan tombol Cetak Langsung.');
+      notifyDownloadError('Gagal membuat file PDF laporan kas.', err);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -415,8 +415,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
         customOptions,
       });
     } catch (err) {
-      console.error('Error generating Excel:', err);
-      alert('Gagal membuat file Excel.');
+      notifyDownloadError('Gagal membuat file Excel (.xlsx) laporan kas.', err);
     } finally {
       setIsGeneratingExcel(false);
     }
@@ -558,6 +557,16 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
             >
               <Printer className="w-3.5 h-3.5 text-stone-600" />
               <span>Cetak</span>
+            </button>
+
+            <button
+              onClick={handleDownloadExcel}
+              disabled={isGeneratingExcel}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center space-x-1 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Unduh File Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>{isGeneratingExcel ? 'Excel...' : 'Excel'}</span>
             </button>
 
             <button

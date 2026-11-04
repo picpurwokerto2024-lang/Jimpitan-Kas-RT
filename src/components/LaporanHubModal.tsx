@@ -40,6 +40,7 @@ import {
 import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../utils/excelReportGenerator';
 import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 import { PdfReportModal, ReportPresetKey } from './PdfReportModal';
+import { notifyDownloadError } from '../utils/fileDownloader';
 
 export type LaporanTabKey = 'kas' | 'tunggakan' | 'pemasukan' | 'pengeluaran' | 'bulanan';
 
@@ -270,23 +271,34 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
     return true;
   });
 
-  // Export Handlers with safe try-catch
+  // Export Handlers with safe try-catch & visible error notifications
+  const effectiveExportSaldoAwal =
+    dateFilterMode === 'month' ? saldoAwalBulanIni : masterSaldoAwal;
+  const effectiveExportSaldoAkhir =
+    dateFilterMode === 'month' ? saldoKasBersihAkhirBulan : totalKasSaatIni;
+  const effectivePeriodLabel =
+    dateFilterMode === 'all'
+      ? 'Semua Waktu (Kumulatif)'
+      : dateFilterMode === 'today'
+      ? formatTanggalIndo(activeDate)
+      : activeMonthLabel;
+
   const handleExportKasExcel = async () => {
     try {
       await generateKasReportExcel({
         records: filteredRecords,
         mutations: filteredMutations,
         settings,
-        periodText: activeMonthLabel,
-        totalSaldoKas: totalKasSaatIni,
-        saldoAwalPeriode: 0,
+        periodText: effectivePeriodLabel,
+        totalSaldoKas: effectiveExportSaldoAkhir,
+        saldoAwalPeriode: effectiveExportSaldoAwal,
         petugasName,
         bendaharaName,
         ketuaRtName,
+        wargaList: safeWarga,
       });
     } catch (e) {
-      console.error('Failed to generate Kas Excel:', e);
-      alert('Terjadi kendala saat membuat file Excel.');
+      notifyDownloadError('Terjadi kendala saat membuat file Excel Laporan Kas.', e);
     }
   };
 
@@ -296,15 +308,16 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         records: filteredRecords,
         mutations: filteredMutations,
         settings,
-        periodText: activeMonthLabel,
-        totalSaldoKas: totalKasSaatIni,
+        periodText: effectivePeriodLabel,
+        totalSaldoKas: effectiveExportSaldoAkhir,
+        saldoAwalPeriode: effectiveExportSaldoAwal,
         petugasName,
         bendaharaName,
         ketuaRtName,
+        wargaList: safeWarga,
       });
     } catch (e) {
-      console.error('Failed to generate Kas PDF:', e);
-      alert('Terjadi kendala saat membuat PDF. Pastikan browser mengizinkan unduhan file.');
+      notifyDownloadError('Terjadi kendala saat membuat file PDF Laporan Kas.', e);
     }
   };
 
@@ -340,8 +353,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         ketuaRtName,
       });
     } catch (e) {
-      console.error('Failed to generate Tunggakan PDF:', e);
-      alert('Terjadi kendala saat membuat PDF Tunggakan.');
+      notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Tunggakan.', e);
     }
   };
 
@@ -351,7 +363,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         records: filteredRecords,
         mutationsMasuk: filteredMutationsMasuk,
         settings,
-        periodText: activeMonthLabel,
+        periodText: effectivePeriodLabel,
         totalJimpitan: totalJimpitanPeriod,
         totalPemasukanLain,
         totalPemasukanAll,
@@ -360,8 +372,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         ketuaRtName,
       });
     } catch (e) {
-      console.error('Failed to generate Pemasukan PDF:', e);
-      alert('Terjadi kendala saat membuat PDF Pemasukan.');
+      notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Pemasukan.', e);
     }
   };
 
@@ -370,7 +381,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       generateLaporanPengeluaranPdf({
         mutationsKeluar: filteredMutationsKeluar,
         settings,
-        periodText: activeMonthLabel,
+        periodText: effectivePeriodLabel,
         totalPengeluaran: totalPengeluaranPeriod,
         categoryBreakdown: expenseCategories,
         petugasName,
@@ -378,8 +389,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         ketuaRtName,
       });
     } catch (e) {
-      console.error('Failed to generate Pengeluaran PDF:', e);
-      alert('Terjadi kendala saat membuat PDF Pengeluaran.');
+      notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Pengeluaran.', e);
     }
   };
 
@@ -395,8 +405,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         ketuaRtName,
       });
     } catch (e) {
-      console.error('Failed to generate Bulanan Matriks Excel:', e);
-      alert('Terjadi kendala saat membuat file Excel Matriks Bulanan.');
+      notifyDownloadError('Terjadi kendala saat membuat file Excel Matriks Bulanan.', e);
     }
   };
 
@@ -427,8 +436,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         ketuaRtName,
       });
     } catch (e) {
-      console.error('Failed to generate Bulanan Matriks PDF:', e);
-      alert('Terjadi kendala saat membuat PDF Matriks Bulanan.');
+      notifyDownloadError('Terjadi kendala saat membuat PDF Matriks Bulanan.', e);
     }
   };
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   QrCode, 
   Printer, 
@@ -22,8 +23,9 @@ import {
   Check
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { Warga, AppSettings } from '../types';
+import { triggerFileDownload, notifyDownloadError } from '../utils/fileDownloader';
 
 interface CetakQrBarcodeModalProps {
   isOpen: boolean;
@@ -161,7 +163,7 @@ export const CetakQrBarcodeModal: React.FC<CetakQrBarcodeModalProps> = ({
   // Handle high-resolution PDF download using jsPDF
   const handleDownloadPdf = async () => {
     if (targetWargaList.length === 0) {
-      alert('Pilih setidaknya 1 warga untuk dicetak.');
+      notifyDownloadError('Pilih setidaknya 1 warga terlebih dahulu untuk dicetak.');
       return;
     }
 
@@ -312,11 +314,14 @@ export const CetakQrBarcodeModal: React.FC<CetakQrBarcodeModalProps> = ({
         cardIndexOnPage++;
       }
 
-      // Download triggered
-      doc.save(`Lembar_QR_Barcode_${settings.namaRt.replace(/\s+/g, '_')}_A4.pdf`);
+      // Download triggered reliably via Blob
+      const pdfBlob = doc.output('blob');
+      triggerFileDownload(
+        pdfBlob,
+        `Lembar_QR_Barcode_${settings?.namaRt || 'RT08'}_A4.pdf`
+      );
     } catch (err) {
-      console.error('Error creating PDF:', err);
-      alert('Terjadi kesalahan saat menyusun file PDF.');
+      notifyDownloadError('Terjadi kesalahan saat menyusun file PDF QR Barcode.', err);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -338,8 +343,11 @@ export const CetakQrBarcodeModal: React.FC<CetakQrBarcodeModalProps> = ({
     bw: 'text-black border-black/30 bg-stone-100',
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible">
+  const modalContent = (
+    <div
+      id="cetak-qr-print-modal"
+      className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible"
+    >
       <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-5xl w-full my-4 overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 print:max-h-none print:shadow-none print:border-none print:m-0 print:rounded-none">
         
         {/* HEADER BAR (Non-printable) */}
@@ -831,4 +839,10 @@ export const CetakQrBarcodeModal: React.FC<CetakQrBarcodeModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
