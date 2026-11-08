@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, KasReportCustomOptions } from '../types';
 import { formatRupiah, formatTanggalIndo, formatCompactNominal, formatMatrixNominalFull } from './formatters';
-import { triggerFileDownload } from './fileDownloader';
+import { triggerFileDownloadOrShare } from './fileDownloader';
 
 const runAutoTable = (doc: jsPDF, options: any): number => {
   const fn = typeof autoTable === 'function' ? autoTable : (autoTable as any)?.default;
@@ -592,7 +592,7 @@ export const generateKasReportPdf = ({
   // Save PDF file reliably across browser, iframe, and Android PWA
   const filename = `Laporan_Kas_${settings?.namaRt || 'RT08'}_${settings?.namaRw || 'RW06'}_Pliken_${periodText}.pdf`;
   const pdfBlob = doc.output('blob');
-  return triggerFileDownload(pdfBlob, filename);
+  return triggerFileDownloadOrShare(pdfBlob, filename);
 };
 
 export interface WargaMonthlyReportPdfItem {
@@ -1052,7 +1052,7 @@ export const generateWargaMonthlyReportPdf = ({
   // Save PDF file reliably
   const filename = `Laporan_Jimpitan_Bulanan_Pertanggal_${safeRt}_${activeYearMonth}.pdf`;
   const pdfBlob = doc.output('blob');
-  return triggerFileDownload(pdfBlob, filename);
+  return triggerFileDownloadOrShare(pdfBlob, filename);
 };
 
 export interface GenerateLaporanTunggakanPdfOptions {
@@ -1372,7 +1372,7 @@ export const generateLaporanTunggakanPdf = ({
   // Save PDF file reliably
   const filename = `Laporan_Tunggakan_Pelunasan_${safeRt}_${activeMonthLabel}.pdf`;
   const pdfBlob = doc.output('blob');
-  return triggerFileDownload(pdfBlob, filename);
+  return triggerFileDownloadOrShare(pdfBlob, filename);
 };
 
 export interface GenerateLaporanPemasukanPdfOptions {
@@ -1632,7 +1632,7 @@ export const generateLaporanPemasukanPdf = ({
 
   const filename = `Laporan_Pemasukan_Kas_${safeRt}_${periodText}.pdf`;
   const pdfBlob = doc.output('blob');
-  return triggerFileDownload(pdfBlob, filename);
+  return triggerFileDownloadOrShare(pdfBlob, filename);
 };
 
 export interface GenerateLaporanPengeluaranPdfOptions {
@@ -1886,7 +1886,7 @@ export const generateLaporanPengeluaranPdf = ({
 
   const filename = `Laporan_Pengeluaran_Kas_${safeRt}_${periodText}.pdf`;
   const pdfBlob = doc.output('blob');
-  return triggerFileDownload(pdfBlob, filename);
+  return triggerFileDownloadOrShare(pdfBlob, filename);
 };
 
 

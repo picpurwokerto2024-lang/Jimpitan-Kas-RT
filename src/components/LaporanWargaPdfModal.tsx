@@ -52,10 +52,10 @@ export const LaporanWargaPdfModal: React.FC<LaporanWargaPdfModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setIsGenerating(true);
     try {
-      generateWargaMonthlyReportPdf({
+      await generateWargaMonthlyReportPdf({
         wargaData,
         summaryKpis,
         settings,

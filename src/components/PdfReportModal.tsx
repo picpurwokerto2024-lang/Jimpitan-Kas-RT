@@ -374,10 +374,10 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   }
 
   // Handle PDF file generation with full customOptions
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
-      generateKasReportPdf({
+      await generateKasReportPdf({
         records: filteredRecords,
         mutations: filteredMutations,
         settings,

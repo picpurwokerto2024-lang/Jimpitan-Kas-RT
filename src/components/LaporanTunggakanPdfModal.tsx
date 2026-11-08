@@ -58,11 +58,11 @@ export const LaporanTunggakanPdfModal: React.FC<LaporanTunggakanPdfModalProps> =
 
   if (!isOpen) return null;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setErrorMessage('');
     setIsGenerating(true);
     try {
-      generateLaporanTunggakanPdf({
+      await generateLaporanTunggakanPdf({
         wargaTunggakanList,
         summary,
         settings,

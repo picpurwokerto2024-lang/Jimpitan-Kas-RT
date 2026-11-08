@@ -125,6 +125,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const [showSignatureSettings, setShowSignatureSettings] = useState<boolean>(false);
   const [showCustomPdfReportModal, setShowCustomPdfReportModal] = useState<boolean>(false);
   const [customPdfPreset, setCustomPdfPreset] = useState<ReportPresetKey>('kas');
+  const [isExportingKey, setIsExportingKey] = useState<string | null>(null);
 
   const openPdfPreviewWithPreset = (preset: ReportPresetKey = 'kas') => {
     setCustomPdfPreset(preset);
@@ -284,6 +285,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       : activeMonthLabel;
 
   const handleExportKasExcel = async () => {
+    setIsExportingKey('kas_excel');
     try {
       await generateKasReportExcel({
         records: filteredRecords,
@@ -299,12 +301,15 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat file Excel Laporan Kas.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
-  const handleExportKasPdf = () => {
+  const handleExportKasPdf = async () => {
+    setIsExportingKey('kas_pdf');
     try {
-      generateKasReportPdf({
+      await generateKasReportPdf({
         records: filteredRecords,
         mutations: filteredMutations,
         settings,
@@ -318,10 +323,13 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat file PDF Laporan Kas.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
-  const handleExportTunggakanPdf = () => {
+  const handleExportTunggakanPdf = async () => {
+    setIsExportingKey('tunggakan_pdf');
     try {
       const wargaTunggakanList = wargaAnalysisList.map((item) => ({
         warga: item.warga,
@@ -334,7 +342,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
         totalKewajibanBersih: item.nominalKurang > 0 ? item.nominalKurang : 0,
       }));
 
-      generateLaporanTunggakanPdf({
+      await generateLaporanTunggakanPdf({
         wargaTunggakanList,
         summary: {
           totalWarga: safeWarga.length,
@@ -354,12 +362,15 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Tunggakan.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
-  const handleExportPemasukanPdf = () => {
+  const handleExportPemasukanPdf = async () => {
+    setIsExportingKey('pemasukan_pdf');
     try {
-      generateLaporanPemasukanPdf({
+      await generateLaporanPemasukanPdf({
         records: filteredRecords,
         mutationsMasuk: filteredMutationsMasuk,
         settings,
@@ -373,12 +384,15 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Pemasukan.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
-  const handleExportPengeluaranPdf = () => {
+  const handleExportPengeluaranPdf = async () => {
+    setIsExportingKey('pengeluaran_pdf');
     try {
-      generateLaporanPengeluaranPdf({
+      await generateLaporanPengeluaranPdf({
         mutationsKeluar: filteredMutationsKeluar,
         settings,
         periodText: effectivePeriodLabel,
@@ -390,10 +404,13 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat PDF Laporan Pengeluaran.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
   const handleExportBulananMatriksExcel = async () => {
+    setIsExportingKey('bulanan_excel');
     try {
       await generateWargaMonthlyReportExcel({
         wargaData: wargaAnalysisList,
@@ -406,12 +423,15 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat file Excel Matriks Bulanan.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
-  const handleExportBulananMatriksPdf = () => {
+  const handleExportBulananMatriksPdf = async () => {
+    setIsExportingKey('bulanan_pdf');
     try {
-      generateWargaMonthlyReportPdf({
+      await generateWargaMonthlyReportPdf({
         wargaData: wargaAnalysisList,
         activeYearMonth: selectedYearMonth,
         activeMonthLabel,
@@ -437,6 +457,8 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
       });
     } catch (e) {
       notifyDownloadError('Terjadi kendala saat membuat PDF Matriks Bulanan.', e);
+    } finally {
+      setIsExportingKey(null);
     }
   };
 
@@ -698,11 +720,12 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                 </button>
                 <button
                   onClick={handleExportKasExcel}
-                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  disabled={Boolean(isExportingKey)}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                   title="Unduh Lembar Kerja Excel (.xlsx) Lengkap Kop Surat & 2 TTD"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Excel Kas</span>
+                  <span>{isExportingKey === 'kas_excel' ? 'Menyiapkan...' : 'Excel Kas'}</span>
                 </button>
               </div>
             )}
@@ -719,10 +742,11 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
                 </button>
                 <button
                   onClick={handleExportTunggakanPdf}
-                  className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  disabled={Boolean(isExportingKey)}
+                  className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Cetak PDF Tunggakan</span>
+                  <span>{isExportingKey === 'tunggakan_pdf' ? 'Menyiapkan...' : 'Cetak PDF Tunggakan'}</span>
                 </button>
               </div>
             )}
@@ -759,18 +783,20 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
               <div className="flex items-center space-x-1.5">
                 <button
                   onClick={handleExportBulananMatriksExcel}
-                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  disabled={Boolean(isExportingKey)}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                   title="Unduh Lembar Kerja Excel (.xlsx) Matriks 1-31 Lengkap Kop Surat & 2 TTD"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Excel Matriks (.xlsx)</span>
+                  <span>{isExportingKey === 'bulanan_excel' ? 'Menyiapkan...' : 'Excel Matriks (.xlsx)'}</span>
                 </button>
                 <button
                   onClick={handleExportBulananMatriksPdf}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  disabled={Boolean(isExportingKey)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Cetak PDF Matriks (1-31)</span>
+                  <span>{isExportingKey === 'bulanan_pdf' ? 'Menyiapkan...' : 'Cetak PDF Matriks (1-31)'}</span>
                 </button>
               </div>
             )}
@@ -1509,10 +1535,11 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
 
                 <button
                   onClick={handleExportBulananMatriksPdf}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  disabled={Boolean(isExportingKey)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Unduh Dokumen PDF Lengkap (A4 Landscape)</span>
+                  <span>{isExportingKey === 'bulanan_pdf' ? 'Menyiapkan Dokumen...' : 'Unduh Dokumen PDF Lengkap (A4 Landscape)'}</span>
                 </button>
               </div>
 

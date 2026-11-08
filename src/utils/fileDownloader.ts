@@ -26,13 +26,38 @@ const MIME_BY_EXT: Record<string, string> = {
   json: 'application/json;charset=utf-8;',
 };
 
-// Keep blob URLs alive for 5 minutes so slow mobile DownloadManagers,
+// Keep blob URLs alive for 10 minutes so slow mobile DownloadManagers,
 // cross-origin iframes, and manual "Unduh Ulang / Bagikan" taps never fail.
-const BLOB_REVOKE_DELAY_MS = 5 * 60 * 1000;
+const BLOB_REVOKE_DELAY_MS = 10 * 60 * 1000;
+
+/**
+ * Detects if the current user agent is a mobile device (Android, iPhone, tablet)
+ */
+export const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const isMobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isSmallScreen = window.innerWidth <= 768;
+  const hasTouch = typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0;
+  return isMobileUa || (isSmallScreen && hasTouch);
+};
+
+/**
+ * Detects if the app is currently running in standalone PWA / Home Screen mode
+ */
+export const isStandalonePwa = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true ||
+    document.referrer.includes('android-app://')
+  );
+};
 
 /**
  * Sanitizes filenames so slashes (/), colons (:), parentheses, or control
  * characters in RT/RW names or date labels never break Android/Windows downloads.
+ * Caps length to 75 chars to avoid Android DownloadProvider length limit errors.
  */
 export const sanitizeDownloadFilename = (rawFilename: string, fallbackExt = 'pdf'): string => {
   const trimmed = String(rawFilename || '').trim();
@@ -44,7 +69,8 @@ export const sanitizeDownloadFilename = (rawFilename: string, fallbackExt = 'pdf
     .replace(/[/\\:*?"<>|(),;[\]{}@#!$%^&+=~`']/g, '_')
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
-    .replace(/^[_.-]+|[_.-]+$/g, '');
+    .replace(/^[_.-]+|[_.-]+$/g, '')
+    .slice(0, 75);
 
   const finalBase = cleanBase || `Laporan_Jimpitan_${new Date().toISOString().slice(0, 10)}`;
   return `${finalBase}.${ext}`;
@@ -74,8 +100,8 @@ const emitDownloadEvent = (detail: DownloadEventDetail) => {
  * Reliably downloads a Blob across desktop browsers, sandboxed iframes,
  * and Android PWA / mobile browsers:
  * - Ensures explicit MIME type
- * - Attaches `<a download>` to `document.body` before clicking
- * - Defers `URL.revokeObjectURL` by 5 minutes (never synchronously!)
+ * - Attaches `<a download>` to `document.body` with target="_blank" before clicking
+ * - Defers `URL.revokeObjectURL` by 10 minutes (never synchronously!)
  * - Emits global status event so user gets direct manual download & Web Share options
  */
 export const triggerFileDownload = (blob: Blob, rawFilename: string): DownloadSuccessDetail => {
@@ -95,7 +121,8 @@ export const triggerFileDownload = (blob: Blob, rawFilename: string): DownloadSu
     const anchor = document.createElement('a');
     anchor.href = blobUrl;
     anchor.download = filename;
-    anchor.rel = 'noopener';
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
     anchor.style.position = 'fixed';
     anchor.style.left = '-9999px';
     anchor.style.top = '-9999px';
@@ -118,7 +145,7 @@ export const triggerFileDownload = (blob: Blob, rawFilename: string): DownloadSu
       if (anchor.parentNode) {
         anchor.parentNode.removeChild(anchor);
       }
-    }, 1500);
+    }, 2000);
   }
 
   window.setTimeout(() => {
@@ -144,14 +171,39 @@ export const triggerFileDownload = (blob: Blob, rawFilename: string): DownloadSu
 };
 
 /**
+ * Downloads the file AND, on mobile devices (Android / iOS), automatically attempts
+ * native Web Share API so user can immediately save to device storage, Google Drive,
+ * WhatsApp, or open in their phone's PDF reader!
+ */
+export const triggerFileDownloadOrShare = async (
+  blob: Blob,
+  rawFilename: string
+): Promise<DownloadSuccessDetail> => {
+  const detail = triggerFileDownload(blob, rawFilename);
+
+  // On mobile devices, attempt native share sheet directly while user gesture is active
+  if (isMobileDevice() && canShareBlobFile(detail.blob, detail.filename, detail.mimeType)) {
+    try {
+      await shareBlobFileNative(detail.blob, detail.filename, detail.mimeType);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('Native share dialog fallback:', err);
+      }
+    }
+  }
+
+  return detail;
+};
+
+/**
  * Helper to trigger a UTF-8 BOM CSV file download safely (compatible with Excel & WPS Office).
  */
-export const triggerCsvDownload = (csvLines: string[], rawFilename: string): DownloadSuccessDetail => {
+export const triggerCsvDownload = async (csvLines: string[], rawFilename: string): Promise<DownloadSuccessDetail> => {
   const bom = '\uFEFF';
   const csvBody = csvLines.join('\r\n');
   const blob = new Blob([bom + csvBody], { type: 'text/csv;charset=utf-8;' });
   const nameWithExt = rawFilename.toLowerCase().endsWith('.csv') ? rawFilename : `${rawFilename}.csv`;
-  return triggerFileDownload(blob, nameWithExt);
+  return await triggerFileDownloadOrShare(blob, nameWithExt);
 };
 
 /**

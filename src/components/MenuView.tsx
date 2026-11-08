@@ -47,7 +47,7 @@ import { generateKasReportExcel, generateWargaMonthlyReportExcel } from '../util
 import { calculateWargaMonthDistribution } from '../utils/jimpitanCalculations';
 import { PdfReportModal } from './PdfReportModal';
 import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
-import { triggerFileDownload, triggerCsvDownload, notifyDownloadError } from '../utils/fileDownloader';
+import { triggerFileDownloadOrShare, triggerCsvDownload, notifyDownloadError } from '../utils/fileDownloader';
 import { 
   saveCloudBackup, 
   getCloudBackups, 
@@ -554,7 +554,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
       const jsonStr = JSON.stringify(backupObj, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-      triggerFileDownload(
+      triggerFileDownloadOrShare(
         blob,
         `Backup_Jimpitan_${formData?.namaRt || 'RT08'}_${new Date().toISOString().slice(0, 10)}.json`
       );

@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { JimpitanRecord, KasMutation, AppSettings, Warga, KasReportCustomOptions } from '../types';
 import { formatTanggalIndo } from './formatters';
-import { triggerFileDownload } from './fileDownloader';
+import { triggerFileDownloadOrShare } from './fileDownloader';
 
 const createExcelWorkbook = () => {
   const WorkbookCtor =
@@ -400,7 +400,7 @@ export const generateKasReportExcel = async ({
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const fileNameRaw = `Laporan_Kas_${safeRt}_${periodText}.xlsx`;
-  return triggerFileDownload(blob, fileNameRaw);
+  return await triggerFileDownloadOrShare(blob, fileNameRaw);
 };
 
 // 2. EXCEL BULANAN MATRIKS (1-31) PER WARGA
@@ -603,5 +603,5 @@ export const generateWargaMonthlyReportExcel = async ({
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const fileNameRaw = `Matriks_Bulanan_${safeRt}_${activeMonthLabel || 'Bulanan'}.xlsx`;
-  return triggerFileDownload(blob, fileNameRaw);
+  return await triggerFileDownloadOrShare(blob, fileNameRaw);
 };

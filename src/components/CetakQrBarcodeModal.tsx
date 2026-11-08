@@ -25,7 +25,7 @@ import {
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Warga, AppSettings } from '../types';
-import { triggerFileDownload, notifyDownloadError } from '../utils/fileDownloader';
+import { triggerFileDownloadOrShare, notifyDownloadError } from '../utils/fileDownloader';
 
 interface CetakQrBarcodeModalProps {
   isOpen: boolean;
@@ -314,9 +314,9 @@ export const CetakQrBarcodeModal: React.FC<CetakQrBarcodeModalProps> = ({
         cardIndexOnPage++;
       }
 
-      // Download triggered reliably via Blob
+      // Download triggered reliably via Blob & Web Share on mobile
       const pdfBlob = doc.output('blob');
-      triggerFileDownload(
+      await triggerFileDownloadOrShare(
         pdfBlob,
         `Lembar_QR_Barcode_${settings?.namaRt || 'RT08'}_A4.pdf`
       );
