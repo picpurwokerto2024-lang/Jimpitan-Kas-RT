@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Settings, 
   Shield, 
@@ -106,9 +106,69 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onUnlockAdmin,
   onOpenChangePinModal,
 }) => {
+  const currYearMonth = getTodayDateIso().slice(0, 7);
+  const currMonthLabel = useMemo(() => {
+    const [y, m] = currYearMonth.split('-').map(Number);
+    return new Date(y, Math.max(0, (m || 1) - 1), 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  }, [currYearMonth]);
+
+  const { pastNetPreviousMonths, currentMonthNet } = useMemo(() => {
+    const getSafeNom = (r: JimpitanRecord) =>
+      r.status === 'kosong' || r.status === 'lewat' ? 0 : Number(r.nominal) || 0;
+    const pastJimpitan = allRecords
+      .filter((r) => r.tanggal && r.tanggal < `${currYearMonth}-01`)
+      .reduce((s, r) => s + getSafeNom(r), 0);
+    const pastMutMasuk = allMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '';
+        return tgl && tgl < `${currYearMonth}-01` && m.jenis === 'masuk';
+      })
+      .reduce((s, m) => s + (Number(m.nominal) || 0), 0);
+    const pastMutKeluar = allMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '';
+        return tgl && tgl < `${currYearMonth}-01` && m.jenis === 'keluar';
+      })
+      .reduce((s, m) => s + (Number(m.nominal) || 0), 0);
+
+    const currJimpitan = allRecords
+      .filter((r) => r.tanggal && r.tanggal.startsWith(currYearMonth))
+      .reduce((s, r) => s + getSafeNom(r), 0);
+    const currMutMasuk = allMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '';
+        return tgl && tgl.startsWith(currYearMonth) && m.jenis === 'masuk';
+      })
+      .reduce((s, m) => s + (Number(m.nominal) || 0), 0);
+    const currMutKeluar = allMutations
+      .filter((m) => {
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '';
+        return tgl && tgl.startsWith(currYearMonth) && m.jenis === 'keluar';
+      })
+      .reduce((s, m) => s + (Number(m.nominal) || 0), 0);
+
+    return {
+      pastNetPreviousMonths: pastJimpitan + pastMutMasuk - pastMutKeluar,
+      currentMonthNet: currJimpitan + currMutMasuk - currMutKeluar,
+    };
+  }, [allRecords, allMutations, currYearMonth]);
+
+  const [saldoInputMode, setSaldoInputMode] = useState<'bulan_ini' | 'master'>('bulan_ini');
+
+  const formatSignedNumericText = (val: number) => {
+    if (!val) return '0';
+    return val < 0 ? `-${Math.abs(val).toLocaleString('id-ID')}` : val.toLocaleString('id-ID');
+  };
+
   const [formData, setFormData] = useState<AppSettings>(settings);
+  const [saldoAwalText, setSaldoAwalText] = useState<string>(() => {
+    const masterVal = Number(settings.saldoAwalKas) || 0;
+    return formatSignedNumericText(masterVal + pastNetPreviousMonths);
+  });
+  const hasEditedSaldoRef = React.useRef<boolean>(false);
   const lastSyncedSettingsJsonRef = React.useRef<string>(JSON.stringify(settings));
   const [isSavedAlert, setIsSavedAlert] = useState<boolean>(false);
+  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
   const [saveErrorAlert, setSaveErrorAlert] = useState<string>('');
 
   // Admin PIN Unlock form state
@@ -236,11 +296,26 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   useEffect(() => {
     const serialized = JSON.stringify(settings);
-    if (lastSyncedSettingsJsonRef.current !== serialized) {
+    const settingsChanged = lastSyncedSettingsJsonRef.current !== serialized;
+    if (settingsChanged) {
       lastSyncedSettingsJsonRef.current = serialized;
+      hasEditedSaldoRef.current = false;
       setFormData(settings);
     }
-  }, [settings]);
+    if (settingsChanged || !hasEditedSaldoRef.current) {
+      const masterVal = Number(settings.saldoAwalKas) || 0;
+      const shownVal = saldoInputMode === 'bulan_ini' ? masterVal + pastNetPreviousMonths : masterVal;
+      setSaldoAwalText(formatSignedNumericText(shownVal));
+    }
+  }, [settings, saldoInputMode, pastNetPreviousMonths]);
+
+  const parseSignedSaldoText = (rawText: string): number => {
+    const trimmed = rawText.trim();
+    const isNeg = trimmed.startsWith('-');
+    const digits = trimmed.replace(/\D/g, '');
+    const num = Number(digits) || 0;
+    return isNeg && num > 0 ? -num : num;
+  };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,18 +330,27 @@ export const MenuView: React.FC<MenuViewProps> = ({
       return;
     }
 
+    const enteredDisplayVal = parseSignedSaldoText(saldoAwalText);
+    const parsedMasterSaldoAwal =
+      saldoInputMode === 'bulan_ini' ? enteredDisplayVal - pastNetPreviousMonths : enteredDisplayVal;
+
+    setIsSavingSettings(true);
     try {
       await onUpdateSettings({
         ...settings,
         ...formData,
-        saldoAwalKas: Math.max(0, Number(formData.saldoAwalKas) || 0),
+        saldoAwalKas: parsedMasterSaldoAwal,
         pinAdmin: (settings.pinAdmin && settings.pinAdmin.trim()) || '1234',
         pinPenginput: safePinPenginput,
       });
+      setSaldoAwalText(formatSignedNumericText(enteredDisplayVal));
+      hasEditedSaldoRef.current = false;
       setIsSavedAlert(true);
-      setTimeout(() => setIsSavedAlert(false), 2500);
+      setTimeout(() => setIsSavedAlert(false), 3500);
     } catch {
       setSaveErrorAlert('Gagal menyimpan pengaturan ke Cloud. Periksa koneksi internet.');
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -1438,51 +1522,145 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       <span>Saldo Awal Kas RT</span>
                     </div>
                     <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      Akumulasi Otomatis
+                      {saldoInputMode === 'bulan_ini' ? `Target ${currMonthLabel}` : 'Master Pra-Sistem'}
                     </span>
                   </div>
 
+                  {/* Mode Switcher: Set Saldo Awal Bulan Ini directly vs Master Pra-Oktober */}
+                  {pastNetPreviousMonths !== 0 && (
+                    <div className="grid grid-cols-2 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaldoInputMode('bulan_ini');
+                          const curMaster = Number(formData.saldoAwalKas) || 0;
+                          setSaldoAwalText(formatSignedNumericText(curMaster + pastNetPreviousMonths));
+                        }}
+                        className={`py-1.5 px-2 rounded-lg text-[10.5px] font-extrabold transition-all cursor-pointer ${
+                          saldoInputMode === 'bulan_ini'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-stone-600 hover:text-stone-900'
+                        }`}
+                      >
+                        Saldo Awal {currMonthLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaldoInputMode('master');
+                          const curMaster = Number(formData.saldoAwalKas) || 0;
+                          setSaldoAwalText(formatSignedNumericText(curMaster));
+                        }}
+                        className={`py-1.5 px-2 rounded-lg text-[10.5px] font-extrabold transition-all cursor-pointer ${
+                          saldoInputMode === 'master'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-stone-600 hover:text-stone-900'
+                        }`}
+                      >
+                        Saldo Awal Master (Awal)
+                      </button>
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-stone-500 leading-relaxed">
-                    Masukkan saldo kas awal lingkungan sebelum sistem digital dimulai.
+                    {saldoInputMode === 'bulan_ini'
+                      ? `Masukkan angka pasti Saldo Awal untuk bulan ${currMonthLabel} (sistem otomatis menyesuaikan selisih akumulasi bulan sebelumnya).`
+                      : 'Masukkan saldo kas awal lingkungan sebelum catatan transaksi pertama dimulai.'}
                   </p>
 
-                  <div className="space-y-1.5 bg-stone-50 p-3 rounded-2xl border border-stone-200">
+                  <div className="space-y-2 bg-stone-50 p-3 rounded-2xl border border-stone-200">
                     <label className="block text-[11px] font-bold text-stone-700">
-                      Nominal Saldo Awal (Rp)
+                      {saldoInputMode === 'bulan_ini'
+                        ? `Nominal Saldo Awal ${currMonthLabel} (Rp)`
+                        : 'Nominal Saldo Awal Master (Rp)'}
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-500 font-bold text-xs">
                         Rp
                       </span>
                       <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={formData.saldoAwalKas ?? 0}
-                        onChange={(e) => setFormData({ ...formData, saldoAwalKas: Math.max(0, Number(e.target.value) || 0) })}
-                        placeholder="0"
+                        type="text"
+                        inputMode="numeric"
+                        value={saldoAwalText}
+                        onChange={(e) => {
+                          hasEditedSaldoRef.current = true;
+                          const raw = e.target.value;
+                          const isNeg = saldoInputMode === 'master' && raw.trim().startsWith('-');
+                          const digits = raw.replace(/\D/g, '');
+                          if (!digits) {
+                            setSaldoAwalText(isNeg ? '-' : '');
+                            const nextMaster = saldoInputMode === 'bulan_ini' ? -pastNetPreviousMonths : 0;
+                            setFormData({ ...formData, saldoAwalKas: nextMaster });
+                            return;
+                          }
+                          const num = Number(digits) || 0;
+                          const signedVal = isNeg && num > 0 ? -num : num;
+                          setSaldoAwalText(formatSignedNumericText(signedVal));
+                          const nextMaster =
+                            saldoInputMode === 'bulan_ini' ? signedVal - pastNetPreviousMonths : signedVal;
+                          setFormData({ ...formData, saldoAwalKas: nextMaster });
+                        }}
+                        onBlur={() => {
+                          const parsed = parseSignedSaldoText(saldoAwalText);
+                          setSaldoAwalText(formatSignedNumericText(parsed));
+                        }}
+                        placeholder="Contoh: 2.987.000"
                         className="w-full pl-10 pr-3 py-2 rounded-xl bg-white border border-stone-300 text-stone-900 text-sm font-extrabold outline-none focus:ring-2 focus:ring-emerald-500"
                         id="input-saldo-awal-kas"
                       />
                     </div>
 
+                    {/* Live Preview Breakdown */}
+                    {(() => {
+                      const previewMaster = Number(formData.saldoAwalKas) || 0;
+                      const previewBulanIni = previewMaster + pastNetPreviousMonths;
+                      const previewTersedia = previewBulanIni + currentMonthNet;
+                      return (
+                        <div className="p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 space-y-1 text-[10.5px]">
+                          <div className="flex items-center justify-between text-emerald-950 font-extrabold">
+                            <span>Saldo Awal {currMonthLabel}:</span>
+                            <span>{formatRupiah(previewBulanIni)}</span>
+                          </div>
+                          {pastNetPreviousMonths !== 0 && (
+                            <div className="flex items-center justify-between text-emerald-700">
+                              <span>Saldo Master (sebelum {currMonthLabel}):</span>
+                              <span className="font-bold">{formatRupiah(previewMaster)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-emerald-900 font-extrabold pt-1 border-t border-emerald-200/70">
+                            <span>Estimasi Saldo Kas Tersedia:</span>
+                            <span>{formatRupiah(previewTersedia)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Quick Presets */}
                     <div className="flex items-center space-x-1.5 pt-1 overflow-x-auto no-scrollbar">
                       <span className="text-[10px] font-bold text-stone-400 whitespace-nowrap">Preset:</span>
-                      {[0, 250000, 500000, 1000000, 2000000, 5000000].map((nominal) => (
-                        <button
-                          key={nominal}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, saldoAwalKas: nominal })}
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                            (formData.saldoAwalKas || 0) === nominal
-                              ? 'bg-emerald-600 text-white shadow-2xs'
-                              : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
-                          }`}
-                        >
-                          {nominal === 0 ? 'Rp 0' : formatRupiah(nominal)}
-                        </button>
-                      ))}
+                      {[0, 250000, 500000, 1000000, 2000000, 5000000].map((nominal) => {
+                        const targetMaster =
+                          saldoInputMode === 'bulan_ini' ? nominal - pastNetPreviousMonths : nominal;
+                        const isActive = (Number(formData.saldoAwalKas) || 0) === targetMaster;
+                        return (
+                          <button
+                            key={nominal}
+                            type="button"
+                            onClick={() => {
+                              hasEditedSaldoRef.current = true;
+                              setSaldoAwalText(formatSignedNumericText(nominal));
+                              setFormData({ ...formData, saldoAwalKas: targetMaster });
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                              isActive
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+                            }`}
+                          >
+                            {nominal === 0 ? 'Rp 0' : formatRupiah(nominal)}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1555,11 +1733,26 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 </label>
               </div>
 
+              {isSavedAlert && (
+                <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-2 animate-in fade-in">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>Pengaturan & Saldo Awal berhasil disimpan ke Cloud!</span>
+                </div>
+              )}
+
+              {saveErrorAlert && (
+                <div className="p-3 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold flex items-center space-x-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{saveErrorAlert}</span>
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all cursor-pointer"
+                disabled={isSavingSettings}
+                className="w-full py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all cursor-pointer"
               >
-                SIMPAN PENGATURAN LINGKUNGAN
+                {isSavingSettings ? 'MENYIMPAN KE CLOUD...' : 'SIMPAN PENGATURAN LINGKUNGAN'}
               </button>
             </form>
 

@@ -162,7 +162,7 @@ export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => 
 // ==========================================
 const hasCustomSettings = (s: Partial<AppSettings>): boolean => {
   return (
-    Number(s.saldoAwalKas || 0) > 0 ||
+    Number(s.saldoAwalKas || 0) !== 0 ||
     (Boolean(s.pinAdmin) && s.pinAdmin !== DEFAULT_SETTINGS.pinAdmin) ||
     (Boolean(s.pinPenginput) && s.pinPenginput !== DEFAULT_SETTINGS.pinPenginput) ||
     Boolean(s.namaBendahara?.trim()) ||
