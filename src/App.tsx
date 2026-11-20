@@ -294,6 +294,8 @@ export default function App() {
   const [appToast, setAppToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const pendingDeletedMutationIdsRef = useRef<Set<string>>(new Set());
   const pendingDeletedRecordIdsRef = useRef<Set<string>>(new Set());
+  const inFlightOutboxRecordIdsRef = useRef<Set<string>>(new Set());
+  const inFlightOutboxMutationIdsRef = useRef<Set<string>>(new Set());
 
   const showAppToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setAppToast({ message, tone });
@@ -312,6 +314,8 @@ export default function App() {
     }
     return DEFAULT_SETTINGS;
   });
+  const settingsRef = useRef<AppSettings>(settings);
+  settingsRef.current = settings;
 
   // Warga List
   const [wargaList, setWargaList] = useState<Warga[]>(() => {
@@ -710,12 +714,19 @@ export default function App() {
         }
       }
 
-      const remainingOutbox = readOutboxRecords().filter((r) => !cloudIds.has(r.id));
+      const remainingOutbox = readOutboxRecords().filter(
+        (r) => !cloudIds.has(r.id) && !pendingDeletedRecordIdsRef.current.has(r.id)
+      );
       if (!meta.fromCache && remainingOutbox.length > 0) {
         remainingOutbox.forEach((rec) => {
+          if (inFlightOutboxRecordIdsRef.current.has(rec.id)) return;
+          inFlightOutboxRecordIdsRef.current.add(rec.id);
           addJimpitanRecordCloud(rec)
             .then(() => removeOutboxRecordIds([rec.id]))
-            .catch((err) => console.warn('Retrying pending outbox record later:', err));
+            .catch((err) => console.warn('Retrying pending outbox record later:', err))
+            .finally(() => {
+              inFlightOutboxRecordIdsRef.current.delete(rec.id);
+            });
         });
       }
 
@@ -755,12 +766,19 @@ export default function App() {
         }
       }
 
-      const remainingOutbox = readOutboxMutations().filter((m) => !cloudIds.has(m.id));
+      const remainingOutbox = readOutboxMutations().filter(
+        (m) => !cloudIds.has(m.id) && !pendingDeletedMutationIdsRef.current.has(m.id)
+      );
       if (!meta.fromCache && remainingOutbox.length > 0) {
         remainingOutbox.forEach((mut) => {
+          if (inFlightOutboxMutationIdsRef.current.has(mut.id)) return;
+          inFlightOutboxMutationIdsRef.current.add(mut.id);
           addKasMutationCloud(mut)
             .then(() => removeOutboxMutationIds([mut.id]))
-            .catch((err) => console.warn('Retrying pending outbox mutation later:', err));
+            .catch((err) => console.warn('Retrying pending outbox mutation later:', err))
+            .finally(() => {
+              inFlightOutboxMutationIdsRef.current.delete(mut.id);
+            });
         });
       }
 
@@ -851,20 +869,31 @@ export default function App() {
         setSettings(fresh.settings);
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(fresh.settings));
       }
-      if (fresh.wargaList.length > 0) {
-        setWargaList(fresh.wargaList);
-        localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(fresh.wargaList));
-      }
+      setWargaList(fresh.wargaList);
+      localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(fresh.wargaList));
       setAllRecords(fresh.records);
       localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(fresh.records));
       setKasMutations(fresh.mutations);
       localStorage.setItem(STORAGE_KEYS.MUTATIONS, JSON.stringify(fresh.mutations));
+      if (fresh.reguList.length > 0) {
+        setReguList(fresh.reguList);
+        localStorage.setItem(STORAGE_KEYS.REGU, JSON.stringify(fresh.reguList));
+      }
+      if (fresh.moneyCounts) {
+        setMoneyCounts(fresh.moneyCounts);
+        localStorage.setItem(STORAGE_KEYS.MONEY_COUNTS, JSON.stringify(fresh.moneyCounts));
+      }
+      setRondaSessions(fresh.sessions);
+      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(fresh.sessions));
+
+      showAppToast('Data berhasil disinkronkan dengan server Cloud terbaru.');
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistration().then((reg) => reg?.update()).catch(() => {});
       }
     } catch (err) {
       console.warn('Force cloud sync fallback:', err);
+      showAppToast('Gagal sinkronisasi ke server. Periksa koneksi internet.', 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -907,17 +936,31 @@ export default function App() {
     const normHouse = candidate.nomorRumah ? normalizeHouseNumber(candidate.nomorRumah) : '';
     return list.find((r) => {
       if (r.tanggal !== candidate.tanggal) return false;
-      if (candidate.wargaId && r.wargaId && r.wargaId === candidate.wargaId) return true;
+      if (candidate.wargaId && r.wargaId) {
+        return r.wargaId === candidate.wargaId;
+      }
+      if (candidate.wargaId && r.wargaId === candidate.wargaId) return true;
       if (normHouse && r.nomorRumah && normalizeHouseNumber(r.nomorRumah) === normHouse) return true;
       return false;
     });
+  };
+
+  const buildRecordTargetId = (record: Pick<JimpitanRecord, 'tanggal' | 'wargaId' | 'nomorRumah'>): string => {
+    const normHouse = normalizeHouseNumber(record.nomorRumah || record.wargaId);
+    const sameHouseResidents = normHouse
+      ? wargaList.filter((w) => normalizeHouseNumber(w.nomorRumah) === normHouse)
+      : [];
+    if (sameHouseResidents.length > 1 && record.wargaId) {
+      return `jimpitan-${normHouse}-${record.wargaId}-${record.tanggal}`;
+    }
+    return `jimpitan-${normHouse}-${record.tanggal}`;
   };
 
   // Handlers for Jimpitan Records (Cloud Synchronized)
   const handleSaveRecord = async (record: Omit<JimpitanRecord, 'id' | 'createdAt'>) => {
     const existing = findExistingSameDayRecord(allRecords, record);
 
-    const targetId = existing ? existing.id : `jimpitan-${normalizeHouseNumber(record.nomorRumah || record.wargaId)}-${record.tanggal}`;
+    const targetId = existing ? existing.id : buildRecordTargetId(record);
     const fullRecord = normalizeJimpitanRecordData(
       {
         ...record,
@@ -961,7 +1004,7 @@ export default function App() {
 
     const fullRecords: JimpitanRecord[] = records.map((r, i) => {
       const existing = findExistingSameDayRecord(allRecords, r);
-      const targetId = existing ? existing.id : `jimpitan-${normalizeHouseNumber(r.nomorRumah || r.wargaId)}-${r.tanggal}`;
+      const targetId = existing ? existing.id : buildRecordTargetId(r);
       return normalizeJimpitanRecordData(
         {
           ...r,
@@ -1035,7 +1078,9 @@ export default function App() {
       console.error('Failed to delete record in cloud:', err);
       showAppToast('Gagal menghapus catatan di Cloud. Periksa koneksi internet.', 'error');
     } finally {
-      pendingDeletedRecordIdsRef.current.delete(recordId);
+      setTimeout(() => {
+        pendingDeletedRecordIdsRef.current.delete(recordId);
+      }, 15000);
     }
   };
 
@@ -1064,6 +1109,7 @@ export default function App() {
       await saveWargaCloud(fullWarga);
     } catch (err) {
       console.error('Failed to add warga to cloud:', err);
+      showAppToast('Gagal menyimpan warga baru ke Cloud. Periksa koneksi internet.', 'error');
     }
     return true;
   };
@@ -1088,18 +1134,19 @@ export default function App() {
       await saveWargaCloud(updated);
     } catch (err) {
       console.error('Failed to update warga in cloud:', err);
+      showAppToast('Gagal menyinkronkan perubahan data warga ke Cloud.', 'error');
     }
 
-    // Cascade update all existing jimpitan records if name or house number was updated
+    // Cascade update existing jimpitan records ONLY belonging to this resident
     if (oldWarga && (oldWarga.nama !== updated.nama || oldWarga.nomorRumah !== updated.nomorRumah)) {
       const affectedRecords: JimpitanRecord[] = [];
       setAllRecords((prevRecords) => {
         const nextRecords = prevRecords.map((rec) => {
-          if (
+          const belongsToResident =
             rec.wargaId === updated.id ||
-            rec.nomorRumah === oldWarga.nomorRumah ||
-            rec.nomorRumah === updated.nomorRumah
-          ) {
+            (!rec.wargaId && rec.nomorRumah === oldWarga.nomorRumah);
+
+          if (belongsToResident) {
             const updatedRec: JimpitanRecord = {
               ...rec,
               wargaId: updated.id,
@@ -1181,6 +1228,7 @@ export default function App() {
       await deleteWargaCloud(id);
     } catch (err) {
       console.error('Failed to delete warga in cloud:', err);
+      showAppToast('Gagal menghapus data warga di Cloud. Periksa koneksi internet.', 'error');
     }
   };
 
@@ -1201,6 +1249,7 @@ export default function App() {
       await saveBatchWargaCloud(updatedList);
     } catch (err) {
       console.error('Failed to reset all piutang to zero:', err);
+      showAppToast('Gagal menyinkronkan pemutihan piutang ke Cloud.', 'error');
     }
   };
 
@@ -1221,6 +1270,7 @@ export default function App() {
       await saveBatchWargaCloud(updatedList);
     } catch (err) {
       console.error('Failed to restore automatic piutang calculation:', err);
+      showAppToast('Gagal menyinkronkan pemulihan perhitungan piutang ke Cloud.', 'error');
     }
   };
 
@@ -1296,7 +1346,9 @@ export default function App() {
       console.error('Failed to delete mutation in cloud:', err);
       showAppToast('Gagal menghapus mutasi di Cloud. Periksa koneksi internet.', 'error');
     } finally {
-      pendingDeletedMutationIdsRef.current.delete(id);
+      setTimeout(() => {
+        pendingDeletedMutationIdsRef.current.delete(id);
+      }, 15000);
     }
   };
 
@@ -1312,17 +1364,34 @@ export default function App() {
       await saveMoneyCountsCloud(newCounts);
     } catch (err) {
       console.error('Failed to save money counts to cloud:', err);
+      showAppToast('Gagal menyinkronkan hitungan uang ke Cloud.', 'error');
     }
   };
 
   // Settings update cloud handler
   const handleUpdateSettings = async (newSettings: AppSettings) => {
-    setSettings(newSettings);
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
+    const merged: AppSettings = {
+      ...settingsRef.current,
+      ...newSettings,
+      saldoAwalKas: newSettings.saldoAwalKas !== undefined ? Number(newSettings.saldoAwalKas) || 0 : 0,
+      pinAdmin:
+        newSettings.pinAdmin && newSettings.pinAdmin.trim()
+          ? newSettings.pinAdmin.trim()
+          : settingsRef.current.pinAdmin || '1234',
+      pinPenginput:
+        newSettings.pinPenginput && newSettings.pinPenginput.trim()
+          ? newSettings.pinPenginput.trim()
+          : settingsRef.current.pinPenginput || '4321',
+    };
+    settingsRef.current = merged;
+    setSettings(merged);
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
     try {
-      await saveSettingsCloud(newSettings);
+      await saveSettingsCloud(merged);
     } catch (err) {
       console.error('Failed to update settings in cloud:', err);
+      showAppToast('Gagal menyimpan pengaturan ke Cloud. Periksa koneksi internet.', 'error');
+      throw err;
     }
   };
 
@@ -1334,16 +1403,19 @@ export default function App() {
       await saveReguListCloud(newRegu);
     } catch (err) {
       console.error('Failed to update regu list in cloud:', err);
+      showAppToast('Gagal menyinkronkan jadwal regu ronda ke Cloud.', 'error');
     }
   };
 
   // Sound toggle
   const handleToggleSound = () => {
+    const latest = settingsRef.current;
     const updated = {
-      ...settings,
-      soundEnabled: !settings.soundEnabled,
-      speechEnabled: !settings.soundEnabled,
+      ...latest,
+      soundEnabled: !latest.soundEnabled,
+      speechEnabled: !latest.soundEnabled,
     };
+    settingsRef.current = updated;
     setSettings(updated);
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
     saveSettingsCloud(updated).catch(console.error);
@@ -1390,9 +1462,10 @@ export default function App() {
   const handleChangeAdminPin = async (newPin: string) => {
     const cleanPin = newPin.trim();
     const updated: AppSettings = {
-      ...settings,
+      ...settingsRef.current,
       pinAdmin: cleanPin,
     };
+    settingsRef.current = updated;
     setSettings(updated);
     try {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
@@ -1403,6 +1476,8 @@ export default function App() {
       await saveSettingsCloud(updated);
     } catch (err) {
       console.error('Failed to sync new PIN to cloud:', err);
+      showAppToast('Gagal menyimpan PIN Admin baru ke Cloud. Periksa koneksi internet.', 'error');
+      throw err;
     }
   };
 
@@ -1431,14 +1506,20 @@ export default function App() {
   };
 
   const handleDeleteSeptemberData = async () => {
+    const isSept = (tgl?: string) => Boolean(tgl && (tgl.includes('-09-') || tgl.startsWith('2026-09') || tgl.startsWith('2025-09') || tgl.startsWith('2024-09')));
+    const septOutboxRecIds = readOutboxRecords().filter((r) => isSept(r.tanggal)).map((r) => r.id);
+    const septOutboxMutIds = readOutboxMutations().filter((m) => isSept(m.tanggal)).map((m) => m.id);
+    removeOutboxRecordIds(septOutboxRecIds);
+    removeOutboxMutationIds(septOutboxMutIds);
+
     try {
       const res = await deleteSeptemberDataCloud();
-      setAllRecords((prev) => prev.filter((r) => !r.tanggal || (!r.tanggal.includes('-09-') && !r.tanggal.startsWith('2026-09'))));
-      setKasMutations((prev) => prev.filter((m) => !m.tanggal || (!m.tanggal.includes('-09-') && !m.tanggal.startsWith('2026-09'))));
+      setAllRecords((prev) => prev.filter((r) => !isSept(r.tanggal)));
+      setKasMutations((prev) => prev.filter((m) => !isSept(m.tanggal)));
       setRondaSessions((prev) => {
         const next: Record<string, RondaSession> = {};
         for (const k in prev) {
-          if (!k.includes('-09-') && !k.startsWith('2026-09')) {
+          if (!isSept(k)) {
             next[k] = prev[k];
           }
         }
@@ -1449,8 +1530,8 @@ export default function App() {
       );
     } catch (err) {
       console.error('Gagal menghapus data September:', err);
-      setAllRecords((prev) => prev.filter((r) => !r.tanggal || (!r.tanggal.includes('-09-') && !r.tanggal.startsWith('2026-09'))));
-      setKasMutations((prev) => prev.filter((m) => !m.tanggal || (!m.tanggal.includes('-09-') && !m.tanggal.startsWith('2026-09'))));
+      setAllRecords((prev) => prev.filter((r) => !isSept(r.tanggal)));
+      setKasMutations((prev) => prev.filter((m) => !isSept(m.tanggal)));
       showAppToast('Data bulan September berhasil dibersihkan dari memori aplikasi.');
     }
   };
@@ -1800,6 +1881,11 @@ export default function App() {
               onOpenShareModal={() => handleOpenShareModal('laporan')}
               onLockApp={() => {
                 setIsAdminUnlocked(false);
+                try {
+                  localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+                } catch {
+                  // ignore
+                }
               }}
               isAdminUnlocked={isAdminUnlocked}
               onUnlockAdmin={handleUnlockAdminWithPin}

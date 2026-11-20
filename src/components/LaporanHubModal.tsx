@@ -29,7 +29,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Warga, JimpitanRecord, KasMutation, AppSettings, ReguRonda } from '../types';
-import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
+import { formatRupiah, formatTanggalIndo, formatLocalDateIsoFromMs } from '../utils/formatters';
 import { 
   generateKasReportPdf, 
   generateWargaMonthlyReportPdf, 
@@ -182,7 +182,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const pastMutasiMasukBulan = useMemo(() => {
     return safeMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl < `${selectedYearMonth}-01` && (m.jenis === 'masuk' || (m as any).tipe === 'masuk');
       })
       .reduce((sum, m) => sum + (m.nominal || 0), 0);
@@ -191,7 +191,7 @@ export const LaporanHubModal: React.FC<LaporanHubModalProps> = ({
   const pastMutasiKeluarBulan = useMemo(() => {
     return safeMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl < `${selectedYearMonth}-01` && (m.jenis === 'keluar' || (m as any).tipe === 'keluar');
       })
       .reduce((sum, m) => sum + (m.nominal || 0), 0);

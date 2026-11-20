@@ -38,6 +38,7 @@ import {
 } from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_REGU, DEFAULT_WARGA, DEFAULT_MUTATIONS } from '../data/defaultData';
 import { deduplicateWargaArray } from '../utils/wargaDeduplicator';
+import { formatLocalDateIsoFromMs, getTodayDateIso } from '../utils/formatters';
 
 // Suppress noisy internal @firebase/firestore 10s offline-mode console.error logs
 // (App handles offline state gracefully via OfflineBanner + localStorage outbox)
@@ -159,31 +160,141 @@ export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => 
 // ==========================================
 // 1. SETTINGS SYNC
 // ==========================================
+const hasCustomSettings = (s: Partial<AppSettings>): boolean => {
+  return (
+    Number(s.saldoAwalKas || 0) > 0 ||
+    (Boolean(s.pinAdmin) && s.pinAdmin !== DEFAULT_SETTINGS.pinAdmin) ||
+    (Boolean(s.pinPenginput) && s.pinPenginput !== DEFAULT_SETTINGS.pinPenginput) ||
+    Boolean(s.namaBendahara?.trim()) ||
+    Boolean(s.namaKetuaRt?.trim()) ||
+    (s.namaRt !== undefined && s.namaRt !== DEFAULT_SETTINGS.namaRt) ||
+    (s.namaRw !== undefined && s.namaRw !== DEFAULT_SETTINGS.namaRw) ||
+    (s.lingkungan !== undefined && s.lingkungan !== DEFAULT_SETTINGS.lingkungan) ||
+    (s.defaultNominal !== undefined && Number(s.defaultNominal) !== DEFAULT_SETTINGS.defaultNominal)
+  );
+};
+
+const normalizeSettingsPayload = (raw: Record<string, any>): AppSettings => {
+  const { updatedAt: _ignoredUpdatedAt, ...rest } = raw || {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(rest as Partial<AppSettings>),
+    saldoAwalKas: rest.saldoAwalKas !== undefined ? Number(rest.saldoAwalKas) || 0 : 0,
+    pinAdmin: rest.pinAdmin && String(rest.pinAdmin).trim() ? String(rest.pinAdmin).trim() : DEFAULT_SETTINGS.pinAdmin,
+    pinPenginput:
+      rest.pinPenginput && String(rest.pinPenginput).trim()
+        ? String(rest.pinPenginput).trim()
+        : DEFAULT_SETTINGS.pinPenginput,
+  };
+};
+
 export const subscribeSettings = (callback: (settings: AppSettings) => void): Unsubscribe => {
   const settingsDocRef = doc(db, 'settings', 'current');
-  return onSnapshot(settingsDocRef, (snap) => {
-    if (snap.exists()) {
-      const data = snap.data() as AppSettings;
-      callback({
-        ...DEFAULT_SETTINGS,
-        ...data,
-        saldoAwalKas: data.saldoAwalKas !== undefined ? Number(data.saldoAwalKas) : 0,
-      });
-    } else {
-      setDoc(settingsDocRef, cleanFirestoreData(DEFAULT_SETTINGS)).catch(console.error);
-      callback(DEFAULT_SETTINGS);
+  const settingsBackupRef = doc(db, 'settings', 'backup');
+  let didAttemptServerSeed = false;
+  let didAttemptBackupRecovery = false;
+
+  return onSnapshot(
+    settingsDocRef,
+    { includeMetadataChanges: true },
+    (snap) => {
+      const isFromCache = snap.metadata.fromCache;
+      if (snap.exists()) {
+        const raw = snap.data() as Record<string, any>;
+        const normalized = normalizeSettingsPayload(raw);
+
+        // If an older client/PWA accidentally overwrote settings/current with un-timestamped
+        // DEFAULT_SETTINGS, check settings/backup on server to recover custom PINs & Saldo Awal.
+        if (
+          !isFromCache &&
+          !didAttemptBackupRecovery &&
+          raw.updatedAt === undefined &&
+          !hasCustomSettings(normalized)
+        ) {
+          didAttemptBackupRecovery = true;
+          getDocFromServer(settingsBackupRef)
+            .then((backupSnap) => {
+              if (backupSnap.exists()) {
+                const backupRaw = backupSnap.data() as Record<string, any>;
+                const restored = normalizeSettingsPayload(backupRaw);
+                if (hasCustomSettings(restored)) {
+                  setDoc(
+                    settingsDocRef,
+                    cleanFirestoreData({ ...restored, updatedAt: Date.now() }),
+                    { merge: true }
+                  ).catch(console.error);
+                  callback(restored);
+                  return;
+                }
+              }
+              callback(normalized);
+            })
+            .catch(() => {
+              callback(normalized);
+            });
+          return;
+        }
+
+        callback(normalized);
+      } else if (!isFromCache && !didAttemptServerSeed) {
+        // Double-check directly against the server before seeding defaults so a transient
+        // cache miss never overwrites existing RT settings, PINs, or Saldo Awal Kas.
+        didAttemptServerSeed = true;
+        getDocFromServer(settingsDocRef)
+          .then(async (serverSnap) => {
+            if (serverSnap.exists()) {
+              callback(normalizeSettingsPayload(serverSnap.data()));
+              return;
+            }
+            try {
+              const backupSnap = await getDocFromServer(settingsBackupRef);
+              if (backupSnap.exists()) {
+                const restored = normalizeSettingsPayload(backupSnap.data());
+                if (hasCustomSettings(restored)) {
+                  await setDoc(settingsDocRef, cleanFirestoreData({ ...restored, updatedAt: Date.now() }));
+                  callback(restored);
+                  return;
+                }
+              }
+            } catch {
+              // ignore backup read error
+            }
+            setDoc(settingsDocRef, cleanFirestoreData({ ...DEFAULT_SETTINGS, updatedAt: Date.now() })).catch(
+              console.error
+            );
+            callback(DEFAULT_SETTINGS);
+          })
+          .catch(() => {
+            // Offline or unreachable server: keep local state intact without overwriting cloud
+          });
+      }
+    },
+    (err) => {
+      console.warn('Settings sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Settings sync fallback:', err);
-  });
+  );
 };
 
 export const saveSettingsCloud = async (settings: AppSettings) => {
   try {
     const settingsDocRef = doc(db, 'settings', 'current');
-    await setDoc(settingsDocRef, cleanFirestoreData(settings), { merge: true });
+    const normalized = normalizeSettingsPayload(settings as Record<string, any>);
+    const payload = cleanFirestoreData({
+      ...normalized,
+      updatedAt: Date.now(),
+    });
+    await setDoc(settingsDocRef, payload, { merge: true });
+
+    // Maintain a lightweight settings-only mirror so Saldo Awal & PINs survive any legacy client reset
+    if (hasCustomSettings(normalized)) {
+      const settingsBackupRef = doc(db, 'settings', 'backup');
+      setDoc(settingsBackupRef, payload, { merge: true }).catch((backupErr) => {
+        console.warn('Settings mirror backup notice:', backupErr);
+      });
+    }
   } catch (err) {
     console.error('Failed to save settings to cloud:', err);
+    throw err;
   }
 };
 
@@ -276,6 +387,7 @@ export const saveWargaCloud = async (warga: Warga) => {
     await setDoc(wargaRef, prepareWargaCloudPayload(warga), { merge: true });
   } catch (err) {
     console.error('Failed to save warga to cloud:', err);
+    throw err;
   }
 };
 
@@ -288,6 +400,7 @@ export const saveBatchWargaCloud = async (wargaList: Warga[]) => {
     });
   } catch (err) {
     console.error('Failed to batch save warga to cloud:', err);
+    throw err;
   }
 };
 
@@ -297,6 +410,7 @@ export const deleteWargaCloud = async (wargaId: string) => {
     await deleteDoc(wargaRef);
   } catch (err) {
     console.error('Failed to delete warga from cloud:', err);
+    throw err;
   }
 };
 
@@ -325,7 +439,11 @@ export const normalizeJimpitanRecordData = (raw: Partial<JimpitanRecord>, fallba
   const rawNominal = typeof raw.nominal === 'number' ? raw.nominal : Number(raw.nominal) || 0;
   const nominal = status === 'kosong' || status === 'lewat' ? 0 : Math.max(0, rawNominal);
   const rawDate = String(raw.tanggal || '').trim().split('T')[0];
-  const tanggal = rawDate.length >= 8 ? rawDate : new Date().toISOString().slice(0, 10);
+  const tanggal = rawDate.length >= 8
+    ? rawDate
+    : raw.createdAt
+      ? formatLocalDateIsoFromMs(raw.createdAt)
+      : getTodayDateIso();
   const cleanFallback = fallbackId ? String(fallbackId).trim() : '';
   const cleanRawId = raw.id ? String(raw.id).trim() : '';
 
@@ -355,8 +473,8 @@ export const normalizeKasMutationData = (raw: Partial<KasMutation>, fallbackId?:
   const tanggal = rawDate.length >= 8
     ? rawDate
     : raw.createdAt
-      ? new Date(raw.createdAt).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+      ? formatLocalDateIsoFromMs(raw.createdAt)
+      : getTodayDateIso();
   const cleanFallback = fallbackId ? String(fallbackId).trim() : '';
   const cleanRawId = raw.id ? String(raw.id).trim() : '';
 
@@ -551,6 +669,9 @@ export const forceFetchAuthoritativeCloudData = async (): Promise<{
   wargaList: Warga[];
   records: JimpitanRecord[];
   mutations: KasMutation[];
+  reguList: ReguRonda[];
+  moneyCounts: MoneyDenomination | null;
+  sessions: Record<string, RondaSession>;
 }> => {
   const fetchCollectionFresh = async (colName: string) => {
     const colRef = collection(db, colName);
@@ -571,21 +692,61 @@ export const forceFetchAuthoritativeCloudData = async (): Promise<{
       snap = await getDoc(settingsRef);
     }
     if (snap.exists()) {
-      const d = snap.data() as AppSettings;
-      settings = {
-        ...DEFAULT_SETTINGS,
-        ...d,
-        saldoAwalKas: d.saldoAwalKas !== undefined ? Number(d.saldoAwalKas) : 0,
-      };
+      const raw = snap.data() as Record<string, any>;
+      settings = normalizeSettingsPayload(raw);
+      if (raw.updatedAt === undefined && !hasCustomSettings(settings)) {
+        try {
+          const backupSnap = await getDocFromServer(doc(db, 'settings', 'backup'));
+          if (backupSnap.exists()) {
+            const restored = normalizeSettingsPayload(backupSnap.data());
+            if (hasCustomSettings(restored)) {
+              settings = restored;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
   } catch (err) {
     console.warn('Force fetch settings fallback:', err);
   }
 
-  const [wargaSnap, recSnap, mutSnap] = await Promise.all([
+  let moneyCounts: MoneyDenomination | null = null;
+  try {
+    const moneyRef = doc(db, 'money_counts', 'latest');
+    let mSnap;
+    try {
+      mSnap = await getDocFromServer(moneyRef);
+    } catch {
+      mSnap = await getDoc(moneyRef);
+    }
+    if (mSnap.exists()) {
+      const d = mSnap.data();
+      moneyCounts = {
+        koin100: Number(d.koin100) || 0,
+        koin200: Number(d.koin200) || 0,
+        koin500: Number(d.koin500) || 0,
+        koin1000: Number(d.koin1000) || 0,
+        kertas1000: Number(d.kertas1000) || 0,
+        kertas2000: Number(d.kertas2000) || 0,
+        kertas5000: Number(d.kertas5000) || 0,
+        kertas10000: Number(d.kertas10000) || 0,
+        kertas20000: Number(d.kertas20000) || 0,
+        kertas50000: Number(d.kertas50000) || 0,
+        kertas100000: Number(d.kertas100000) || 0,
+      };
+    }
+  } catch (err) {
+    console.warn('Force fetch money counts fallback:', err);
+  }
+
+  const [wargaSnap, recSnap, mutSnap, reguSnap, sessSnap] = await Promise.all([
     fetchCollectionFresh(WARGA_COL),
     fetchCollectionFresh(RECORDS_COL),
     fetchCollectionFresh(MUTATIONS_COL),
+    fetchCollectionFresh(REGU_COL),
+    fetchCollectionFresh(SESSIONS_COL),
   ]);
 
   const rawWarga: Warga[] = [];
@@ -604,7 +765,26 @@ export const forceFetchAuthoritativeCloudData = async (): Promise<{
     (a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.createdAt || 0) - (a.createdAt || 0)
   );
 
-  return { settings, wargaList, records, mutations };
+  const reguList: ReguRonda[] = [];
+  reguSnap.forEach((d) => reguList.push({ id: d.id, ...d.data() } as ReguRonda));
+
+  const sessions: Record<string, RondaSession> = {};
+  sessSnap.forEach((d) => {
+    const data = d.data();
+    sessions[d.id] = {
+      tanggal: d.id,
+      status: data.status || 'active',
+      finishedAt: data.finishedAt,
+      reguId: data.reguId,
+      reguNama: data.reguNama,
+      petugas: data.petugas,
+      totalTerkumpul: typeof data.totalTerkumpul === 'number' ? data.totalTerkumpul : 0,
+      jumlahRumahScanned: typeof data.jumlahRumahScanned === 'number' ? data.jumlahRumahScanned : 0,
+      catatan: data.catatan,
+    };
+  });
+
+  return { settings, wargaList, records, mutations, reguList, moneyCounts, sessions };
 };
 
 // ==========================================
@@ -612,20 +792,44 @@ export const forceFetchAuthoritativeCloudData = async (): Promise<{
 // ==========================================
 export const subscribeReguList = (callback: (reguList: ReguRonda[]) => void): Unsubscribe => {
   const colRef = collection(db, REGU_COL);
-  return onSnapshot(colRef, (snapshot) => {
-    if (snapshot.empty) {
-      seedCleanRegu().catch(console.error);
-      callback(DEFAULT_REGU);
-    } else {
-      const list: ReguRonda[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as ReguRonda);
-      });
-      callback(list);
+  let didAttemptServerSeed = false;
+
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (snapshot.empty) {
+        if (!snapshot.metadata.fromCache && !didAttemptServerSeed) {
+          didAttemptServerSeed = true;
+          getDocsFromServer(colRef)
+            .then((serverSnap) => {
+              if (serverSnap.empty) {
+                seedCleanRegu().catch(console.error);
+                callback(DEFAULT_REGU);
+              } else {
+                const list: ReguRonda[] = [];
+                serverSnap.forEach((docSnap) => {
+                  list.push({ id: docSnap.id, ...docSnap.data() } as ReguRonda);
+                });
+                callback(list);
+              }
+            })
+            .catch(() => {
+              // Offline or unreachable server: keep cached regu list untouched
+            });
+        }
+      } else {
+        const list: ReguRonda[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as ReguRonda);
+        });
+        callback(list);
+      }
+    },
+    (err) => {
+      console.warn('Regu list sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Regu list sync fallback:', err);
-  });
+  );
 };
 
 export const saveReguListCloud = async (reguList: ReguRonda[]) => {
@@ -649,6 +853,7 @@ export const saveReguListCloud = async (reguList: ReguRonda[]) => {
     await batch.commit();
   } catch (err) {
     console.error('Failed to save regu list to cloud:', err);
+    throw err;
   }
 };
 
@@ -716,6 +921,7 @@ export const saveMoneyCountsCloud = async (counts: MoneyDenomination) => {
     }), { merge: true });
   } catch (err) {
     console.error('Failed to save money counts to cloud:', err);
+    throw err;
   }
 };
 
@@ -755,6 +961,7 @@ export const saveRondaSessionCloud = async (session: RondaSession) => {
     }), { merge: true });
   } catch (err) {
     console.error('Failed to save ronda session to cloud:', err);
+    throw err;
   }
 };
 
@@ -840,19 +1047,27 @@ export const deleteMonthDataCloud = async (monthQuery: string = '09') => {
       console.warn('Failed to batch delete sessions from cloud:', err);
     }
 
-    // 4. Clean local storage cache
+    // 4. Clean local storage cache & offline outboxes for this month
     try {
-      const rawRec = localStorage.getItem('jimpitan_records_v1');
-      if (rawRec) {
-        const parsed = JSON.parse(rawRec);
-        const filtered = parsed.filter((r: any) => !isTargetMonth(r.tanggal));
-        localStorage.setItem('jimpitan_records_v1', JSON.stringify(filtered));
+      for (const recKey of ['jimpitan_records_v1', 'jimpitan_outbox_records_v1']) {
+        const rawRec = localStorage.getItem(recKey);
+        if (rawRec) {
+          const parsed = JSON.parse(rawRec);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((r: any) => !isTargetMonth(r?.tanggal));
+            localStorage.setItem(recKey, JSON.stringify(filtered));
+          }
+        }
       }
-      const rawMut = localStorage.getItem('jimpitan_mutations_v1');
-      if (rawMut) {
-        const parsed = JSON.parse(rawMut);
-        const filtered = parsed.filter((m: any) => !isTargetMonth(m.tanggal));
-        localStorage.setItem('jimpitan_mutations_v1', JSON.stringify(filtered));
+      for (const mutKey of ['jimpitan_mutations_v1', 'jimpitan_outbox_mutations_v1']) {
+        const rawMut = localStorage.getItem(mutKey);
+        if (rawMut) {
+          const parsed = JSON.parse(rawMut);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((m: any) => !isTargetMonth(m?.tanggal));
+            localStorage.setItem(mutKey, JSON.stringify(filtered));
+          }
+        }
       }
       const rawSess = localStorage.getItem('jimpitan_sessions_v1');
       if (rawSess) {
@@ -953,6 +1168,7 @@ export const purgeArchiveAndDemoDataCloud = async () => {
     localStorage.setItem('jimpitan_records_v1', '[]');
     localStorage.setItem('jimpitan_mutations_v1', '[]');
     localStorage.setItem('jimpitan_sessions_v1', '{}');
+    localStorage.setItem('jimpitan_money_counter_v1', JSON.stringify(DEFAULT_MONEY_DENOMINATION));
     localStorage.setItem('jimpitan_money_v1', JSON.stringify(DEFAULT_MONEY_DENOMINATION));
   } catch (e) {
     console.warn('Local storage clear error:', e);
@@ -1082,7 +1298,7 @@ export const triggerAutoCloudBackup = async (payload: {
     if (now - lastBackupTime < 15 * 60 * 1000) {
       return null;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateIso();
     const backupId = `auto-backup-${today}-${Math.random().toString(36).substring(2, 7)}`;
     const backupObj: AppBackup = {
       id: backupId,

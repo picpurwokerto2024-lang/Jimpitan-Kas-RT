@@ -26,7 +26,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { JimpitanRecord, KasMutation, AppSettings, Warga, KasReportCustomOptions } from '../types';
-import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
+import { formatRupiah, formatTanggalIndo, formatLocalDateIsoFromMs } from '../utils/formatters';
 import { generateKasReportPdf } from '../utils/pdfReportGenerator';
 import { generateKasReportExcel } from '../utils/excelReportGenerator';
 import { notifyDownloadError } from '../utils/fileDownloader';
@@ -241,7 +241,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   // Filter mutations according to selected period
   const filteredMutations = safeMutations.filter((m) => {
     if (!m) return false;
-    const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+    const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
     if (!tgl) return false;
     if (filterType === 'hari') {
       return tgl === selectedDate;
@@ -279,7 +279,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   const pastMutasiMasukBulan = filterType === 'bulan'
     ? safeMutations
         .filter((m) => {
-          const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+          const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
           return tgl && tgl < `${selectedMonth}-01` && m.jenis === 'masuk';
         })
         .reduce((sum, m) => sum + (m.nominal || 0), 0)
@@ -288,7 +288,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({
   const pastMutasiKeluarBulan = filterType === 'bulan'
     ? safeMutations
         .filter((m) => {
-          const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+          const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
           return tgl && tgl < `${selectedMonth}-01` && m.jenis === 'keluar';
         })
         .reduce((sum, m) => sum + (m.nominal || 0), 0)

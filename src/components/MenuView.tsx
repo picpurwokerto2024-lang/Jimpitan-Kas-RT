@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { AppSettings, ReguRonda, Warga, JimpitanRecord, KasMutation, AppBackup, MonthlyArchive } from '../types';
 import { TabType } from './BottomNav';
-import { formatRupiah, formatTanggalIndo, getTodayDateIso } from '../utils/formatters';
+import { formatRupiah, formatTanggalIndo, getTodayDateIso, formatLocalDateIsoFromMs } from '../utils/formatters';
 import { LaporanTabKey } from './LaporanHubModal';
 import { 
   FileText, 
@@ -107,7 +107,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onOpenChangePinModal,
 }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
+  const lastSyncedSettingsJsonRef = React.useRef<string>(JSON.stringify(settings));
   const [isSavedAlert, setIsSavedAlert] = useState<boolean>(false);
+  const [saveErrorAlert, setSaveErrorAlert] = useState<string>('');
 
   // Admin PIN Unlock form state
   const [inputPin, setInputPin] = useState<string>('');
@@ -129,7 +131,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
       
       const filteredRecs = allRecords.filter((r) => r.tanggal && r.tanggal.startsWith(currentYearMonth));
       const filteredMuts = allMutations.filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl.startsWith(currentYearMonth);
       });
 
@@ -233,14 +235,39 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [isPinSaving, setIsPinSaving] = useState<boolean>(false);
 
   useEffect(() => {
-    setFormData(settings);
+    const serialized = JSON.stringify(settings);
+    if (lastSyncedSettingsJsonRef.current !== serialized) {
+      lastSyncedSettingsJsonRef.current = serialized;
+      setFormData(settings);
+    }
   }, [settings]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onUpdateSettings(formData);
-    setIsSavedAlert(true);
-    setTimeout(() => setIsSavedAlert(false), 2500);
+    setSaveErrorAlert('');
+    const candidatePenginput = (formData.pinPenginput || '').trim();
+    const safePinPenginput = /^\d{4,8}$/.test(candidatePenginput)
+      ? candidatePenginput
+      : (settings.pinPenginput && settings.pinPenginput.trim()) || '4321';
+
+    if (candidatePenginput && !/^\d{4,8}$/.test(candidatePenginput)) {
+      setSaveErrorAlert('PIN Penginput harus berupa 4 - 8 digit angka.');
+      return;
+    }
+
+    try {
+      await onUpdateSettings({
+        ...settings,
+        ...formData,
+        saldoAwalKas: Math.max(0, Number(formData.saldoAwalKas) || 0),
+        pinAdmin: (settings.pinAdmin && settings.pinAdmin.trim()) || '1234',
+        pinPenginput: safePinPenginput,
+      });
+      setIsSavedAlert(true);
+      setTimeout(() => setIsSavedAlert(false), 2500);
+    } catch {
+      setSaveErrorAlert('Gagal menyimpan pengaturan ke Cloud. Periksa koneksi internet.');
+    }
   };
 
   const handleUnlockSubmit = (e: React.FormEvent) => {
@@ -374,7 +401,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [monthlyArchivesList, setMonthlyArchivesList] = useState<MonthlyArchive[]>([]);
   const [isLoadingCloudSnapshots, setIsLoadingCloudSnapshots] = useState<boolean>(false);
   const [selectedArchiveYearMonth, setSelectedArchiveYearMonth] = useState<string>(
-    new Date().toISOString().slice(0, 7)
+    getTodayDateIso().slice(0, 7)
   );
 
   const loadCloudBackupsAndArchives = useCallback(async () => {
@@ -485,7 +512,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
     const monthRecords = allRecords.filter((r) => r.tanggal && r.tanggal.startsWith(ym));
     const monthMutations = allMutations.filter((m) => {
-      const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '';
+      const tgl = m.tanggal ? m.tanggal.split('T')[0] : m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '';
       return tgl.startsWith(ym);
     });
 
@@ -556,7 +583,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
       triggerFileDownloadOrShare(
         blob,
-        `Backup_Jimpitan_${formData?.namaRt || 'RT08'}_${new Date().toISOString().slice(0, 10)}.json`
+        `Backup_Jimpitan_${formData?.namaRt || 'RT08'}_${getTodayDateIso()}.json`
       );
     } catch (err) {
       notifyDownloadError('Gagal mengunduh file cadangan JSON.', err);
@@ -1333,7 +1360,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
             {isSavedAlert && (
               <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-2 animate-in fade-in">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>Pengaturan berhasil disimpan!</span>
+                <span>Pengaturan berhasil disimpan ke Cloud!</span>
+              </div>
+            )}
+
+            {saveErrorAlert && (
+              <div className="p-3 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold flex items-center space-x-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{saveErrorAlert}</span>
               </div>
             )}
 

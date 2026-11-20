@@ -45,7 +45,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { JimpitanRecord, KasMutation, ReguRonda, AppSettings, AppMode, UserPresence, Warga } from '../types';
-import { formatRupiah, formatTanggalIndo, formatTanggalSingkat, getTodayDateIso } from '../utils/formatters';
+import { formatRupiah, formatTanggalIndo, formatTanggalSingkat, getTodayDateIso, formatLocalDateIsoFromMs } from '../utils/formatters';
 import { AppTheme, AVAILABLE_THEMES } from '../utils/themeManager';
 import { JimpitanTrendChart } from './JimpitanTrendChart';
 
@@ -346,7 +346,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const pastMutasiMasuk = useMemo(() => {
     return kasMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'masuk';
       })
       .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
@@ -355,7 +355,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const pastMutasiKeluar = useMemo(() => {
     return kasMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 10) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl < `${currentYearMonth}-01` && m.jenis === 'keluar';
       })
       .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
@@ -374,7 +374,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const thisMonthMutasiMasuk = useMemo(() => {
     return kasMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'masuk';
       })
       .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
@@ -383,7 +383,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const thisMonthMutasiKeluar = useMemo(() => {
     return kasMutations
       .filter((m) => {
-        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? new Date(m.createdAt).toISOString().slice(0, 7) : '');
+        const tgl = m.tanggal ? m.tanggal.split('T')[0] : (m.createdAt ? formatLocalDateIsoFromMs(m.createdAt) : '');
         return tgl && tgl.startsWith(currentYearMonth) && m.jenis === 'keluar';
       })
       .reduce((sum, m) => sum + (Number(m.nominal) || 0), 0);
@@ -447,7 +447,7 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
           const cleanDate = m.tanggal.split('T')[0];
           if (cleanDate.startsWith(currentYearMonth)) return true;
         } else if (m.createdAt) {
-          const createdMonth = new Date(m.createdAt).toISOString().slice(0, 7);
+          const createdMonth = formatLocalDateIsoFromMs(m.createdAt).slice(0, 7);
           if (createdMonth === currentYearMonth) return true;
         }
         return false;

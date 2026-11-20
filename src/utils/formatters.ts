@@ -100,12 +100,20 @@ export const formatTanggalSingkat = (tanggalIso: string): string => {
   }
 };
 
-export const getTodayDateIso = (): string => {
-  const d = new Date();
+export const formatLocalDateIsoFromMs = (ms?: number | Date): string => {
+  const d = ms instanceof Date ? ms : typeof ms === 'number' && Number.isFinite(ms) ? new Date(ms) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+export const getTodayDateIso = (): string => {
+  return formatLocalDateIsoFromMs(new Date());
 };
 
 export const getShiftedDateIso = (baseIso: string, offsetDays: number): string => {
