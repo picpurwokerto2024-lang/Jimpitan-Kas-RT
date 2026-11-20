@@ -127,6 +127,10 @@ export interface AppBackup {
   timestamp: number;
   createdAtIso: string;
   source: 'auto' | 'manual';
+  chunkPartIds?: string[];
+  isChunk?: boolean;
+  parentBackupId?: string;
+  partIndex?: number;
   stats: {
     wargaCount: number;
     recordsCount: number;

@@ -141,20 +141,35 @@ export const commitChunkedBatch = async <T>(
   }
 };
 
-// Helper to recursively remove undefined fields so Firestore setDoc/updateDoc never fails
-export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => {
-  const result: any = {};
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (val !== undefined) {
-      if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
-        result[key] = cleanFirestoreData(val);
-      } else {
-        result[key] = val;
+const isPlainObject = (val: unknown): val is Record<string, any> => {
+  if (val === null || typeof val !== 'object' || Array.isArray(val)) return false;
+  const proto = Object.getPrototypeOf(val);
+  return proto === Object.prototype || proto === null;
+};
+
+export const cleanFirestoreValue = (val: any): any => {
+  if (val === undefined) return undefined;
+  if (Array.isArray(val)) {
+    return val
+      .map((item) => cleanFirestoreValue(item))
+      .filter((item) => item !== undefined);
+  }
+  if (isPlainObject(val)) {
+    const result: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      const cleaned = cleanFirestoreValue(val[key]);
+      if (cleaned !== undefined) {
+        result[key] = cleaned;
       }
     }
+    return result;
   }
-  return result;
+  return val;
+};
+
+// Helper to recursively remove undefined fields (including objects inside arrays) so Firestore setDoc/updateDoc never fails
+export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => {
+  return cleanFirestoreValue(obj) as T;
 };
 
 // ==========================================
@@ -192,7 +207,7 @@ export const subscribeSettings = (callback: (settings: AppSettings) => void): Un
   const settingsDocRef = doc(db, 'settings', 'current');
   const settingsBackupRef = doc(db, 'settings', 'backup');
   let didAttemptServerSeed = false;
-  let didAttemptBackupRecovery = false;
+  let lastBackupRecoveryAttemptMs = 0;
 
   return onSnapshot(
     settingsDocRef,
@@ -203,15 +218,21 @@ export const subscribeSettings = (callback: (settings: AppSettings) => void): Un
         const raw = snap.data() as Record<string, any>;
         const normalized = normalizeSettingsPayload(raw);
 
-        // If an older client/PWA accidentally overwrote settings/current with un-timestamped
-        // DEFAULT_SETTINGS, check settings/backup on server to recover custom PINs & Saldo Awal.
+        // Ignore un-timestamped cache-only default settings on cold/legacy devices until server responds
+        if (isFromCache && raw.updatedAt === undefined && !hasCustomSettings(normalized)) {
+          return;
+        }
+
+        // If an older client/PWA overwrote settings/current with un-timestamped DEFAULT_SETTINGS,
+        // automatically recover custom PINs & Saldo Awal from settings/backup (cooldown 5s).
+        const now = Date.now();
         if (
           !isFromCache &&
-          !didAttemptBackupRecovery &&
           raw.updatedAt === undefined &&
-          !hasCustomSettings(normalized)
+          !hasCustomSettings(normalized) &&
+          now - lastBackupRecoveryAttemptMs > 5000
         ) {
-          didAttemptBackupRecovery = true;
+          lastBackupRecoveryAttemptMs = now;
           getDocFromServer(settingsBackupRef)
             .then((backupSnap) => {
               if (backupSnap.exists()) {
@@ -319,21 +340,28 @@ export const seedCleanWarga = async (initialList?: Warga[]) => {
 
 export const subscribeWarga = (callback: (wargaList: Warga[]) => void): Unsubscribe => {
   const colRef = collection(db, WARGA_COL);
-  return onSnapshot(colRef, (snapshot) => {
-    if (snapshot.empty) {
-      callback([]);
-    } else {
-      const list: Warga[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as Warga);
-      });
-      // Deduplicate for in-memory view to ensure clean UI presentation
-      const { cleanList } = deduplicateWargaArray(list);
-      callback(cleanList);
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (snapshot.empty) {
+        if (!snapshot.metadata.fromCache) {
+          callback([]);
+        }
+      } else {
+        const list: Warga[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as Warga);
+        });
+        // Deduplicate for in-memory view to ensure clean UI presentation
+        const { cleanList } = deduplicateWargaArray(list);
+        callback(cleanList);
+      }
+    },
+    (err) => {
+      console.warn('Warga sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Warga sync fallback:', err);
-  });
+  );
 };
 
 export const deduplicateCloudWargaNow = async (): Promise<{ cleanedCount: number; totalWarga: number }> => {
@@ -847,7 +875,7 @@ export const saveReguListCloud = async (reguList: ReguRonda[]) => {
     reguList.forEach((r) => {
       const ref = doc(db, REGU_COL, r.id);
       const { id, ...data } = r;
-      batch.set(ref, cleanFirestoreData(data), { merge: true });
+      batch.set(ref, cleanFirestoreData({ ...data, updatedAt: Date.now() }), { merge: true });
     });
 
     await batch.commit();
@@ -890,26 +918,31 @@ export const DEFAULT_MONEY_DENOMINATION: MoneyDenomination = {
 
 export const subscribeMoneyCounts = (callback: (counts: MoneyDenomination) => void): Unsubscribe => {
   const moneyDocRef = doc(db, 'money_counts', 'latest');
-  return onSnapshot(moneyDocRef, (snap) => {
-    if (snap.exists()) {
-      const data = snap.data();
-      callback({
-        koin100: Number(data.koin100) || 0,
-        koin200: Number(data.koin200) || 0,
-        koin500: Number(data.koin500) || 0,
-        koin1000: Number(data.koin1000) || 0,
-        kertas1000: Number(data.kertas1000) || 0,
-        kertas2000: Number(data.kertas2000) || 0,
-        kertas5000: Number(data.kertas5000) || 0,
-        kertas10000: Number(data.kertas10000) || 0,
-        kertas20000: Number(data.kertas20000) || 0,
-        kertas50000: Number(data.kertas50000) || 0,
-        kertas100000: Number(data.kertas100000) || 0,
-      });
+  return onSnapshot(
+    moneyDocRef,
+    { includeMetadataChanges: true },
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        callback({
+          koin100: Number(data.koin100) || 0,
+          koin200: Number(data.koin200) || 0,
+          koin500: Number(data.koin500) || 0,
+          koin1000: Number(data.koin1000) || 0,
+          kertas1000: Number(data.kertas1000) || 0,
+          kertas2000: Number(data.kertas2000) || 0,
+          kertas5000: Number(data.kertas5000) || 0,
+          kertas10000: Number(data.kertas10000) || 0,
+          kertas20000: Number(data.kertas20000) || 0,
+          kertas50000: Number(data.kertas50000) || 0,
+          kertas100000: Number(data.kertas100000) || 0,
+        });
+      }
+    },
+    (err) => {
+      console.warn('Money counts sync fallback:', err);
     }
-  }, (err) => {
-    console.warn('Money counts sync fallback:', err);
-  });
+  );
 };
 
 export const saveMoneyCountsCloud = async (counts: MoneyDenomination) => {
@@ -930,26 +963,34 @@ export const saveMoneyCountsCloud = async (counts: MoneyDenomination) => {
 // ==========================================
 export const subscribeRondaSessions = (callback: (sessions: Record<string, RondaSession>) => void): Unsubscribe => {
   const colRef = collection(db, SESSIONS_COL);
-  return onSnapshot(colRef, (snapshot) => {
-    const sessionsMap: Record<string, RondaSession> = {};
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      sessionsMap[docSnap.id] = {
-        tanggal: docSnap.id,
-        status: data.status || 'active',
-        finishedAt: data.finishedAt,
-        reguId: data.reguId,
-        reguNama: data.reguNama,
-        petugas: data.petugas,
-        totalTerkumpul: typeof data.totalTerkumpul === 'number' ? data.totalTerkumpul : 0,
-        jumlahRumahScanned: typeof data.jumlahRumahScanned === 'number' ? data.jumlahRumahScanned : 0,
-        catatan: data.catatan,
-      };
-    });
-    callback(sessionsMap);
-  }, (err) => {
-    console.warn('Ronda sessions sync fallback:', err);
-  });
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (snapshot.empty && snapshot.metadata.fromCache) {
+        return;
+      }
+      const sessionsMap: Record<string, RondaSession> = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        sessionsMap[docSnap.id] = {
+          tanggal: docSnap.id,
+          status: data.status || 'active',
+          finishedAt: data.finishedAt,
+          reguId: data.reguId,
+          reguNama: data.reguNama,
+          petugas: data.petugas,
+          totalTerkumpul: typeof data.totalTerkumpul === 'number' ? data.totalTerkumpul : 0,
+          jumlahRumahScanned: typeof data.jumlahRumahScanned === 'number' ? data.jumlahRumahScanned : 0,
+          catatan: data.catatan,
+        };
+      });
+      callback(sessionsMap);
+    },
+    (err) => {
+      console.warn('Ronda sessions sync fallback:', err);
+    }
+  );
 };
 
 export const saveRondaSessionCloud = async (session: RondaSession) => {
@@ -1245,30 +1286,87 @@ export const restoreFullCloudBackup = async (backupData: {
 };
 
 // ==========================================
-// 6. CLOUD BACKUPS (AUTOMATIC & MANUAL)
+// 6. CLOUD BACKUPS (AUTOMATIC & MANUAL, >1MB CHUNK-SAFE)
 // ==========================================
+const BACKUP_RECORDS_PER_DOC = 900; // ~280 KB per doc, safely under Firestore's 1 MiB limit
+
 export const saveCloudBackup = async (backup: AppBackup): Promise<void> => {
   try {
-    const docRef = doc(db, BACKUPS_COL, backup.id);
-    await setDoc(docRef, cleanFirestoreData(backup));
-    console.log(`✅ Cloud backup saved: ${backup.id}`);
+    const allRecs = Array.isArray(backup.data?.records) ? backup.data.records : [];
+    const recordChunks = chunkArray(allRecs, BACKUP_RECORDS_PER_DOC);
+    const firstChunk = recordChunks[0] || [];
+    const extraChunks = recordChunks.slice(1);
+    const chunkPartIds = extraChunks.map((_, idx) => `${backup.id}__part_${idx + 1}`);
 
-    // Prune older auto-backups (keep max 15 latest auto-backups to maintain lean database)
+    const mainDocPayload: AppBackup = {
+      ...backup,
+      chunkPartIds: chunkPartIds.length > 0 ? chunkPartIds : undefined,
+      data: {
+        ...backup.data,
+        records: firstChunk,
+      },
+    };
+
+    await setDoc(doc(db, BACKUPS_COL, backup.id), cleanFirestoreData(mainDocPayload));
+
+    if (extraChunks.length > 0) {
+      for (let i = 0; i < extraChunks.length; i++) {
+        const partId = chunkPartIds[i];
+        const partDoc = {
+          id: partId,
+          timestamp: backup.timestamp,
+          createdAtIso: backup.createdAtIso,
+          source: backup.source,
+          isChunk: true,
+          parentBackupId: backup.id,
+          partIndex: i + 1,
+          stats: backup.stats,
+          data: {
+            records: extraChunks[i],
+          },
+        };
+        await setDoc(doc(db, BACKUPS_COL, partId), cleanFirestoreData(partDoc));
+      }
+    }
+
+    console.log(`✅ Cloud backup saved: ${backup.id} (${allRecs.length} records, ${1 + extraChunks.length} part(s))`);
+
+    // Prune older auto-backups (keep max 10 latest auto-backups + their chunk parts)
     if (backup.source === 'auto') {
       try {
         const snap = await getDocs(collection(db, BACKUPS_COL));
-        const autoBackups: { id: string; timestamp: number }[] = [];
+        const autoBackups: { id: string; timestamp: number; chunkPartIds?: string[] }[] = [];
+        const allChunkDocsByParent = new Map<string, string[]>();
+
         snap.forEach((d) => {
           const data = d.data();
+          if (data.isChunk && data.parentBackupId) {
+            const arr = allChunkDocsByParent.get(data.parentBackupId) || [];
+            arr.push(d.id);
+            allChunkDocsByParent.set(data.parentBackupId, arr);
+            return;
+          }
           if (data.source === 'auto') {
-            autoBackups.push({ id: d.id, timestamp: data.timestamp || 0 });
+            autoBackups.push({
+              id: d.id,
+              timestamp: data.timestamp || 0,
+              chunkPartIds: Array.isArray(data.chunkPartIds) ? data.chunkPartIds : undefined,
+            });
           }
         });
-        if (autoBackups.length > 15) {
+
+        if (autoBackups.length > 10) {
           autoBackups.sort((a, b) => b.timestamp - a.timestamp);
-          const toDelete = autoBackups.slice(15);
+          const toDelete = autoBackups.slice(10);
           for (const oldB of toDelete) {
             deleteDoc(doc(db, BACKUPS_COL, oldB.id)).catch(() => {});
+            const partIds = new Set<string>([
+              ...(oldB.chunkPartIds || []),
+              ...(allChunkDocsByParent.get(oldB.id) || []),
+            ]);
+            partIds.forEach((pid) => {
+              deleteDoc(doc(db, BACKUPS_COL, pid)).catch(() => {});
+            });
           }
         }
       } catch (pruneErr) {
@@ -1281,25 +1379,29 @@ export const saveCloudBackup = async (backup: AppBackup): Promise<void> => {
   }
 };
 
-export const triggerAutoCloudBackup = async (payload: {
-  settings: AppSettings;
-  warga: Warga[];
-  records: JimpitanRecord[];
-  mutations: KasMutation[];
-  regu: ReguRonda[];
-  moneyCounts?: MoneyDenomination;
-  sessions?: Record<string, RondaSession>;
-  totalKas: number;
-}): Promise<AppBackup | null> => {
+export const triggerAutoCloudBackup = async (
+  payload: {
+    settings: AppSettings;
+    warga: Warga[];
+    records: JimpitanRecord[];
+    mutations: KasMutation[];
+    regu: ReguRonda[];
+    moneyCounts?: MoneyDenomination;
+    sessions?: Record<string, RondaSession>;
+    totalKas: number;
+  },
+  options?: { force?: boolean }
+): Promise<AppBackup | null> => {
   try {
     const lastBackupTime = Number(localStorage.getItem('jimpitan_last_auto_backup') || '0');
     const now = Date.now();
-    // Throttle auto-backups to once per 15 minutes unless it's the very first time
-    if (now - lastBackupTime < 15 * 60 * 1000) {
+    const minIntervalMs = options?.force ? 2 * 60 * 1000 : 15 * 60 * 1000;
+    if (now - lastBackupTime < minIntervalMs) {
       return null;
     }
     const today = getTodayDateIso();
     const backupId = `auto-backup-${today}-${Math.random().toString(36).substring(2, 7)}`;
+    const sessionsArr = payload.sessions ? Object.values(payload.sessions) : undefined;
     const backupObj: AppBackup = {
       id: backupId,
       timestamp: now,
@@ -1319,6 +1421,7 @@ export const triggerAutoCloudBackup = async (payload: {
         mutations: payload.mutations,
         regu: payload.regu,
         moneyCounts: payload.moneyCounts,
+        sessions: sessionsArr,
       },
     };
     await saveCloudBackup(backupObj);
@@ -1335,7 +1438,9 @@ export const getCloudBackups = async (): Promise<AppBackup[]> => {
     const snap = await getDocs(collection(db, BACKUPS_COL));
     const list: AppBackup[] = [];
     snap.forEach((docSnap) => {
-      list.push({ id: docSnap.id, ...docSnap.data() } as AppBackup);
+      const data = docSnap.data() as AppBackup;
+      if (data.isChunk) return;
+      list.push({ ...data, id: docSnap.id });
     });
     return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   } catch (err) {
@@ -1344,9 +1449,44 @@ export const getCloudBackups = async (): Promise<AppBackup[]> => {
   }
 };
 
+export const resolveFullCloudBackup = async (backup: AppBackup): Promise<AppBackup> => {
+  if (!backup.chunkPartIds || backup.chunkPartIds.length === 0) {
+    return backup;
+  }
+  const extraRecords: JimpitanRecord[] = [];
+  for (const partId of backup.chunkPartIds) {
+    try {
+      const partSnap = await getDoc(doc(db, BACKUPS_COL, partId));
+      if (partSnap.exists()) {
+        const partData = partSnap.data();
+        if (Array.isArray(partData?.data?.records)) {
+          extraRecords.push(...partData.data.records);
+        }
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch backup chunk ${partId}:`, err);
+    }
+  }
+  return {
+    ...backup,
+    data: {
+      ...backup.data,
+      records: [...(backup.data?.records || []), ...extraRecords],
+    },
+  };
+};
+
 export const deleteCloudBackup = async (backupId: string): Promise<void> => {
   try {
+    const mainSnap = await getDoc(doc(db, BACKUPS_COL, backupId));
+    const partIds: string[] =
+      mainSnap.exists() && Array.isArray(mainSnap.data()?.chunkPartIds)
+        ? mainSnap.data().chunkPartIds
+        : [];
     await deleteDoc(doc(db, BACKUPS_COL, backupId));
+    for (const partId of partIds) {
+      await deleteDoc(doc(db, BACKUPS_COL, partId)).catch(() => {});
+    }
     console.log(`🗑️ Cloud backup deleted: ${backupId}`);
   } catch (err) {
     console.error('Failed to delete cloud backup:', err);

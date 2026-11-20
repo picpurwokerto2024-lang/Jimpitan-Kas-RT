@@ -51,6 +51,7 @@ import { triggerFileDownloadOrShare, triggerCsvDownload, notifyDownloadError } f
 import { 
   saveCloudBackup, 
   getCloudBackups, 
+  resolveFullCloudBackup,
   deleteCloudBackup, 
   saveMonthlyArchiveCloud, 
   getMonthlyArchivesCloud, 
@@ -484,9 +485,29 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [cloudBackupsList, setCloudBackupsList] = useState<AppBackup[]>([]);
   const [monthlyArchivesList, setMonthlyArchivesList] = useState<MonthlyArchive[]>([]);
   const [isLoadingCloudSnapshots, setIsLoadingCloudSnapshots] = useState<boolean>(false);
+  const [isCreatingCloudSnapshot, setIsCreatingCloudSnapshot] = useState<boolean>(false);
+  const [isRestoringCloudId, setIsRestoringCloudId] = useState<string | null>(null);
+  const [backupStatusBanner, setBackupStatusBanner] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const [pendingConfirmAction, setPendingConfirmAction] = useState<
+    | { type: 'restore_cloud'; backup: AppBackup }
+    | { type: 'delete_cloud'; backupId: string }
+    | { type: 'delete_archive'; archiveId: string }
+    | { type: 'reset_all' }
+    | { type: 'load_sample' }
+    | { type: 'delete_sept' }
+    | null
+  >(null);
+  const [resetConfirmText, setResetConfirmText] = useState<string>('');
   const [selectedArchiveYearMonth, setSelectedArchiveYearMonth] = useState<string>(
     getTodayDateIso().slice(0, 7)
   );
+
+  const showBackupNotice = (text: string, tone: 'success' | 'error' = 'success') => {
+    setBackupStatusBanner({ text, tone });
+    setTimeout(() => {
+      setBackupStatusBanner((prev) => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
 
   const loadCloudBackupsAndArchives = useCallback(async () => {
     setIsLoadingCloudSnapshots(true);
@@ -512,10 +533,13 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   // Create Manual Cloud Snapshot
   const handleCreateManualCloudSnapshot = async () => {
-    const totalKasCalculated = (Number(formData.saldoAwalKas) || 0) +
-      allRecords.reduce((s, r) => s + (r.nominal || 0), 0) +
-      allMutations.filter((m) => m.jenis === 'masuk').reduce((s, m) => s + (m.nominal || 0), 0) -
-      allMutations.filter((m) => m.jenis === 'keluar').reduce((s, m) => s + (m.nominal || 0), 0);
+    setIsCreatingCloudSnapshot(true);
+    const activeMasterSaldo = Number(settings.saldoAwalKas) || 0;
+    const totalKasCalculated =
+      activeMasterSaldo +
+      allRecords.reduce((s, r) => s + (r.status === 'kosong' || r.status === 'lewat' ? 0 : Number(r.nominal) || 0), 0) +
+      allMutations.filter((m) => m.jenis === 'masuk').reduce((s, m) => s + (Number(m.nominal) || 0), 0) -
+      allMutations.filter((m) => m.jenis === 'keluar').reduce((s, m) => s + (Number(m.nominal) || 0), 0);
 
     const backupId = `manual-snapshot-${Date.now()}`;
     const backupObj: AppBackup = {
@@ -531,7 +555,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
         totalKas: totalKasCalculated,
       },
       data: {
-        settings: formData,
+        settings: { ...settings, ...formData, saldoAwalKas: activeMasterSaldo },
         warga: allWarga,
         records: allRecords,
         mutations: allMutations,
@@ -541,48 +565,48 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
     try {
       await saveCloudBackup(backupObj);
-      alert('✅ Berhasil membuat Snapshot Cadangan Cloud RT!');
-      loadCloudBackupsAndArchives();
-    } catch (err) {
-      alert('Gagal menyimpan snapshot cloud.');
+      showBackupNotice('Berhasil membuat Snapshot Cadangan Cloud RT!', 'success');
+      await loadCloudBackupsAndArchives();
+    } catch {
+      showBackupNotice('Gagal menyimpan snapshot cloud. Periksa koneksi internet.', 'error');
+    } finally {
+      setIsCreatingCloudSnapshot(false);
     }
   };
 
-  // Restore Cloud Snapshot
-  const handleRestoreCloudSnapshot = async (backup: AppBackup) => {
-    if (
-      !window.confirm(
-        `KONFIRMASI RESTORE:\nPulihkan database dari cadangan "${formatTanggalIndo(
-          backup.createdAtIso.slice(0, 10)
-        )}"?\n\n• ${backup.stats.wargaCount} Rumah Warga\n• ${backup.stats.recordsCount} Catatan Jimpitan\n• ${backup.stats.mutationsCount} Mutasi Kas`
-      )
-    ) {
-      return;
-    }
-
+  // Execute Confirmed Cloud Restore (reassembles multi-part chunks cleanly)
+  const executeRestoreCloudSnapshot = async (backup: AppBackup) => {
+    setIsRestoringCloudId(backup.id);
     try {
+      const fullBackup = await resolveFullCloudBackup(backup);
       onRestoreFullBackup({
-        settings: backup.data.settings,
-        allWarga: backup.data.warga,
-        allRecords: backup.data.records,
-        allMutations: backup.data.mutations,
-        reguList: backup.data.regu,
-        moneyCounts: backup.data.moneyCounts,
+        settings: fullBackup.data.settings,
+        allWarga: fullBackup.data.warga,
+        allRecords: fullBackup.data.records,
+        allMutations: fullBackup.data.mutations,
+        reguList: fullBackup.data.regu,
+        moneyCounts: fullBackup.data.moneyCounts,
+        sessions: fullBackup.data.sessions,
       });
-      alert('✅ Pemulihan data cadangan berhasil diterapkan!');
-    } catch (err) {
-      alert('Gagal memulihkan cadangan.');
+      showBackupNotice(
+        `Pemulihan selesai (${fullBackup.data.warga?.length || 0} rumah, ${fullBackup.data.records?.length || 0} catatan).`,
+        'success'
+      );
+    } catch {
+      showBackupNotice('Gagal memulihkan cadangan dari Cloud.', 'error');
+    } finally {
+      setIsRestoringCloudId(null);
     }
   };
 
-  // Delete Cloud Snapshot
-  const handleDeleteCloudSnapshot = async (backupId: string) => {
-    if (!window.confirm('Hapus file snapshot cloud ini secara permanen?')) return;
+  // Execute Confirmed Cloud Snapshot Delete
+  const executeDeleteCloudSnapshot = async (backupId: string) => {
     try {
       await deleteCloudBackup(backupId);
       setCloudBackupsList((prev) => prev.filter((b) => b.id !== backupId));
-    } catch (err) {
-      alert('Gagal menghapus snapshot cloud.');
+      showBackupNotice('Snapshot cloud berhasil dihapus.', 'success');
+    } catch {
+      showBackupNotice('Gagal menghapus snapshot cloud.', 'error');
     }
   };
 
@@ -592,7 +616,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
     const [year, month] = ym.split('-').map(Number);
     const dateObj = new Date(year, month - 1, 1);
     const monthLabel = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    const daysInMonth = new Date(year, month, 0).getDate();
 
     const monthRecords = allRecords.filter((r) => r.tanggal && r.tanggal.startsWith(ym));
     const monthMutations = allMutations.filter((m) => {
@@ -632,21 +655,21 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
     try {
       await saveMonthlyArchiveCloud(archiveObj);
-      alert(`✅ Arsip Bulanan (${monthLabel}) berhasil dibukukan dan disimpan ke Cloud!`);
+      showBackupNotice(`Arsip Bulanan (${monthLabel}) berhasil disimpan ke Cloud!`, 'success');
       loadCloudBackupsAndArchives();
-    } catch (err) {
-      alert('Gagal membuat arsip bulanan.');
+    } catch {
+      showBackupNotice('Gagal membuat arsip bulanan.', 'error');
     }
   };
 
   // Delete Monthly Archive
-  const handleDeleteMonthlyArchive = async (archiveId: string) => {
-    if (!window.confirm('Hapus arsip bulanan ini dari cloud?')) return;
+  const executeDeleteMonthlyArchive = async (archiveId: string) => {
     try {
       await deleteMonthlyArchiveCloud(archiveId);
       setMonthlyArchivesList((prev) => prev.filter((a) => a.id !== archiveId));
-    } catch (err) {
-      alert('Gagal menghapus arsip bulanan.');
+      showBackupNotice('Arsip bulanan berhasil dihapus.', 'success');
+    } catch {
+      showBackupNotice('Gagal menghapus arsip bulanan.', 'error');
     }
   };
 
@@ -656,7 +679,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const backupObj = {
         version: '1.0',
         exportedAt: new Date().toISOString(),
-        settings: formData,
+        settings,
         reguList,
         allWarga,
         allRecords,
@@ -667,8 +690,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
       triggerFileDownloadOrShare(
         blob,
-        `Backup_Jimpitan_${formData?.namaRt || 'RT08'}_${getTodayDateIso()}.json`
+        `Backup_Jimpitan_${settings?.namaRt || 'RT08'}_${getTodayDateIso()}.json`
       );
+      showBackupNotice('File cadangan JSON berhasil disiapkan.', 'success');
     } catch (err) {
       notifyDownloadError('Gagal mengunduh file cadangan JSON.', err);
     }
@@ -685,15 +709,41 @@ export const MenuView: React.FC<MenuViewProps> = ({
         const parsed = JSON.parse(event.target?.result as string);
         if (parsed.allWarga && parsed.settings) {
           onRestoreFullBackup(parsed);
-          alert('Data berhasil dipulihkan dari file cadangan!');
+          showBackupNotice('Data berhasil dipulihkan dari file cadangan JSON!', 'success');
         } else {
-          alert('Format file cadangan tidak valid.');
+          showBackupNotice('Format file cadangan JSON tidak valid.', 'error');
         }
-      } catch (err) {
-        alert('Gagal membaca file cadangan JSON.');
+      } catch {
+        showBackupNotice('Gagal membaca file cadangan JSON.', 'error');
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleConfirmPendingAction = async () => {
+    const action = pendingConfirmAction;
+    if (!action) return;
+    if (action.type === 'reset_all' && resetConfirmText.trim().toUpperCase() !== 'RESET') {
+      return;
+    }
+    setPendingConfirmAction(null);
+    setResetConfirmText('');
+
+    if (action.type === 'restore_cloud') {
+      await executeRestoreCloudSnapshot(action.backup);
+    } else if (action.type === 'delete_cloud') {
+      await executeDeleteCloudSnapshot(action.backupId);
+    } else if (action.type === 'delete_archive') {
+      await executeDeleteMonthlyArchive(action.archiveId);
+    } else if (action.type === 'reset_all') {
+      onResetAllData();
+      loadCloudBackupsAndArchives();
+    } else if (action.type === 'load_sample') {
+      onLoadSampleData();
+    } else if (action.type === 'delete_sept') {
+      onDeleteSeptemberData?.();
+    }
   };
 
   return (
@@ -1758,9 +1808,120 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
             {/* Backup, Restore & Reset */}
             <div className="space-y-3 pt-3 border-t border-stone-100">
-              <div className="flex items-center space-x-2 text-stone-800 font-bold text-xs">
-                <Download className="w-4 h-4 text-sky-600" />
-                <span>Cadangkan & Pulihkan Data RT</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-stone-800 font-bold text-xs">
+                  <Cloud className="w-4 h-4 text-sky-600" />
+                  <span>Cadangan Otomatis & Pulihkan Data RT</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadCloudBackupsAndArchives}
+                  disabled={isLoadingCloudSnapshots}
+                  className="text-[11px] font-bold text-sky-700 hover:text-sky-900 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingCloudSnapshots ? 'animate-spin' : ''}`} />
+                  <span>Muat Ulang</span>
+                </button>
+              </div>
+
+              {backupStatusBanner && (
+                <div
+                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center space-x-2 animate-in fade-in ${
+                    backupStatusBanner.tone === 'error'
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  }`}
+                >
+                  {backupStatusBanner.tone === 'error' ? (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  ) : (
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                  <span>{backupStatusBanner.text}</span>
+                </div>
+              )}
+
+              {/* Cloud Snapshot Actions & List */}
+              <div className="p-3 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-extrabold text-sky-950">
+                      Cadangan Cloud Real-Time (Anti Hilang)
+                    </p>
+                    <p className="text-[10px] text-sky-800/80">
+                      Sistem otomatis membuat snapshot berkala & setiap selesai ronda.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateManualCloudSnapshot}
+                    disabled={isCreatingCloudSnapshot}
+                    className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-[11px] font-extrabold flex items-center space-x-1.5 shrink-0 shadow-xs cursor-pointer"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>{isCreatingCloudSnapshot ? 'Menyimpan...' : 'Cadangkan Cloud'}</span>
+                  </button>
+                </div>
+
+                {cloudBackupsList.length > 0 ? (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                    {cloudBackupsList.slice(0, 8).map((b) => {
+                      const datePart = (b.createdAtIso || '').slice(0, 10);
+                      const timeStr = b.timestamp
+                        ? new Date(b.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                        : '';
+                      const isRestoringThis = isRestoringCloudId === b.id;
+                      return (
+                        <div
+                          key={b.id}
+                          className="p-2.5 rounded-xl bg-white border border-sky-100 flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-1.5">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  b.source === 'auto'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {b.source === 'auto' ? 'Otomatis' : 'Manual'}
+                              </span>
+                              <span className="text-[11px] font-extrabold text-stone-800 truncate">
+                                {datePart ? formatTanggalIndo(datePart) : b.id} {timeStr ? `• ${timeStr}` : ''}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-stone-500 mt-0.5">
+                              {b.stats?.wargaCount || 0} rumah • {b.stats?.recordsCount || 0} catatan • {b.stats?.mutationsCount || 0} mutasi
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={Boolean(isRestoringCloudId)}
+                              onClick={() => setPendingConfirmAction({ type: 'restore_cloud', backup: b })}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10px] font-extrabold cursor-pointer"
+                            >
+                              {isRestoringThis ? 'Memulihkan...' : 'Pulihkan'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPendingConfirmAction({ type: 'delete_cloud', backupId: b.id })}
+                              className="p-1.5 rounded-lg bg-stone-100 hover:bg-rose-100 text-stone-500 hover:text-rose-700 cursor-pointer"
+                              title="Hapus Snapshot"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-stone-500 italic">
+                    {isLoadingCloudSnapshots ? 'Memuat daftar cadangan Cloud...' : 'Belum ada snapshot cloud tersimpan.'}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -1791,9 +1952,8 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Reset seluruh data kas, warga, dan rekapan jimpitan ke kondisi awal?')) {
-                        onResetAllData();
-                      }
+                      setResetConfirmText('');
+                      setPendingConfirmAction({ type: 'reset_all' });
                     }}
                     className="text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
                   >
@@ -1802,11 +1962,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm('Muat data contoh simulasi RT lengkap?')) {
-                        onLoadSampleData();
-                      }
-                    }}
+                    onClick={() => setPendingConfirmAction({ type: 'load_sample' })}
                     className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
                   >
                     Muat Data Simulasi
@@ -1817,11 +1973,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   <div className="pt-2 border-t border-stone-100 flex justify-center">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm('Apakah Anda yakin ingin menghapus seluruh data masuk jimpitan dan pengeluaran kas di bulan September?')) {
-                          onDeleteSeptemberData();
-                        }
-                      }}
+                      onClick={() => setPendingConfirmAction({ type: 'delete_sept' })}
                       className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-[11px] transition-colors cursor-pointer"
                     >
                       Hapus Semua Data Bulan September
@@ -1833,6 +1985,106 @@ export const MenuView: React.FC<MenuViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* IN-APP CONFIRMATION MODAL FOR BACKUP / RESTORE / RESET ACTIONS */}
+      {pendingConfirmAction && (
+        <div className="fixed inset-0 z-[80] bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-white rounded-3xl border border-stone-200 shadow-2xl p-5 space-y-4">
+            <div className="flex items-start space-x-3">
+              <div
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                  pendingConfirmAction.type === 'restore_cloud'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-stone-900">
+                  {pendingConfirmAction.type === 'restore_cloud'
+                    ? 'Konfirmasi Pemulihan Data Cloud'
+                    : pendingConfirmAction.type === 'delete_cloud'
+                      ? 'Hapus Snapshot Cloud?'
+                      : pendingConfirmAction.type === 'delete_archive'
+                        ? 'Hapus Arsip Bulanan?'
+                        : pendingConfirmAction.type === 'reset_all'
+                          ? 'Reset Semua Data RT?'
+                          : pendingConfirmAction.type === 'load_sample'
+                            ? 'Muat Data Simulasi?'
+                            : 'Hapus Data Bulan September?'}
+                </h4>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  {pendingConfirmAction.type === 'restore_cloud' && (
+                    <>
+                      Pulihkan database dari cadangan{' '}
+                      <strong>
+                        {pendingConfirmAction.backup.createdAtIso
+                          ? formatTanggalIndo(pendingConfirmAction.backup.createdAtIso.slice(0, 10))
+                          : ''}
+                      </strong>{' '}
+                      ({pendingConfirmAction.backup.stats.wargaCount} rumah,{' '}
+                      {pendingConfirmAction.backup.stats.recordsCount} catatan jimpitan,{' '}
+                      {pendingConfirmAction.backup.stats.mutationsCount} mutasi kas)?
+                    </>
+                  )}
+                  {pendingConfirmAction.type === 'delete_cloud' &&
+                    'Snapshot cadangan cloud ini akan dihapus permanen.'}
+                  {pendingConfirmAction.type === 'delete_archive' &&
+                    'Arsip bulanan ini akan dihapus permanen dari cloud.'}
+                  {pendingConfirmAction.type === 'reset_all' &&
+                    'Sistem akan menyimpan cadangan keamanan otomatis sebelum mengosongkan seluruh transaksi kas & jimpitan. Ketik RESET untuk melanjutkan.'}
+                  {pendingConfirmAction.type === 'load_sample' &&
+                    'Data aktif saat ini akan diganti dengan data contoh simulasi RT.'}
+                  {pendingConfirmAction.type === 'delete_sept' &&
+                    'Seluruh data masuk jimpitan dan pengeluaran kas di bulan September akan dihapus dari database.'}
+                </p>
+              </div>
+            </div>
+
+            {pendingConfirmAction.type === 'reset_all' && (
+              <div>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="Ketik RESET di sini..."
+                  className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-rose-300 text-xs font-black text-rose-900 uppercase outline-none focus:ring-2 focus:ring-rose-500"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end space-x-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingConfirmAction(null);
+                  setResetConfirmText('');
+                }}
+                className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-extrabold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={
+                  pendingConfirmAction.type === 'reset_all' &&
+                  resetConfirmText.trim().toUpperCase() !== 'RESET'
+                }
+                onClick={handleConfirmPendingAction}
+                className={`px-4 py-2 rounded-xl text-white text-xs font-extrabold cursor-pointer disabled:opacity-40 ${
+                  pendingConfirmAction.type === 'restore_cloud'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {pendingConfirmAction.type === 'restore_cloud' ? 'Ya, Pulihkan Data' : 'Ya, Lanjutkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PDF REPORT & CETAK LAPORAN RESMI RT (MODAL) */}
       <PdfReportModal

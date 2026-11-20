@@ -67,6 +67,7 @@ import {
   deduplicateCloudWargaNow,
   addBatchJimpitanRecordsCloud,
   saveBatchWargaCloud,
+  saveCloudBackup,
   triggerAutoCloudBackup,
   sendPresenceHeartbeat,
   removePresenceSession,
@@ -85,11 +86,73 @@ const STORAGE_KEYS = {
   MUTATIONS: 'jimpitan_mutations_v1',
   OUTBOX_RECORDS: 'jimpitan_outbox_records_v1',
   OUTBOX_MUTATIONS: 'jimpitan_outbox_mutations_v1',
+  OUTBOX_SETTINGS: 'jimpitan_outbox_settings_v1',
+  OUTBOX_WARGA: 'jimpitan_outbox_warga_v1',
   REGU: 'jimpitan_regu_v1',
   MONEY_COUNTS: 'jimpitan_money_counter_v1',
   SESSIONS: 'jimpitan_sessions_v1',
   SELECTED_DATE: 'jimpitan_selected_date_v1',
   APP_MODE: 'jimpitan_app_mode_v1',
+};
+
+const readOutboxSettings = (): AppSettings | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.OUTBOX_SETTINGS);
+    if (!raw) return null;
+    return JSON.parse(raw) as AppSettings;
+  } catch {
+    return null;
+  }
+};
+
+const writeOutboxSettings = (s: AppSettings) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_SETTINGS, JSON.stringify(s));
+  } catch {
+    // ignore
+  }
+};
+
+const clearOutboxSettings = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.OUTBOX_SETTINGS);
+  } catch {
+    // ignore
+  }
+};
+
+const readOutboxWarga = (): Warga[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.OUTBOX_WARGA);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const upsertOutboxWarga = (items: Warga[]) => {
+  if (!items.length) return;
+  try {
+    const map = new Map<string, Warga>();
+    readOutboxWarga().forEach((w) => map.set(w.id, w));
+    items.forEach((w) => map.set(w.id, w));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_WARGA, JSON.stringify(Array.from(map.values())));
+  } catch {
+    // ignore
+  }
+};
+
+const removeOutboxWargaIds = (ids: string[]) => {
+  if (!ids.length) return;
+  try {
+    const removeSet = new Set(ids);
+    const next = readOutboxWarga().filter((w) => !removeSet.has(w.id));
+    localStorage.setItem(STORAGE_KEYS.OUTBOX_WARGA, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
 };
 
 const readOutboxRecords = (): JimpitanRecord[] => {
@@ -362,6 +425,8 @@ export default function App() {
     }
     return [];
   });
+  const recordsCountRef = useRef<number>(allRecords.length);
+  recordsCountRef.current = allRecords.length;
 
   // Kas Mutations
   const [kasMutations, setKasMutations] = useState<KasMutation[]>(() => {
@@ -378,6 +443,8 @@ export default function App() {
     }
     return DEFAULT_MUTATIONS;
   });
+  const mutationsCountRef = useRef<number>(kasMutations.length);
+  mutationsCountRef.current = kasMutations.length;
 
   // Money Counter (Pecahan Fisik) State
   const [moneyCounts, setMoneyCounts] = useState<MoneyDenomination>(() => {
@@ -692,20 +759,49 @@ export default function App() {
     }
 
     const unsubSettings = subscribeSettings((cloudSettings) => {
+      const pendingSettings = readOutboxSettings();
+      if (pendingSettings) {
+        saveSettingsCloud(pendingSettings)
+          .then(() => {
+            clearOutboxSettings();
+          })
+          .catch(() => {});
+        return;
+      }
       setSettings(cloudSettings);
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudSettings));
       setIsSyncing(false);
     });
 
     const unsubWarga = subscribeWarga((cloudWarga) => {
-      setWargaList(cloudWarga);
-      localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(cloudWarga));
+      const pendingWarga = readOutboxWarga();
+      if (pendingWarga.length > 0 && navigator.onLine !== false) {
+        saveBatchWargaCloud(pendingWarga)
+          .then(() => removeOutboxWargaIds(pendingWarga.map((w) => w.id)))
+          .catch(() => {});
+      }
+      if (pendingWarga.length > 0) {
+        const map = new Map<string, Warga>();
+        cloudWarga.forEach((w) => map.set(w.id, w));
+        pendingWarga.forEach((w) => map.set(w.id, w));
+        const { cleanList } = deduplicateWargaArray(Array.from(map.values()));
+        setWargaList(cleanList);
+        localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(cleanList));
+      } else {
+        setWargaList(cloudWarga);
+        localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(cloudWarga));
+      }
       setIsSyncing(false);
     });
 
     const unsubRecords = subscribeJimpitanRecords((cloudRecords, meta) => {
       const cloudIds = new Set(cloudRecords.map((r) => r.id));
       const currentOutbox = readOutboxRecords();
+
+      if (meta.fromCache && cloudRecords.length === 0 && recordsCountRef.current > 0 && currentOutbox.length === 0) {
+        setIsSyncing(false);
+        return;
+      }
 
       if (!meta.fromCache && currentOutbox.length > 0) {
         const syncedIds = currentOutbox.filter((r) => cloudIds.has(r.id)).map((r) => r.id);
@@ -758,6 +854,11 @@ export default function App() {
     const unsubMutations = subscribeKasMutations((cloudMutations, meta) => {
       const cloudIds = new Set(cloudMutations.map((m) => m.id));
       const currentOutbox = readOutboxMutations();
+
+      if (meta.fromCache && cloudMutations.length === 0 && mutationsCountRef.current > 0 && currentOutbox.length === 0) {
+        setIsSyncing(false);
+        return;
+      }
 
       if (!meta.fromCache && currentOutbox.length > 0) {
         const syncedIds = currentOutbox.filter((m) => cloudIds.has(m.id)).map((m) => m.id);
@@ -825,7 +926,50 @@ export default function App() {
       setIsSyncing(false);
     });
 
+    const flushOfflineOutboxes = async () => {
+      if (navigator.onLine === false) return;
+      let flushedCount = 0;
+      try {
+        const pendingSettings = readOutboxSettings();
+        if (pendingSettings) {
+          await saveSettingsCloud(pendingSettings);
+          clearOutboxSettings();
+          flushedCount++;
+        }
+        const pendingWarga = readOutboxWarga();
+        if (pendingWarga.length > 0) {
+          await saveBatchWargaCloud(pendingWarga);
+          removeOutboxWargaIds(pendingWarga.map((w) => w.id));
+          flushedCount += pendingWarga.length;
+        }
+        const pendingRecs = readOutboxRecords();
+        if (pendingRecs.length > 0) {
+          await addBatchJimpitanRecordsCloud(pendingRecs);
+          removeOutboxRecordIds(pendingRecs.map((r) => r.id));
+          flushedCount += pendingRecs.length;
+        }
+        const pendingMuts = readOutboxMutations();
+        if (pendingMuts.length > 0) {
+          for (const mut of pendingMuts) {
+            await addKasMutationCloud(mut);
+            removeOutboxMutationIds([mut.id]);
+            flushedCount++;
+          }
+        }
+        if (flushedCount > 0) {
+          showAppToast(`${flushedCount} perubahan offline otomatis tersinkron ke Cloud!`);
+        }
+      } catch (err) {
+        console.warn('Auto-flush outbox deferred:', err);
+      }
+    };
+
+    window.addEventListener('online', flushOfflineOutboxes);
+    // Attempt an initial flush on mount if online
+    flushOfflineOutboxes().catch(() => {});
+
     return () => {
+      window.removeEventListener('online', flushOfflineOutboxes);
       unsubSettings();
       unsubWarga();
       unsubRecords();
@@ -850,6 +994,18 @@ export default function App() {
       }
 
       // Flush any offline pending outbox items first
+      const pendingSettings = readOutboxSettings();
+      if (pendingSettings) {
+        await saveSettingsCloud(pendingSettings);
+        clearOutboxSettings();
+      }
+
+      const pendingWarga = readOutboxWarga();
+      if (pendingWarga.length > 0) {
+        await saveBatchWargaCloud(pendingWarga);
+        removeOutboxWargaIds(pendingWarga.map((w) => w.id));
+      }
+
       const pendingRecs = readOutboxRecords();
       if (pendingRecs.length > 0) {
         await addBatchJimpitanRecordsCloud(pendingRecs);
@@ -1084,11 +1240,11 @@ export default function App() {
     }
   };
 
-  // Handlers for Warga (Cloud Synchronized with anti-duplicate enforcement)
+  // Handlers for Warga (Cloud Synchronized with anti-duplicate enforcement & offline outbox)
   const handleAddWarga = async (newWarga: Omit<Warga, 'id' | 'qrCodeData'>): Promise<boolean> => {
     const dupCheck = checkWargaDuplicate(wargaList, newWarga);
     if (dupCheck.isDuplicate) {
-      alert(`⚠️ Gagal Menambahkan: Data warga duplikat terdeteksi!\n\n${dupCheck.reason}`);
+      showAppToast(`Gagal menambahkan: ${dupCheck.reason}`, 'error');
       return false;
     }
 
@@ -1099,6 +1255,7 @@ export default function App() {
       id,
       qrCodeData,
     };
+    upsertOutboxWarga([fullWarga]);
     setWargaList((prev) => {
       const next = [...prev, fullWarga];
       const { cleanList } = deduplicateWargaArray(next);
@@ -1107,9 +1264,10 @@ export default function App() {
     });
     try {
       await saveWargaCloud(fullWarga);
+      removeOutboxWargaIds([fullWarga.id]);
     } catch (err) {
-      console.error('Failed to add warga to cloud:', err);
-      showAppToast('Gagal menyimpan warga baru ke Cloud. Periksa koneksi internet.', 'error');
+      console.error('Failed to add warga to cloud (queued in outbox):', err);
+      showAppToast('Warga disimpan offline & akan otomatis masuk ke Cloud saat online.', 'error');
     }
     return true;
   };
@@ -1117,11 +1275,12 @@ export default function App() {
   const handleUpdateWarga = async (updated: Warga): Promise<boolean> => {
     const dupCheck = checkWargaDuplicate(wargaList, updated, updated.id);
     if (dupCheck.isDuplicate) {
-      alert(`⚠️ Gagal Memperbarui: Data warga duplikat terdeteksi!\n\n${dupCheck.reason}`);
+      showAppToast(`Gagal memperbarui: ${dupCheck.reason}`, 'error');
       return false;
     }
 
     const oldWarga = wargaList.find((w) => w.id === updated.id);
+    upsertOutboxWarga([updated]);
 
     setWargaList((prev) => {
       const next = prev.map((w) => (w.id === updated.id ? updated : w));
@@ -1132,9 +1291,10 @@ export default function App() {
 
     try {
       await saveWargaCloud(updated);
+      removeOutboxWargaIds([updated.id]);
     } catch (err) {
-      console.error('Failed to update warga in cloud:', err);
-      showAppToast('Gagal menyinkronkan perubahan data warga ke Cloud.', 'error');
+      console.error('Failed to update warga in cloud (queued in outbox):', err);
+      showAppToast('Perubahan warga tersimpan lokal & otomatis tersinkron saat online.', 'error');
     }
 
     // Cascade update existing jimpitan records ONLY belonging to this resident
@@ -1167,11 +1327,12 @@ export default function App() {
         return nextRecords;
       });
 
-      // Sync affected records to Firestore cloud
+      // Sync affected records to Firestore cloud (with outbox fallback)
       if (affectedRecords.length > 0) {
-        addBatchJimpitanRecordsCloud(affectedRecords).catch((err) =>
-          console.warn('Failed to sync cascaded records to cloud:', err)
-        );
+        upsertOutboxRecords(affectedRecords);
+        addBatchJimpitanRecordsCloud(affectedRecords)
+          .then(() => removeOutboxRecordIds(affectedRecords.map((r) => r.id)))
+          .catch((err) => console.warn('Failed to sync cascaded records to cloud (queued):', err));
       }
     }
 
@@ -1187,9 +1348,9 @@ export default function App() {
         return cleanList;
       });
       if (result.cleanedCount > 0) {
-        alert(`Pembersihan duplikat selesai!\n• ${result.cleanedCount} data duplikat berhasil dihapus.\n• Total warga aktif sekarang: ${result.totalWarga} rumah.`);
+        showAppToast(`Pembersihan selesai: ${result.cleanedCount} duplikat dihapus (${result.totalWarga} rumah aktif).`);
       } else {
-        alert(`Semua data warga sudah bersih dan unik (tidak ada duplikat).\nTotal: ${result.totalWarga} rumah.`);
+        showAppToast(`Semua data warga sudah bersih & unik (${result.totalWarga} rumah).`);
       }
     } catch (err) {
       console.error('Failed to deduplicate warga:', err);
@@ -1198,7 +1359,7 @@ export default function App() {
         localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(cleanList));
         return cleanList;
       });
-      alert('Data warga lokal telah dibersihkan dari duplikat.');
+      showAppToast('Data warga lokal telah dibersihkan dari duplikat.');
     }
   };
 
@@ -1206,6 +1367,7 @@ export default function App() {
     const targetWarga = wargaList.find((w) => w.id === wargaId);
     if (!targetWarga) return;
     const updated = { ...targetWarga, nomorHp };
+    upsertOutboxWarga([updated]);
     setWargaList((prev) => {
       const next = prev.map((w) => (w.id === wargaId ? updated : w));
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(next));
@@ -1213,12 +1375,14 @@ export default function App() {
     });
     try {
       await saveWargaCloud(updated);
+      removeOutboxWargaIds([updated.id]);
     } catch (err) {
-      console.error('Failed to update warga phone in cloud:', err);
+      console.error('Failed to update warga phone in cloud (queued in outbox):', err);
     }
   };
 
   const handleDeleteWarga = async (id: string) => {
+    removeOutboxWargaIds([id]);
     setWargaList((prev) => {
       const next = prev.filter((w) => w.id !== id);
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(next));
@@ -1243,13 +1407,15 @@ export default function App() {
       tanggalKoreksiPiutang: today,
     }));
 
+    upsertOutboxWarga(updatedList);
     setWargaList(updatedList);
     try {
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
       await saveBatchWargaCloud(updatedList);
+      removeOutboxWargaIds(updatedList.map((w) => w.id));
     } catch (err) {
-      console.error('Failed to reset all piutang to zero:', err);
-      showAppToast('Gagal menyinkronkan pemutihan piutang ke Cloud.', 'error');
+      console.error('Failed to reset all piutang to zero (queued):', err);
+      showAppToast('Pemutihan piutang tersimpan lokal & otomatis tersinkron saat online.', 'error');
     }
   };
 
@@ -1264,13 +1430,15 @@ export default function App() {
       return next;
     });
 
+    upsertOutboxWarga(updatedList);
     setWargaList(updatedList);
     try {
       localStorage.setItem(STORAGE_KEYS.WARGA, JSON.stringify(updatedList));
       await saveBatchWargaCloud(updatedList);
+      removeOutboxWargaIds(updatedList.map((w) => w.id));
     } catch (err) {
-      console.error('Failed to restore automatic piutang calculation:', err);
-      showAppToast('Gagal menyinkronkan pemulihan perhitungan piutang ke Cloud.', 'error');
+      console.error('Failed to restore automatic piutang calculation (queued):', err);
+      showAppToast('Pemulihan perhitungan piutang tersimpan lokal & otomatis tersinkron saat online.', 'error');
     }
   };
 
@@ -1368,7 +1536,7 @@ export default function App() {
     }
   };
 
-  // Settings update cloud handler
+  // Settings update cloud handler (with offline outbox protection)
   const handleUpdateSettings = async (newSettings: AppSettings) => {
     const merged: AppSettings = {
       ...settingsRef.current,
@@ -1386,11 +1554,13 @@ export default function App() {
     settingsRef.current = merged;
     setSettings(merged);
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+    writeOutboxSettings(merged);
     try {
       await saveSettingsCloud(merged);
+      clearOutboxSettings();
     } catch (err) {
-      console.error('Failed to update settings in cloud:', err);
-      showAppToast('Gagal menyimpan pengaturan ke Cloud. Periksa koneksi internet.', 'error');
+      console.error('Failed to update settings in cloud (queued in outbox):', err);
+      showAppToast('Pengaturan tersimpan di HP & otomatis dikirim ke Cloud saat online.', 'error');
       throw err;
     }
   };
@@ -1418,7 +1588,10 @@ export default function App() {
     settingsRef.current = updated;
     setSettings(updated);
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
-    saveSettingsCloud(updated).catch(console.error);
+    writeOutboxSettings(updated);
+    saveSettingsCloud(updated)
+      .then(() => clearOutboxSettings())
+      .catch(console.error);
   };
 
   // Admin PIN toggle & unlock handler (Strict: old PIN immediately ceases to work once changed)
@@ -1472,11 +1645,13 @@ export default function App() {
     } catch (e) {
       console.warn('Failed to cache settings locally', e);
     }
+    writeOutboxSettings(updated);
     try {
       await saveSettingsCloud(updated);
+      clearOutboxSettings();
     } catch (err) {
-      console.error('Failed to sync new PIN to cloud:', err);
-      showAppToast('Gagal menyimpan PIN Admin baru ke Cloud. Periksa koneksi internet.', 'error');
+      console.error('Failed to sync new PIN to cloud (queued in outbox):', err);
+      showAppToast('PIN baru tersimpan di perangkat & otomatis dikirim ke Cloud saat online.', 'error');
       throw err;
     }
   };
@@ -1538,10 +1713,38 @@ export default function App() {
 
   const handleResetAllData = async () => {
     try {
+      // Save a pre-reset safety backup before clearing live collections
+      if (wargaList.length > 0 || allRecords.length > 0 || kasMutations.length > 0) {
+        await saveCloudBackup({
+          id: `pre-reset-backup-${Date.now()}`,
+          timestamp: Date.now(),
+          createdAtIso: new Date().toISOString(),
+          source: 'manual',
+          stats: {
+            wargaCount: wargaList.length,
+            recordsCount: allRecords.length,
+            mutationsCount: kasMutations.length,
+            reguCount: reguList.length,
+            totalKas: saldoKas,
+          },
+          data: {
+            settings: settingsRef.current,
+            warga: wargaList,
+            records: allRecords,
+            mutations: kasMutations,
+            regu: reguList,
+            moneyCounts,
+            sessions: Object.values(rondaSessions),
+          },
+        }).catch((backupErr) => console.warn('Pre-reset safety backup warning:', backupErr));
+      }
+
       localStorage.removeItem(STORAGE_KEYS.OUTBOX_RECORDS);
       localStorage.removeItem(STORAGE_KEYS.OUTBOX_MUTATIONS);
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_SETTINGS);
+      localStorage.removeItem(STORAGE_KEYS.OUTBOX_WARGA);
       await resetAllCloudData();
-      showAppToast('Data Cloud berhasil di-reset bersih.');
+      showAppToast('Data Cloud di-reset bersih (cadangan keamanan otomatis tersimpan di Snapshot Cloud).');
     } catch (e) {
       setAllRecords([]);
       setKasMutations([]);
@@ -1586,6 +1789,29 @@ export default function App() {
     }
   };
 
+  // Automatic debounced cloud backup for Admin & Penginput sessions (throttled every 15 min)
+  useEffect(() => {
+    if (appMode !== 'petugas' && appMode !== 'penginput') return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (wargaList.length === 0) return;
+    if (allRecords.length === 0 && kasMutations.length === 0) return;
+
+    const timer = setTimeout(() => {
+      triggerAutoCloudBackup({
+        settings: settingsRef.current,
+        warga: wargaList,
+        records: allRecords,
+        mutations: kasMutations,
+        regu: reguList,
+        moneyCounts,
+        sessions: rondaSessions,
+        totalKas: saldoKas,
+      }).catch(() => {});
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, [appMode, settings, wargaList, allRecords, kasMutations, reguList, moneyCounts, rondaSessions, saldoKas]);
+
   // Ronda Session Finish Handler (Cloud Synchronized)
   const handleFinishSession = async (catatan?: string) => {
     const newSession: RondaSession = {
@@ -1600,24 +1826,26 @@ export default function App() {
       catatan: catatan || 'Penarikan jimpitan selesai.',
     };
 
-    setRondaSessions((prev) => {
-      const updated = { ...prev, [selectedDate]: newSession };
-      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(updated));
-      return updated;
-    });
+    const nextSessions = { ...rondaSessions, [selectedDate]: newSession };
+    setRondaSessions(nextSessions);
+    localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(nextSessions));
 
     try {
       await saveRondaSessionCloud(newSession);
-      // Automatically generate a cloud snapshot when ronda finishes
-      triggerAutoCloudBackup({
-        settings,
-        warga: wargaList,
-        records: allRecords,
-        mutations: kasMutations,
-        regu: reguList,
-        moneyCounts,
-        totalKas: saldoKas,
-      }).catch(console.warn);
+      // Force-generate a full cloud snapshot when ronda finishes
+      triggerAutoCloudBackup(
+        {
+          settings: settingsRef.current,
+          warga: wargaList,
+          records: allRecords,
+          mutations: kasMutations,
+          regu: reguList,
+          moneyCounts,
+          sessions: nextSessions,
+          totalKas: saldoKas,
+        },
+        { force: true }
+      ).catch(console.warn);
     } catch (err) {
       console.error('Failed to save ronda session to cloud:', err);
     }
