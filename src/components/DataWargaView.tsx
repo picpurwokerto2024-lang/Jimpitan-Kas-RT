@@ -59,6 +59,7 @@ interface DataWargaViewProps {
   currentReguId?: string;
   verifiedAdminEmail?: string | null;
   onEmailVerified?: (email: string) => void;
+  onResetVerified?: () => void;
 }
 
 export const DataWargaView: React.FC<DataWargaViewProps> = ({
@@ -82,6 +83,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   currentReguId = 'regu-1',
   verifiedAdminEmail = null,
   onEmailVerified,
+  onResetVerified,
 }) => {
   const [search, setSearch] = useState<string>('');
   const [displayLimit, setDisplayLimit] = useState<number>(50);
@@ -992,6 +994,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                 setPinError('');
                 if (onEmailVerified) onEmailVerified(email);
               }}
+              onResetVerified={onResetVerified}
               accentTone="amber"
             />
 

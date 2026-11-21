@@ -123,9 +123,35 @@ export const subscribeAdminAuthState = (callback: (user: User | null) => void): 
   return onAuthStateChanged(auth, callback);
 };
 
+export const verifyAdminEmailInput = (
+  rawEmail: string,
+  settings?: Partial<AppSettings>
+): { ok: true; email: string } | { ok: false; message: string } => {
+  const clean = (rawEmail || '').trim().toLowerCase();
+  if (!clean) {
+    return {
+      ok: false,
+      message: 'Silakan masukkan alamat Email Admin RT yang terdaftar.',
+    };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+    return {
+      ok: false,
+      message: 'Format alamat email tidak valid. Contoh: namaadmin@gmail.com',
+    };
+  }
+  if (!isAuthorizedAdminEmail(clean, settings)) {
+    return {
+      ok: false,
+      message: `AKSES DITOLAK! Email "${clean}" bukan Email Admin RT terdaftar. Hanya Email Admin resmi yang dapat melanjutkan ke pengisian PIN.`,
+    };
+  }
+  return { ok: true, email: clean };
+};
+
 export const verifyAdminWithGooglePopup = async (
   settings?: Partial<AppSettings>
-): Promise<{ ok: true; email: string } | { ok: false; message: string; rejectedEmail?: string }> => {
+): Promise<{ ok: true; email: string } | { ok: false; message: string; rejectedEmail?: string; code?: string }> => {
   try {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
@@ -153,26 +179,38 @@ export const verifyAdminWithGooglePopup = async (
     return { ok: true, email };
   } catch (err: any) {
     const code = String(err?.code || '');
+    if (code === 'auth/unauthorized-domain') {
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      return {
+        ok: false,
+        code,
+        message: `Login pop-up Google diblokir oleh Firebase karena domain (${host || 'link ini'}) belum diotorisasi. Silakan pilih metode "Input Email Terdaftar" agar tetap bisa verifikasi email & lanjut isi PIN.`,
+      };
+    }
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
       return {
         ok: false,
+        code,
         message: 'Verifikasi Google dibatalkan. Pilih akun Email Admin untuk melanjutkan.',
       };
     }
     if (code === 'auth/popup-blocked') {
       return {
         ok: false,
-        message: 'Pop-up login Google diblokir oleh browser. Mohon izinkan pop-up lalu coba lagi.',
+        code,
+        message: 'Pop-up login Google diblokir oleh browser. Mohon izinkan pop-up atau gunakan pilihan "Input Email Terdaftar".',
       };
     }
     if (code === 'auth/network-request-failed') {
       return {
         ok: false,
-        message: 'Koneksi internet diperlukan untuk memverifikasi Email Admin.',
+        code,
+        message: 'Koneksi internet diperlukan untuk memverifikasi akun Google.',
       };
     }
     return {
       ok: false,
+      code,
       message: err?.message || 'Gagal memverifikasi Email Google Admin. Silakan coba kembali.',
     };
   }

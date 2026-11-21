@@ -29,6 +29,7 @@ interface ModeSelectorModalProps {
   initialTargetMode?: AppMode | null;
   verifiedAdminEmail?: string | null;
   onEmailVerified?: (email: string) => void;
+  onResetVerified?: () => void;
 }
 
 export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
@@ -42,6 +43,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
   initialTargetMode = null,
   verifiedAdminEmail = null,
   onEmailVerified,
+  onResetVerified,
 }) => {
   const [selectedTargetMode, setSelectedTargetMode] = useState<AppMode | null>(initialTargetMode);
   const [pinInput, setPinInput] = useState<string>('');
@@ -211,6 +213,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                   setErrorMessage('');
                   if (onEmailVerified) onEmailVerified(email);
                 }}
+                onResetVerified={onResetVerified}
                 accentTone="amber"
               />
             )}

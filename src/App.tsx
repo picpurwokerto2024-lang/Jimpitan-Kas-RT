@@ -249,10 +249,39 @@ export default function App() {
     return 'kas_rekap';
   });
 
+  const ADMIN_EMAIL_SESSION_KEY = 'jimpitan_verified_admin_email_v1';
+
+  const handleAdminEmailVerified = (email: string) => {
+    const clean = email.trim().toLowerCase();
+    try {
+      sessionStorage.setItem(ADMIN_EMAIL_SESSION_KEY, clean);
+    } catch {
+      // ignore
+    }
+    setAuthEmailRaw(clean);
+    setVerifiedAdminEmail(clean);
+  };
+
+  const handleResetAdminEmailVerification = () => {
+    try {
+      sessionStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
+    } catch {
+      // ignore
+    }
+    setAuthEmailRaw(null);
+    setVerifiedAdminEmail(null);
+    signOutAdminGoogle();
+  };
+
   const lockAdminAndSignOut = (switchToWarga: boolean) => {
     setIsAdminUnlocked(false);
     setVerifiedAdminEmail(null);
     setAuthEmailRaw(null);
+    try {
+      sessionStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
+    } catch {
+      // ignore
+    }
     signOutAdminGoogle();
     try {
       localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
@@ -482,20 +511,42 @@ export default function App() {
     return {};
   });
 
-  // Admin lock toggle & strict Google Email verification state
-  // Always boots locked until Firebase Auth confirms an authorized Admin email
+  // Admin lock toggle & strict Email verification state
+  // Always boots locked unless current session has verified Admin email (Google or registered email check)
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
-  const [authEmailRaw, setAuthEmailRaw] = useState<string | null>(null);
+  const [authEmailRaw, setAuthEmailRaw] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('jimpitan_verified_admin_email_v1');
+    } catch {
+      return null;
+    }
+  });
   const [verifiedAdminEmail, setVerifiedAdminEmail] = useState<string | null>(null);
   const initialAdminRestoreRef = useRef<boolean>(false);
 
   useEffect(() => {
     const unsub = subscribeAdminAuthState((user) => {
       if (user && user.email && user.emailVerified) {
-        setAuthEmailRaw(user.email.trim().toLowerCase());
+        const clean = user.email.trim().toLowerCase();
+        try {
+          sessionStorage.setItem('jimpitan_verified_admin_email_v1', clean);
+        } catch {
+          // ignore
+        }
+        setAuthEmailRaw(clean);
       } else {
-        setAuthEmailRaw(null);
-        initialAdminRestoreRef.current = true;
+        let sessionEmail: string | null = null;
+        try {
+          sessionEmail = sessionStorage.getItem('jimpitan_verified_admin_email_v1');
+        } catch {
+          sessionEmail = null;
+        }
+        if (sessionEmail) {
+          setAuthEmailRaw(sessionEmail.trim().toLowerCase());
+        } else {
+          setAuthEmailRaw(null);
+          initialAdminRestoreRef.current = true;
+        }
       }
     });
     return () => unsub();
@@ -2066,10 +2117,8 @@ export default function App() {
               currentReguNama={activeRegu.nama}
               currentReguId={activeRegu.id}
               verifiedAdminEmail={verifiedAdminEmail}
-              onEmailVerified={(email) => {
-                setAuthEmailRaw(email);
-                setVerifiedAdminEmail(email);
-              }}
+              onEmailVerified={handleAdminEmailVerified}
+              onResetVerified={handleResetAdminEmailVerification}
             />
           )}
 
@@ -2112,10 +2161,8 @@ export default function App() {
               onUnlockAdmin={handleUnlockAdminWithPin}
               onOpenChangePinModal={() => handleOpenAdminPinModal('change_pin')}
               verifiedAdminEmail={verifiedAdminEmail}
-              onEmailVerified={(email) => {
-                setAuthEmailRaw(email);
-                setVerifiedAdminEmail(email);
-              }}
+              onEmailVerified={handleAdminEmailVerified}
+              onResetVerified={handleResetAdminEmailVerification}
             />
           )}
         </div>
@@ -2129,13 +2176,11 @@ export default function App() {
         currentPin={settings.pinAdmin || '1234'}
         settings={settings}
         verifiedAdminEmail={verifiedAdminEmail}
-        onEmailVerified={(email) => {
-          setAuthEmailRaw(email);
-          setVerifiedAdminEmail(email);
-        }}
+        onEmailVerified={handleAdminEmailVerified}
+        onResetVerified={handleResetAdminEmailVerification}
         onSuccessUnlock={() => {
           if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {
-            showAppToast('Verifikasi Email Google Admin resmi wajib diselesaikan terlebih dahulu.', 'error');
+            showAppToast('Verifikasi Email Admin resmi wajib diselesaikan terlebih dahulu.', 'error');
             return;
           }
           setIsAdminUnlocked(true);
@@ -2159,10 +2204,8 @@ export default function App() {
         currentMode={appMode}
         initialTargetMode={modeSelectorTarget}
         verifiedAdminEmail={verifiedAdminEmail}
-        onEmailVerified={(email) => {
-          setAuthEmailRaw(email);
-          setVerifiedAdminEmail(email);
-        }}
+        onEmailVerified={handleAdminEmailVerified}
+        onResetVerified={handleResetAdminEmailVerification}
         onSelectMode={(mode) => {
           if (mode === 'petugas') {
             if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {

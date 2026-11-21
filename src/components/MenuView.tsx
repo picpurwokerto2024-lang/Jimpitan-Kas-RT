@@ -86,6 +86,7 @@ interface MenuViewProps {
   onOpenChangePinModal?: () => void;
   verifiedAdminEmail?: string | null;
   onEmailVerified?: (email: string) => void;
+  onResetVerified?: () => void;
 }
 
 export const MenuView: React.FC<MenuViewProps> = ({
@@ -112,6 +113,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onOpenChangePinModal,
   verifiedAdminEmail = null,
   onEmailVerified,
+  onResetVerified,
 }) => {
   const currYearMonth = getTodayDateIso().slice(0, 7);
   const currMonthLabel = useMemo(() => {
@@ -1293,6 +1295,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 setPinError('');
                 if (onEmailVerified) onEmailVerified(email);
               }}
+              onResetVerified={onResetVerified}
               accentTone="amber"
             />
 

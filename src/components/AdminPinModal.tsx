@@ -27,6 +27,7 @@ export interface AdminPinModalProps {
   verifiedAdminEmail?: string | null;
   settings?: AppSettings;
   onEmailVerified?: (email: string) => void;
+  onResetVerified?: () => void;
 }
 
 export const AdminPinModal: React.FC<AdminPinModalProps> = ({
@@ -42,6 +43,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
   verifiedAdminEmail = null,
   settings,
   onEmailVerified,
+  onResetVerified,
 }) => {
   const [activeTab, setActiveTab] = useState<'unlock' | 'change_pin'>(mode);
   
@@ -218,6 +220,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
             setChangeError('');
             if (onEmailVerified) onEmailVerified(email);
           }}
+          onResetVerified={onResetVerified}
           accentTone="amber"
         />
 
