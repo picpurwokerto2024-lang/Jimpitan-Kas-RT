@@ -63,6 +63,7 @@ export interface AppSettings {
   saldoAwalKas?: number; // Saldo awal kas RT (Rp)
   pinAdmin: string; // e.g. "1234"
   pinPenginput?: string; // e.g. "1234"
+  adminEmails?: string[]; // Whitelisted Google Admin emails for strict verification
   soundEnabled: boolean;
   speechEnabled: boolean;
   currencySymbol: string;

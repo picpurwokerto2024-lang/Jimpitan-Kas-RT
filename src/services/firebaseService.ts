@@ -22,6 +22,14 @@ import {
   Firestore,
   Unsubscribe
 } from 'firebase/firestore';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  User,
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { 
   AppSettings, 
@@ -83,6 +91,100 @@ export const initFirestoreInstance = (): Firestore => {
 };
 
 export const db: Firestore = initFirestoreInstance();
+export const auth = getAuth(app);
+
+export const PRIMARY_ADMIN_EMAIL = 'picpurwokerto2024@gmail.com';
+
+export const getAllowedAdminEmails = (settings?: Partial<AppSettings>): string[] => {
+  const allowed = new Set<string>([PRIMARY_ADMIN_EMAIL.toLowerCase()]);
+  if (Array.isArray(settings?.adminEmails)) {
+    settings.adminEmails.forEach((item) => {
+      const clean = String(item || '').trim().toLowerCase();
+      if (clean && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+        allowed.add(clean);
+      }
+    });
+  }
+  return Array.from(allowed);
+};
+
+export const isAuthorizedAdminEmail = (
+  email: string | null | undefined,
+  settings?: Partial<AppSettings>
+): boolean => {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return getAllowedAdminEmails(settings).includes(clean);
+};
+
+export const getCurrentAuthUser = (): User | null => auth.currentUser;
+
+export const subscribeAdminAuthState = (callback: (user: User | null) => void): Unsubscribe => {
+  return onAuthStateChanged(auth, callback);
+};
+
+export const verifyAdminWithGooglePopup = async (
+  settings?: Partial<AppSettings>
+): Promise<{ ok: true; email: string } | { ok: false; message: string; rejectedEmail?: string }> => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    const email = (user?.email || '').trim().toLowerCase();
+
+    if (!email || !user.emailVerified) {
+      await signOut(auth).catch(() => {});
+      return {
+        ok: false,
+        message: 'Akun Google tidak memiliki alamat email terverifikasi.',
+      };
+    }
+
+    if (!isAuthorizedAdminEmail(email, settings)) {
+      await signOut(auth).catch(() => {});
+      return {
+        ok: false,
+        rejectedEmail: email,
+        message: `AKSES DITOLAK! Email "${email}" bukan Email Admin RT terdaftar. Hanya Email Admin resmi yang diizinkan masuk ke Mode Admin.`,
+      };
+    }
+
+    return { ok: true, email };
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+      return {
+        ok: false,
+        message: 'Verifikasi Google dibatalkan. Pilih akun Email Admin untuk melanjutkan.',
+      };
+    }
+    if (code === 'auth/popup-blocked') {
+      return {
+        ok: false,
+        message: 'Pop-up login Google diblokir oleh browser. Mohon izinkan pop-up lalu coba lagi.',
+      };
+    }
+    if (code === 'auth/network-request-failed') {
+      return {
+        ok: false,
+        message: 'Koneksi internet diperlukan untuk memverifikasi Email Admin.',
+      };
+    }
+    return {
+      ok: false,
+      message: err?.message || 'Gagal memverifikasi Email Google Admin. Silakan coba kembali.',
+    };
+  }
+};
+
+export const signOutAdminGoogle = async (): Promise<void> => {
+  try {
+    await signOut(auth);
+  } catch {
+    // ignore
+  }
+};
 
 // Test connection on boot gracefully with server check and local cache fallback
 export const testFirestoreConnection = async (): Promise<boolean> => {
@@ -176,10 +278,14 @@ export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => 
 // 1. SETTINGS SYNC
 // ==========================================
 const hasCustomSettings = (s: Partial<AppSettings>): boolean => {
+  const hasExtraAdminEmails =
+    Array.isArray(s.adminEmails) &&
+    s.adminEmails.some((em) => String(em || '').trim().toLowerCase() !== PRIMARY_ADMIN_EMAIL.toLowerCase());
   return (
     Number(s.saldoAwalKas || 0) !== 0 ||
     (Boolean(s.pinAdmin) && s.pinAdmin !== DEFAULT_SETTINGS.pinAdmin) ||
     (Boolean(s.pinPenginput) && s.pinPenginput !== DEFAULT_SETTINGS.pinPenginput) ||
+    hasExtraAdminEmails ||
     Boolean(s.namaBendahara?.trim()) ||
     Boolean(s.namaKetuaRt?.trim()) ||
     (s.namaRt !== undefined && s.namaRt !== DEFAULT_SETTINGS.namaRt) ||
@@ -200,6 +306,7 @@ const normalizeSettingsPayload = (raw: Record<string, any>): AppSettings => {
       rest.pinPenginput && String(rest.pinPenginput).trim()
         ? String(rest.pinPenginput).trim()
         : DEFAULT_SETTINGS.pinPenginput,
+    adminEmails: getAllowedAdminEmails(rest as Partial<AppSettings>),
   };
 };
 

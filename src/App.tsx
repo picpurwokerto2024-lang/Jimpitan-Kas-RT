@@ -72,7 +72,10 @@ import {
   subscribeToActivePresences,
   forceFetchAuthoritativeCloudData,
   normalizeJimpitanRecordData,
-  normalizeKasMutationData
+  normalizeKasMutationData,
+  isAuthorizedAdminEmail,
+  subscribeAdminAuthState,
+  signOutAdminGoogle
 } from './services/firebaseService';
 import { checkWargaDuplicate, deduplicateWargaArray, normalizeHouseNumber } from './utils/wargaDeduplicator';
 
@@ -223,21 +226,22 @@ const removeOutboxMutationIds = (ids: string[]) => {
 
 export default function App() {
   // Application Mode: 'warga' (transparansi kas & data warga), 'penginput' (scan QR, kas, hitung uang), or 'petugas' (menu lengkap)
+  // Security: Never boot directly into 'petugas' (Admin) from localStorage without Firebase Auth email verification
   const [appMode, setAppMode] = useState<AppMode>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.APP_MODE);
-      if (saved === 'warga' || saved === 'petugas' || saved === 'penginput') return saved as AppMode;
+      if (saved === 'warga' || saved === 'penginput') return saved as AppMode;
     } catch (e) {
       // ignore
     }
     return 'warga';
   });
 
-  // Navigation tab state (defaults to kas_rekap for warga mode, scan for penginput & petugas)
+  // Navigation tab state (defaults to kas_rekap for warga mode, scan for penginput)
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
       const savedMode = localStorage.getItem(STORAGE_KEYS.APP_MODE);
-      if (savedMode === 'petugas' || savedMode === 'penginput') return 'scan';
+      if (savedMode === 'penginput') return 'scan';
       return 'kas_rekap';
     } catch (e) {
       // ignore
@@ -245,19 +249,28 @@ export default function App() {
     return 'kas_rekap';
   });
 
-  const handleSwitchMode = (mode: AppMode, bypassPinCheck = false) => {
-    // Mode Warga: Lock admin & set read-only transparency mode
-    if (mode === 'warga') {
-      setIsAdminUnlocked(false);
+  const lockAdminAndSignOut = (switchToWarga: boolean) => {
+    setIsAdminUnlocked(false);
+    setVerifiedAdminEmail(null);
+    setAuthEmailRaw(null);
+    signOutAdminGoogle();
+    try {
+      localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+    } catch {
+      // ignore
+    }
+    if (switchToWarga) {
       setAppMode('warga');
-      try {
-        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
-      } catch (e) {
-        // ignore
-      }
       if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
         setActiveTab('kas_rekap');
       }
+    }
+  };
+
+  const handleSwitchMode = (mode: AppMode, bypassPinCheck = false) => {
+    // Mode Warga: Lock admin, sign out Google Admin session & set read-only transparency mode
+    if (mode === 'warga') {
+      lockAdminAndSignOut(true);
       return;
     }
 
@@ -281,8 +294,11 @@ export default function App() {
     }
 
     // Mode Petugas / Pengurus RT / Admin (Akses Penuh):
-    // If not unlocked and not bypassed, prompt for PIN once
-    if (!bypassPinCheck && !isAdminUnlocked) {
+    // Strict security: Require BOTH verified authorized Google Admin email AND PIN
+    const hasVerifiedEmail = Boolean(
+      verifiedAdminEmail && isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)
+    );
+    if (!hasVerifiedEmail || (!bypassPinCheck && !isAdminUnlocked)) {
       setModeSelectorTarget('petugas');
       setIsModeSelectorOpen(true);
       return;
@@ -466,15 +482,56 @@ export default function App() {
     return {};
   });
 
-  // Admin lock toggle & PIN modal state (Persist unlock if in Petugas mode)
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
-    try {
-      const savedMode = localStorage.getItem(STORAGE_KEYS.APP_MODE);
-      return savedMode === 'petugas';
-    } catch (e) {
-      return false;
+  // Admin lock toggle & strict Google Email verification state
+  // Always boots locked until Firebase Auth confirms an authorized Admin email
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [authEmailRaw, setAuthEmailRaw] = useState<string | null>(null);
+  const [verifiedAdminEmail, setVerifiedAdminEmail] = useState<string | null>(null);
+  const initialAdminRestoreRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const unsub = subscribeAdminAuthState((user) => {
+      if (user && user.email && user.emailVerified) {
+        setAuthEmailRaw(user.email.trim().toLowerCase());
+      } else {
+        setAuthEmailRaw(null);
+        initialAdminRestoreRef.current = true;
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (authEmailRaw && isAuthorizedAdminEmail(authEmailRaw, settings)) {
+      setVerifiedAdminEmail(authEmailRaw);
+      if (!initialAdminRestoreRef.current) {
+        initialAdminRestoreRef.current = true;
+        try {
+          if (localStorage.getItem(STORAGE_KEYS.APP_MODE) === 'petugas') {
+            setIsAdminUnlocked(true);
+            setAppMode('petugas');
+            setActiveTab('scan');
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      setVerifiedAdminEmail(null);
+      if (isAdminUnlocked || appMode === 'petugas') {
+        setIsAdminUnlocked(false);
+        setAppMode('warga');
+        try {
+          localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+        } catch {
+          // ignore
+        }
+        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+          setActiveTab('kas_rekap');
+        }
+      }
     }
-  });
+  }, [authEmailRaw, settings, isAdminUnlocked, appMode, activeTab]);
 
   // Active User Presences State (Real-time monitoring warga online)
   const [activePresences, setActivePresences] = useState<UserPresence[]>([]);
@@ -1592,8 +1649,11 @@ export default function App() {
       .catch(console.error);
   };
 
-  // Admin PIN toggle & unlock handler (Strict: old PIN immediately ceases to work once changed)
+  // Admin PIN toggle & unlock handler (Strict: requires BOTH verified Admin Google Email AND active Admin PIN)
   const handleUnlockAdminWithPin = (pin: string): boolean => {
+    if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {
+      return false;
+    }
     const activePin = (settings.pinAdmin && settings.pinAdmin.trim()) ? settings.pinAdmin.trim() : '1234';
     if (pin.trim() === activePin) {
       setIsAdminUnlocked(true);
@@ -1615,16 +1675,7 @@ export default function App() {
 
   const handleToggleAdminLock = () => {
     if (isAdminUnlocked) {
-      setIsAdminUnlocked(false);
-      setAppMode('warga');
-      try {
-        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
-      } catch (e) {
-        // ignore
-      }
-      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
-        setActiveTab('kas_rekap');
-      }
+      lockAdminAndSignOut(true);
     } else {
       handleOpenAdminPinModal('unlock');
     }
@@ -1977,7 +2028,7 @@ export default function App() {
                     className="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>Buka Kunci Admin (PIN)</span>
+                    <span>Buka Kunci Admin (Email &amp; PIN)</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('kas_rekap')}
@@ -2007,13 +2058,18 @@ export default function App() {
               isAdminUnlocked={isAdminUnlocked}
               onUnlockAdmin={handleUnlockAdminWithPin}
               onLockApp={() => {
-                setIsAdminUnlocked(false);
-                showAppToast('Aplikasi terkunci. Mode admin dinonaktifkan.');
+                lockAdminAndSignOut(false);
+                showAppToast('Aplikasi terkunci. Mode admin & sesi email admin dinonaktifkan.');
               }}
               appMode={appMode}
               currentPetugas={petugasNama}
               currentReguNama={activeRegu.nama}
               currentReguId={activeRegu.id}
+              verifiedAdminEmail={verifiedAdminEmail}
+              onEmailVerified={(email) => {
+                setAuthEmailRaw(email);
+                setVerifiedAdminEmail(email);
+              }}
             />
           )}
 
@@ -2049,16 +2105,17 @@ export default function App() {
               onOpenLaporanHub={handleOpenLaporanHub}
               onOpenShareModal={() => handleOpenShareModal('laporan')}
               onLockApp={() => {
-                setIsAdminUnlocked(false);
-                try {
-                  localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
-                } catch {
-                  // ignore
-                }
+                lockAdminAndSignOut(false);
+                showAppToast('Akses Admin dikunci & sesi email dikeluarkan.');
               }}
               isAdminUnlocked={isAdminUnlocked}
               onUnlockAdmin={handleUnlockAdminWithPin}
               onOpenChangePinModal={() => handleOpenAdminPinModal('change_pin')}
+              verifiedAdminEmail={verifiedAdminEmail}
+              onEmailVerified={(email) => {
+                setAuthEmailRaw(email);
+                setVerifiedAdminEmail(email);
+              }}
             />
           )}
         </div>
@@ -2070,7 +2127,17 @@ export default function App() {
         onClose={() => setIsAdminPinModalOpen(false)}
         mode={adminPinModalMode}
         currentPin={settings.pinAdmin || '1234'}
+        settings={settings}
+        verifiedAdminEmail={verifiedAdminEmail}
+        onEmailVerified={(email) => {
+          setAuthEmailRaw(email);
+          setVerifiedAdminEmail(email);
+        }}
         onSuccessUnlock={() => {
+          if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {
+            showAppToast('Verifikasi Email Google Admin resmi wajib diselesaikan terlebih dahulu.', 'error');
+            return;
+          }
           setIsAdminUnlocked(true);
           setAppMode('petugas');
           try {
@@ -2091,8 +2158,17 @@ export default function App() {
         }}
         currentMode={appMode}
         initialTargetMode={modeSelectorTarget}
+        verifiedAdminEmail={verifiedAdminEmail}
+        onEmailVerified={(email) => {
+          setAuthEmailRaw(email);
+          setVerifiedAdminEmail(email);
+        }}
         onSelectMode={(mode) => {
           if (mode === 'petugas') {
+            if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {
+              showAppToast('Verifikasi Email Google Admin resmi wajib diselesaikan terlebih dahulu.', 'error');
+              return;
+            }
             setIsAdminUnlocked(true);
           }
           handleSwitchMode(mode, true);
@@ -2131,16 +2207,7 @@ export default function App() {
         currentTheme={themeState.theme}
         isAutoRotate={themeState.isAutoRotate}
         onLockApp={() => {
-          setIsAdminUnlocked(false);
-          setAppMode('warga');
-          try {
-            localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
-          } catch (e) {
-            // ignore
-          }
-          if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
-            setActiveTab('kas_rekap');
-          }
+          lockAdminAndSignOut(true);
           setIsQuickMenuOpen(false);
         }}
         appMode={appMode}
@@ -2248,7 +2315,7 @@ export default function App() {
             saldoKas={saldoKas}
             onOpenShareModal={() => handleOpenShareModal('laporan')}
             onDeleteMutation={handleDeleteMutation}
-            isAdmin={isAdminUnlocked || appMode === 'petugas'}
+            isAdmin={isAdminUnlocked}
           />
         </ErrorBoundary>
       )}

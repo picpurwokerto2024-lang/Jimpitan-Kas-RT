@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { AppMode, AppSettings } from '../types';
+import { AdminEmailVerificationCard } from './AdminEmailVerificationCard';
 
 interface ModeSelectorModalProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ interface ModeSelectorModalProps {
   isAdminUnlocked: boolean;
   onRequestUnlockAdmin?: () => void;
   initialTargetMode?: AppMode | null;
+  verifiedAdminEmail?: string | null;
+  onEmailVerified?: (email: string) => void;
 }
 
 export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
@@ -37,6 +40,8 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
   isAdminUnlocked,
   onRequestUnlockAdmin,
   initialTargetMode = null,
+  verifiedAdminEmail = null,
+  onEmailVerified,
 }) => {
   const [selectedTargetMode, setSelectedTargetMode] = useState<AppMode | null>(initialTargetMode);
   const [pinInput, setPinInput] = useState<string>('');
@@ -88,6 +93,11 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
   const handleVerifyPinAndSwitch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage('');
+
+    if (selectedTargetMode === 'petugas' && !verifiedAdminEmail) {
+      setErrorMessage('Verifikasi Email Google Admin RT wajib dilakukan terlebih dahulu pada Langkah 1.');
+      return;
+    }
 
     const cleanPin = pinInput.trim();
 
@@ -174,12 +184,12 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                   <h4 className="font-extrabold text-stone-900 text-xs sm:text-sm">
                     {selectedTargetMode === 'penginput'
                       ? 'Masukkan PIN Mode Penginput'
-                      : 'Masukkan PIN Petugas / Admin RT'}
+                      : 'Verifikasi Ketat Mode Admin RT'}
                   </h4>
                   <p className="text-[10px] text-stone-500">
                     {selectedTargetMode === 'penginput'
                       ? 'Operasional ronda: Scan QR, Kas & Hitung Uang'
-                      : 'Buka akses penuh: 5 Tab & Pengaturan RT (Cukup 1x isi PIN)'}
+                      : 'Wajib 2 lapis keamanan: Email Google Admin + PIN Pengurus'}
                   </p>
                 </div>
               </div>
@@ -192,11 +202,32 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
               </button>
             </div>
 
+            {/* Step 1: Strict Google Email Verification for Mode Petugas / Admin */}
+            {selectedTargetMode === 'petugas' && (
+              <AdminEmailVerificationCard
+                settings={settings}
+                verifiedEmail={verifiedAdminEmail}
+                onVerified={(email) => {
+                  setErrorMessage('');
+                  if (onEmailVerified) onEmailVerified(email);
+                }}
+                accentTone="amber"
+              />
+            )}
+
             {/* Error message */}
             {errorMessage && (
               <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center space-x-1.5 animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {selectedTargetMode === 'petugas' && (
+              <div className="pt-0.5 text-center">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                  Langkah 2 • Masukkan PIN Admin RT
+                </span>
               </div>
             )}
 
@@ -268,7 +299,8 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
               </button>
               <button
                 type="submit"
-                className={`flex-1 py-2.5 rounded-2xl text-white font-extrabold text-xs shadow-md transition-all cursor-pointer ${
+                disabled={selectedTargetMode === 'petugas' && !verifiedAdminEmail}
+                className={`flex-1 py-2.5 rounded-2xl text-white font-extrabold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   selectedTargetMode === 'penginput'
                     ? 'bg-sky-600 hover:bg-sky-700'
                     : 'bg-amber-600 hover:bg-amber-700'
@@ -279,7 +311,9 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
             </div>
 
             <p className="text-[10px] text-stone-400 text-center">
-              *Masukkan PIN keamanan yang telah ditentukan Pengurus RT
+              {selectedTargetMode === 'petugas'
+                ? '*Wajib verifikasi Email Google Admin resmi & PIN Pengurus RT'
+                : '*Masukkan PIN keamanan yang telah ditentukan Pengurus RT'}
             </p>
           </form>
         )}
@@ -373,7 +407,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     </h3>
                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[9.5px] flex items-center space-x-1">
                       <ShieldCheck className="w-2.5 h-2.5 text-amber-700" />
-                      <span>Akses Lengkap (1x PIN)</span>
+                      <span>Email Admin + PIN</span>
                     </span>
                     {currentMode === 'petugas' && isAdminUnlocked && (
                       <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white font-bold text-[9px] flex items-center space-x-0.5">
@@ -484,7 +518,7 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
         {/* Footer info */}
         <div className="pt-2 border-t border-stone-100 text-center">
           <p className="text-[11px] text-stone-400">
-            Mode Petugas / Pengurus RT cukup memasukkan PIN 1x untuk membuka seluruh menu
+            Mode Admin RT dilindungi verifikasi Email Google Admin terdaftar &amp; PIN keamanan
           </p>
         </div>
       </div>

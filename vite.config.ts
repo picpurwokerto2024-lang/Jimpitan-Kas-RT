@@ -191,13 +191,16 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom'],
-            'vendor-firebase': ['firebase/app', 'firebase/firestore'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
             'vendor-pdf': ['jspdf', 'jspdf-autotable'],
             'vendor-icons': ['lucide-react'],
             'vendor-qr': ['qrcode', 'html5-qrcode'],
           },
         },
       },
+    },
+    optimizeDeps: {
+      include: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
     },
     resolve: {
       alias: {

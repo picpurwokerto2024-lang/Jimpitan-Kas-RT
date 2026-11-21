@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   RefreshCw
 } from 'lucide-react';
+import { AppSettings } from '../types';
+import { AdminEmailVerificationCard } from './AdminEmailVerificationCard';
 
 export interface AdminPinModalProps {
   isOpen: boolean;
@@ -22,6 +24,9 @@ export interface AdminPinModalProps {
   onUnlock?: () => void;
   onChangePin?: (newPin: string) => Promise<void> | void;
   onSuccessChangePin?: (newPin: string) => Promise<void> | void;
+  verifiedAdminEmail?: string | null;
+  settings?: AppSettings;
+  onEmailVerified?: (email: string) => void;
 }
 
 export const AdminPinModal: React.FC<AdminPinModalProps> = ({
@@ -34,6 +39,9 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
   onUnlock,
   onChangePin,
   onSuccessChangePin,
+  verifiedAdminEmail = null,
+  settings,
+  onEmailVerified,
 }) => {
   const [activeTab, setActiveTab] = useState<'unlock' | 'change_pin'>(mode);
   
@@ -86,6 +94,12 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
   const handleUnlock = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setUnlockError('');
+
+    if (!verifiedAdminEmail) {
+      triggerErrorShake('Verifikasi Email Google Admin wajib diselesaikan terlebih dahulu.');
+      return;
+    }
+
     const clean = inputPin.trim();
 
     if (!clean) {
@@ -120,6 +134,11 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
     e.preventDefault();
     setChangeError('');
     setChangeSuccess('');
+
+    if (!verifiedAdminEmail) {
+      setChangeError('Verifikasi Email Google Admin wajib diselesaikan terlebih dahulu.');
+      return;
+    }
 
     const cleanOld = oldPin.trim();
     const cleanNew = newPin.trim();
@@ -189,6 +208,18 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Step 1: Strict Google Admin Email Verification */}
+        <AdminEmailVerificationCard
+          settings={settings}
+          verifiedEmail={verifiedAdminEmail}
+          onVerified={(email) => {
+            setUnlockError('');
+            setChangeError('');
+            if (onEmailVerified) onEmailVerified(email);
+          }}
+          accentTone="amber"
+        />
 
         {/* Tab Switcher */}
         <div className="flex rounded-xl bg-stone-100 p-1">
@@ -307,7 +338,8 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                  disabled={!verifiedAdminEmail}
+                  className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <Unlock className="w-4 h-4" />
                   <span>BUKA AKSES PENGURUS</span>
@@ -315,7 +347,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               </div>
 
               <p className="text-[11px] text-stone-500 text-center">
-                *Masukkan PIN Pengurus RT untuk memverifikasi akses Anda.
+                *Langkah 2: Masukkan PIN Pengurus RT setelah Email Admin terverifikasi.
               </p>
             </form>
           </div>
@@ -408,8 +440,8 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={isSaving}
-                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                disabled={isSaving || !verifiedAdminEmail}
+                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
               >
                 {isSaving ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />

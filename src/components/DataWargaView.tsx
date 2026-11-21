@@ -35,6 +35,7 @@ import { WargaDetailHistoryModal } from './WargaDetailHistoryModal';
 import { LaporanBulananWargaView } from './LaporanBulananWargaView';
 import { InputJimpitanMingguanModal } from './InputJimpitanMingguanModal';
 import { CetakQrBarcodeModal } from './CetakQrBarcodeModal';
+import { AdminEmailVerificationCard } from './AdminEmailVerificationCard';
 import { checkWargaDuplicate } from '../utils/wargaDeduplicator';
 
 interface DataWargaViewProps {
@@ -56,6 +57,8 @@ interface DataWargaViewProps {
   currentPetugas?: string;
   currentReguNama?: string;
   currentReguId?: string;
+  verifiedAdminEmail?: string | null;
+  onEmailVerified?: (email: string) => void;
 }
 
 export const DataWargaView: React.FC<DataWargaViewProps> = ({
@@ -77,6 +80,8 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   currentPetugas = 'Petugas Ronda',
   currentReguNama = 'Regu Ronda',
   currentReguId = 'regu-1',
+  verifiedAdminEmail = null,
+  onEmailVerified,
 }) => {
   const [search, setSearch] = useState<string>('');
   const [displayLimit, setDisplayLimit] = useState<number>(50);
@@ -300,6 +305,11 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPinError('');
+
+    if (!verifiedAdminEmail) {
+      setPinError('Verifikasi Email Google Admin wajib dilakukan terlebih dahulu pada Langkah 1.');
+      return;
+    }
 
     if (!pinInput.trim()) {
       setPinError('Silakan masukkan PIN Admin.');
@@ -945,7 +955,7 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                     Akses Pengurus RT
                   </h3>
                   <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
-                    Verifikasi PIN Admin
+                    Verifikasi Email &amp; PIN Admin
                   </span>
                 </div>
               </div>
@@ -971,14 +981,24 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                 {!pendingAction && 'Akses modifikasi data warga diproteksi khusus Pengurus/Admin RT.'}
               </p>
               <p className="text-[11px] text-stone-500">
-                Masukkan PIN Pengurus RT aktif untuk melanjutkan.
+                Wajib verifikasi Email Google Admin terdaftar dan PIN Pengurus RT.
               </p>
             </div>
+
+            <AdminEmailVerificationCard
+              settings={settings}
+              verifiedEmail={verifiedAdminEmail}
+              onVerified={(email) => {
+                setPinError('');
+                if (onEmailVerified) onEmailVerified(email);
+              }}
+              accentTone="amber"
+            />
 
             <form onSubmit={handlePinSubmit} className="space-y-3.5">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-black uppercase tracking-wider text-stone-600 block">
-                  PIN PENGURUS RT
+                  Langkah 2 • PIN PENGURUS RT
                 </label>
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -1026,7 +1046,8 @@ export const DataWargaView: React.FC<DataWargaViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-extrabold flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
+                  disabled={!verifiedAdminEmail}
+                  className="flex-1 py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
                 >
                   <Unlock className="w-3.5 h-3.5" />
                   <span>Buka & Lanjutkan</span>
