@@ -65,7 +65,6 @@ interface MenuViewProps {
   onUpdateReguList?: (newRegu: ReguRonda[]) => void;
   onResetAllData: () => void;
   onLoadSampleData: () => void;
-  onDeleteSeptemberData?: () => void;
   allWarga: Warga[];
   allRecords: JimpitanRecord[];
   allMutations: KasMutation[];
@@ -90,7 +89,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onUpdateReguList,
   onResetAllData,
   onLoadSampleData,
-  onDeleteSeptemberData,
   allWarga,
   allRecords,
   allMutations,
@@ -494,7 +492,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
     | { type: 'delete_archive'; archiveId: string }
     | { type: 'reset_all' }
     | { type: 'load_sample' }
-    | { type: 'delete_sept' }
     | null
   >(null);
   const [resetConfirmText, setResetConfirmText] = useState<string>('');
@@ -741,8 +738,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
       loadCloudBackupsAndArchives();
     } else if (action.type === 'load_sample') {
       onLoadSampleData();
-    } else if (action.type === 'delete_sept') {
-      onDeleteSeptemberData?.();
     }
   };
 
@@ -1968,18 +1963,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     Muat Data Simulasi
                   </button>
                 </div>
-
-                {onDeleteSeptemberData && (
-                  <div className="pt-2 border-t border-stone-100 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setPendingConfirmAction({ type: 'delete_sept' })}
-                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-[11px] transition-colors cursor-pointer"
-                    >
-                      Hapus Semua Data Bulan September
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -2010,9 +1993,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                         ? 'Hapus Arsip Bulanan?'
                         : pendingConfirmAction.type === 'reset_all'
                           ? 'Reset Semua Data RT?'
-                          : pendingConfirmAction.type === 'load_sample'
-                            ? 'Muat Data Simulasi?'
-                            : 'Hapus Data Bulan September?'}
+                          : 'Muat Data Simulasi?'}
                 </h4>
                 <p className="text-xs text-stone-600 leading-relaxed">
                   {pendingConfirmAction.type === 'restore_cloud' && (
@@ -2036,8 +2017,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     'Sistem akan menyimpan cadangan keamanan otomatis sebelum mengosongkan seluruh transaksi kas & jimpitan. Ketik RESET untuk melanjutkan.'}
                   {pendingConfirmAction.type === 'load_sample' &&
                     'Data aktif saat ini akan diganti dengan data contoh simulasi RT.'}
-                  {pendingConfirmAction.type === 'delete_sept' &&
-                    'Seluruh data masuk jimpitan dan pengeluaran kas di bulan September akan dihapus dari database.'}
                 </p>
               </div>
             </div>

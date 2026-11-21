@@ -62,8 +62,6 @@ import {
   DEFAULT_MONEY_DENOMINATION,
   resetAllCloudData,
   restoreFullCloudBackup,
-  deleteSeptemberDataCloud,
-  purgeArchiveAndDemoDataCloud,
   deduplicateCloudWargaNow,
   addBatchJimpitanRecordsCloud,
   saveBatchWargaCloud,
@@ -1657,60 +1655,6 @@ export default function App() {
   };
 
   // Reset & Sample data handlers (Cloud aware)
-  const handlePurgeArchiveAndDemoData = async () => {
-    try {
-      localStorage.removeItem(STORAGE_KEYS.OUTBOX_RECORDS);
-      localStorage.removeItem(STORAGE_KEYS.OUTBOX_MUTATIONS);
-      const res = await purgeArchiveAndDemoDataCloud();
-      setAllRecords([]);
-      setKasMutations([]);
-      setRondaSessions({});
-      setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
-      setWargaList((prev) => prev.filter((w) => !['warga-01', 'warga-02', 'warga-03'].includes(w.id)));
-      showAppToast(
-        `Arsip & demo dibersihkan (${res.deletedRecCount} jimpitan, ${res.deletedMutCount} mutasi kas, ${res.deletedSessCount} sesi).`
-      );
-    } catch (err) {
-      console.error('Gagal membersihkan data arsip & demo:', err);
-      setAllRecords([]);
-      setKasMutations([]);
-      setRondaSessions({});
-      setMoneyCounts(DEFAULT_MONEY_DENOMINATION);
-      showAppToast('Data arsip dan demo telah dibersihkan dari penyimpanan.');
-    }
-  };
-
-  const handleDeleteSeptemberData = async () => {
-    const isSept = (tgl?: string) => Boolean(tgl && (tgl.includes('-09-') || tgl.startsWith('2026-09') || tgl.startsWith('2025-09') || tgl.startsWith('2024-09')));
-    const septOutboxRecIds = readOutboxRecords().filter((r) => isSept(r.tanggal)).map((r) => r.id);
-    const septOutboxMutIds = readOutboxMutations().filter((m) => isSept(m.tanggal)).map((m) => m.id);
-    removeOutboxRecordIds(septOutboxRecIds);
-    removeOutboxMutationIds(septOutboxMutIds);
-
-    try {
-      const res = await deleteSeptemberDataCloud();
-      setAllRecords((prev) => prev.filter((r) => !isSept(r.tanggal)));
-      setKasMutations((prev) => prev.filter((m) => !isSept(m.tanggal)));
-      setRondaSessions((prev) => {
-        const next: Record<string, RondaSession> = {};
-        for (const k in prev) {
-          if (!isSept(k)) {
-            next[k] = prev[k];
-          }
-        }
-        return next;
-      });
-      showAppToast(
-        `Data September dihapus (${res.deletedRecCount} jimpitan, ${res.deletedMutCount} mutasi kas).`
-      );
-    } catch (err) {
-      console.error('Gagal menghapus data September:', err);
-      setAllRecords((prev) => prev.filter((r) => !isSept(r.tanggal)));
-      setKasMutations((prev) => prev.filter((m) => !isSept(m.tanggal)));
-      showAppToast('Data bulan September berhasil dibersihkan dari memori aplikasi.');
-    }
-  };
-
   const handleResetAllData = async () => {
     try {
       // Save a pre-reset safety backup before clearing live collections
@@ -1969,8 +1913,6 @@ export default function App() {
                 onDeleteMutation={handleDeleteMutation}
                 onUpdateRecord={handleUpdateRecord}
                 onDeleteRecord={handleDeleteRecord}
-                onDeleteSeptemberData={handleDeleteSeptemberData}
-                onPurgeArchiveAndDemoData={handlePurgeArchiveAndDemoData}
                 onUpdateWarga={handleUpdateWarga}
                 reguList={reguList}
                 settings={settings}
@@ -2095,7 +2037,6 @@ export default function App() {
               onUpdateReguList={handleUpdateReguList}
               onResetAllData={handleResetAllData}
               onLoadSampleData={handleLoadSampleData}
-              onDeleteSeptemberData={handleDeleteSeptemberData}
               allWarga={wargaList}
               allRecords={allRecords}
               allMutations={kasMutations}

@@ -219,8 +219,6 @@ interface KasRekapViewProps {
   onDeleteMutation: (id: string) => void;
   onUpdateRecord?: (record: JimpitanRecord) => void;
   onDeleteRecord?: (id: string) => void;
-  onDeleteSeptemberData?: () => void;
-  onPurgeArchiveAndDemoData?: () => void;
   onUpdateWarga?: (updatedWarga: Warga) => void;
   reguList: ReguRonda[];
   settings: AppSettings;
@@ -247,8 +245,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   onDeleteMutation,
   onUpdateRecord,
   onDeleteRecord,
-  onDeleteSeptemberData,
-  onPurgeArchiveAndDemoData,
   onUpdateWarga,
   reguList = [],
   settings,
@@ -287,8 +283,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
   const [confirmAction, setConfirmAction] = useState<
     | { type: 'delete_mutation'; mutation: KasMutation }
     | { type: 'delete_record'; record: JimpitanRecord }
-    | { type: 'delete_september' }
-    | { type: 'purge_archive' }
     | null
   >(null);
   const [localNotice, setLocalNotice] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
@@ -1203,38 +1197,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
             )}
           </div>
         )}
-
-        {/* Action Pembersihan Data Arsip & Demo (Khusus Pengurus RT / Admin SAJA, Dilarang untuk Mode Penginput) */}
-        {isPetugasOrAdmin && (
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between flex-wrap gap-2">
-            <span className="text-[11px] text-stone-500 font-semibold">Pembersihan Data:</span>
-            <div className="flex items-center space-x-3">
-              {onDeleteSeptemberData && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmAction({ type: 'delete_september' })}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 hover:underline cursor-pointer"
-                  title="Hapus data transaksi khusus bulan September"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Data September</span>
-                </button>
-              )}
-
-              {onPurgeArchiveAndDemoData && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmAction({ type: 'purge_archive' })}
-                  className="text-xs text-rose-700 hover:text-rose-900 font-extrabold flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 cursor-pointer"
-                  title="Bersihkan semua transaksi demo dan riwayat arsip lama"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Bersihkan Arsip & Demo</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* MODAL 1: ADD / EDIT MUTASI KAS WITH RICH CATEGORY LABELING */}
@@ -1534,8 +1496,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                 <h4 className="font-black text-stone-900 text-sm sm:text-base">
                   {confirmAction.type === 'delete_mutation' && 'Hapus Catatan Mutasi Kas?'}
                   {confirmAction.type === 'delete_record' && 'Hapus Catatan Jimpitan?'}
-                  {confirmAction.type === 'delete_september' && 'Hapus Data Bulan September?'}
-                  {confirmAction.type === 'purge_archive' && 'Bersihkan Arsip & Data Demo?'}
                 </h4>
                 <p className="text-xs text-stone-600 mt-1 leading-relaxed">
                   {confirmAction.type === 'delete_mutation' && (
@@ -1559,10 +1519,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                       {formatTanggalIndo(confirmAction.record.tanggal)} akan dihapus permanen.
                     </>
                   )}
-                  {confirmAction.type === 'delete_september' &&
-                    'Seluruh catatan jimpitan, mutasi kas, dan sesi ronda pada bulan September akan dihapus permanen.'}
-                  {confirmAction.type === 'purge_archive' &&
-                    'Seluruh riwayat arsip jimpitan, mutasi kas, sesi ronda, dan data demo akan dibersihkan (daftar warga asli & pengaturan RT tetap aman).'}
                 </p>
               </div>
             </div>
@@ -1593,10 +1549,6 @@ export const KasRekapView: React.FC<KasRekapViewProps> = ({
                       setEditingRecord(null);
                     }
                     showNotice('Catatan jimpitan berhasil dihapus.', 'success');
-                  } else if (action.type === 'delete_september') {
-                    if (onDeleteSeptemberData) onDeleteSeptemberData();
-                  } else if (action.type === 'purge_archive') {
-                    if (onPurgeArchiveAndDemoData) onPurgeArchiveAndDemoData();
                   }
                 }}
                 className="py-2.5 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
