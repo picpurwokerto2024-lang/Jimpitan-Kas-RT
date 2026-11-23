@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Calendar,
   CheckCircle2,
@@ -91,13 +92,19 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
 
   useEffect(() => {
     if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         handleRequestClose();
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [isOpen, handleRequestClose]);
 
   // Parse active year and month
@@ -231,13 +238,13 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
   const addressSummary =
     warga.alamat || `${warga.blok || 'Blok A'} • RT ${warga.rt || settings.namaRt} / RW ${warga.rw || settings.namaRw}`;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`Riwayat Jimpitan ${warga.nama}`}
       id="modal-warga-detail-history"
-      className={`fixed inset-0 z-50 bg-stone-50 flex flex-col overflow-hidden ${
+      className={`fixed inset-0 z-50 bg-stone-50 overflow-y-auto overflow-x-hidden overscroll-contain touch-scroll-y ${
         isClosing ? 'animate-screen-slide-out-right' : 'animate-screen-slide-in-right'
       }`}
     >
@@ -296,10 +303,9 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
         </div>
       </header>
 
-      {/* Full-Screen Scrollable Content */}
-      <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="max-w-5xl mx-auto w-full p-4 sm:p-6 pb-20">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* Full-Screen Scrollable Content (Touch-scrollable anywhere on screen, no blank void) */}
+      <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 pt-4 pb-6 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             {/* LEFT COLUMN: Month Navigator, Resident Info, Summary Metrics & Banners */}
             <div className="lg:col-span-5 space-y-4">
               {/* Month Navigator Header */}
@@ -823,15 +829,12 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
                 </div>
               )}
             </div>
-          </div>
         </div>
-      </main>
 
-      {/* Bottom Bar */}
-      <footer className="bg-white border-t border-stone-200 px-4 sm:px-6 py-3 shrink-0">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+        {/* Footer Actions: Directly follows calendar/list content with zero blank gap */}
+        <footer className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-2xs">
           <div className="text-xs text-stone-500">
-            Tarif Default:{' '}
+            Default:{' '}
             <strong className="text-stone-900 font-black tabular-nums">
               {formatRupiah(warga.nominalDefault || 1000)}
             </strong>{' '}
@@ -845,8 +848,9 @@ export const WargaDetailHistoryModal: React.FC<WargaDetailHistoryModalProps> = (
           >
             Kembali ke Data Warga
           </button>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </main>
+    </div>,
+    document.body
   );
 };
