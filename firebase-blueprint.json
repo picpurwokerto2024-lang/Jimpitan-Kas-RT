@@ -131,6 +131,26 @@
         "archivedAt": { "type": "number" }
       },
       "required": ["yearMonth", "archivedAt"]
+    },
+    "DesignatedOfficerDevice": {
+      "title": "DesignatedOfficerDevice",
+      "description": "Izin perangkat warga yang ditunjuk Admin sebagai petugas jimpitan tanpa PIN",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "officerName": { "type": "string" },
+        "nomorRumah": { "type": "string" },
+        "reguNama": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "active", "revoked"] },
+        "deviceId": { "type": "string" },
+        "deviceLabel": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "activatedAt": { "type": "number" },
+        "revokedAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "createdByEmail": { "type": "string" }
+      },
+      "required": ["token", "officerName", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -165,6 +185,10 @@
     "/monthly_archives/{archiveId}": {
       "entity": "MonthlyArchive",
       "description": "Collection of monthly historical archives"
+    },
+    "/designated_officers/{officerId}": {
+      "entity": "DesignatedOfficerDevice",
+      "description": "Collection of designated resident officer devices granted PIN-less access by Admin"
     },
     "/test/{docId}": {
       "entity": "Settings",

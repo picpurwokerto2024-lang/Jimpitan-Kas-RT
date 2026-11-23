@@ -110,7 +110,22 @@ service cloud.firestore {
       allow delete: if true;
     }
 
-    // 11. Health Check & Uji Koneksi Database (Hanya baca dokumen connection khusus, tanpa izin write)
+    // 11. Perangkat Petugas Jimpitan yang Ditunjuk Admin (Akses Tanpa PIN & Nonaktifkan dari Admin)
+    match /designated_officers/{officerId} {
+      allow read: if true;
+      allow create, update: if officerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && request.resource.data.officerName is string
+        && request.resource.data.officerName.size() > 0
+        && request.resource.data.officerName.size() <= 120
+        && request.resource.data.token is string
+        && request.resource.data.token.size() >= 6
+        && request.resource.data.token.size() <= 120
+        && request.resource.data.status in ['pending', 'active', 'revoked']
+        && hasValidTimestamp(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 12. Health Check & Uji Koneksi Database (Hanya baca dokumen connection khusus, tanpa izin write)
     match /test/{docId} {
       allow get: if docId == 'connection';
       allow list, write, delete: if false;

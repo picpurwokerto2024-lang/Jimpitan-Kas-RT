@@ -42,7 +42,8 @@ import {
   UserPresence, 
   AppMode,
   AppBackup,
-  MonthlyArchive
+  MonthlyArchive,
+  DesignatedOfficerDevice
 } from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_REGU, DEFAULT_WARGA, DEFAULT_MUTATIONS } from '../data/defaultData';
 import { deduplicateWargaArray } from '../utils/wargaDeduplicator';
@@ -1469,9 +1470,29 @@ export const deleteMonthlyArchiveCloud = async (archiveId: string): Promise<void
 };
 
 // ==========================================
-// REAL-TIME USER PRESENCE TRACKING
+// REAL-TIME USER PRESENCE TRACKING & PERSISTENT DEVICE ID
 // ==========================================
 const PRESENCE_COL = 'active_presences';
+const DESIGNATED_OFFICERS_COL = 'designated_officers';
+const DEVICE_ID_STORAGE_KEY = 'jimpitan_device_id_v1';
+
+export const getPersistentDeviceId = (): string => {
+  try {
+    let existing = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (existing && /^DEV-[A-Z0-9]{6,}$/.test(existing.trim().toUpperCase())) {
+      return existing.trim().toUpperCase();
+    }
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'DEV-';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, code);
+    return code;
+  } catch {
+    return 'DEV-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+};
 
 // Get or generate stable session ID for this browser tab session
 export const getSessionId = (): string => {
@@ -1491,10 +1512,12 @@ export const getSessionId = (): string => {
 export const sendPresenceHeartbeat = async (mode: AppMode, label?: string) => {
   try {
     const sId = getSessionId();
+    const deviceId = getPersistentDeviceId();
     const presenceRef = doc(db, PRESENCE_COL, sId);
     const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
     const data: UserPresence = {
       id: sId,
+      deviceId,
       mode,
       label: label || (mode === 'warga' ? 'Warga (Akses Publik)' : mode === 'petugas' ? 'Petugas Ronda' : 'Penginput Data'),
       device: isMobile ? 'HP / Mobile' : 'PC / Desktop',
@@ -1539,3 +1562,176 @@ export const subscribeToActivePresences = (callback: (presences: UserPresence[])
     }
   );
 };
+
+// ==========================================
+// DESIGNATED OFFICER DEVICE ACCESS (PIN-LESS GRANT & ADMIN-ONLY REVOKE)
+// ==========================================
+export const subscribeDesignatedOfficers = (
+  callback: (list: DesignatedOfficerDevice[], isFromCache: boolean) => void
+): Unsubscribe => {
+  const colRef = collection(db, DESIGNATED_OFFICERS_COL);
+  return onSnapshot(
+    colRef,
+    { includeMetadataChanges: true },
+    (snap) => {
+      const list: DesignatedOfficerDevice[] = [];
+      snap.forEach((docSnap) => {
+        const raw = docSnap.data() as Partial<DesignatedOfficerDevice>;
+        if (!raw || !raw.officerName) return;
+        list.push({
+          id: docSnap.id,
+          token: String(raw.token || docSnap.id),
+          officerName: String(raw.officerName),
+          nomorRumah: raw.nomorRumah ? String(raw.nomorRumah) : undefined,
+          reguNama: raw.reguNama ? String(raw.reguNama) : undefined,
+          status:
+            raw.status === 'active' || raw.status === 'revoked' || raw.status === 'pending'
+              ? raw.status
+              : 'pending',
+          deviceId: raw.deviceId ? String(raw.deviceId).trim().toUpperCase() : undefined,
+          deviceLabel: raw.deviceLabel ? String(raw.deviceLabel) : undefined,
+          createdAt: Number(raw.createdAt) || Date.now(),
+          activatedAt: raw.activatedAt ? Number(raw.activatedAt) : undefined,
+          revokedAt: raw.revokedAt ? Number(raw.revokedAt) : undefined,
+          updatedAt: raw.updatedAt ? Number(raw.updatedAt) : undefined,
+          createdByEmail: raw.createdByEmail ? String(raw.createdByEmail) : undefined,
+        });
+      });
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      callback(list, snap.metadata.fromCache);
+    },
+    (err) => {
+      console.warn('Designated officers subscription error:', err);
+    }
+  );
+};
+
+export const createDesignatedOfficerGrant = async (payload: {
+  officerName: string;
+  nomorRumah?: string;
+  reguNama?: string;
+  deviceId?: string;
+  deviceLabel?: string;
+  createdByEmail?: string;
+}): Promise<DesignatedOfficerDevice> => {
+  const now = Date.now();
+  const safeName = payload.officerName.trim().slice(0, 120);
+  if (!safeName) {
+    throw new Error('Nama petugas wajib diisi.');
+  }
+  const cleanDeviceId = payload.deviceId ? payload.deviceId.trim().toUpperCase() : undefined;
+  const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const id = `off_${now}_${randomSuffix}`;
+  const token = `PTG-${now.toString(36).toUpperCase()}-${randomSuffix}`;
+
+  const docData: DesignatedOfficerDevice = {
+    id,
+    token,
+    officerName: safeName,
+    nomorRumah: payload.nomorRumah?.trim() || undefined,
+    reguNama: payload.reguNama?.trim() || undefined,
+    status: cleanDeviceId ? 'active' : 'pending',
+    deviceId: cleanDeviceId,
+    deviceLabel: payload.deviceLabel?.trim() || (cleanDeviceId ? 'Perangkat Terdaftar' : undefined),
+    createdAt: now,
+    activatedAt: cleanDeviceId ? now : undefined,
+    updatedAt: now,
+    createdByEmail: payload.createdByEmail?.trim().toLowerCase() || undefined,
+  };
+
+  await setDoc(doc(db, DESIGNATED_OFFICERS_COL, id), cleanFirestoreData(docData));
+  return docData;
+};
+
+export const claimOfficerActivationToken = async (
+  rawToken: string,
+  myDeviceId: string
+): Promise<{ ok: true; grant: DesignatedOfficerDevice } | { ok: false; message: string }> => {
+  const token = (rawToken || '').trim();
+  const cleanDeviceId = (myDeviceId || '').trim().toUpperCase();
+  if (!token || !cleanDeviceId) {
+    return { ok: false, message: 'Token aktivasi petugas tidak valid.' };
+  }
+
+  try {
+    const q = query(collection(db, DESIGNATED_OFFICERS_COL), where('token', '==', token));
+    let snap;
+    try {
+      snap = await getDocsFromServer(q);
+    } catch {
+      snap = await getDocs(q);
+    }
+
+    if (snap.empty) {
+      return {
+        ok: false,
+        message: 'Link akses petugas tidak ditemukan atau sudah dihapus oleh Admin RT.',
+      };
+    }
+
+    const docSnap = snap.docs[0];
+    const grant = { id: docSnap.id, ...(docSnap.data() as Omit<DesignatedOfficerDevice, 'id'>) };
+
+    if (grant.status === 'revoked') {
+      return {
+        ok: false,
+        message: `Akses petugas untuk "${grant.officerName}" telah dinonaktifkan oleh Admin RT.`,
+      };
+    }
+
+    if (grant.status === 'active') {
+      const boundId = (grant.deviceId || '').trim().toUpperCase();
+      if (boundId && boundId !== cleanDeviceId) {
+        return {
+          ok: false,
+          message:
+            'Link akses petugas ini sudah dipakai di perangkat HP lain. Hubungi Admin RT untuk membuat akses baru.',
+        };
+      }
+      return { ok: true, grant };
+    }
+
+    // status === 'pending' -> Bind strictly to this deviceId
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+    const now = Date.now();
+    const updatedGrant: DesignatedOfficerDevice = {
+      ...grant,
+      status: 'active',
+      deviceId: cleanDeviceId,
+      deviceLabel: isMobile ? 'HP / Mobile' : 'PC / Desktop',
+      activatedAt: now,
+      updatedAt: now,
+    };
+
+    await setDoc(doc(db, DESIGNATED_OFFICERS_COL, docSnap.id), cleanFirestoreData(updatedGrant), { merge: true });
+    return { ok: true, grant: updatedGrant };
+  } catch (err: any) {
+    console.error('Claim officer token failed:', err);
+    return {
+      ok: false,
+      message: 'Gagal memverifikasi akses petugas ke server. Periksa koneksi internet Anda.',
+    };
+  }
+};
+
+export const updateDesignatedOfficerStatusCloud = async (
+  id: string,
+  status: 'active' | 'revoked'
+): Promise<void> => {
+  const now = Date.now();
+  const patch: Record<string, any> = {
+    status,
+    updatedAt: now,
+  };
+  if (status === 'revoked') {
+    patch.revokedAt = now;
+  } else {
+    patch.activatedAt = now;
+  }
+  await setDoc(doc(db, DESIGNATED_OFFICERS_COL, id), cleanFirestoreData(patch), { merge: true });
+};
+
+export const deleteDesignatedOfficerCloud = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, DESIGNATED_OFFICERS_COL, id));
+};
+

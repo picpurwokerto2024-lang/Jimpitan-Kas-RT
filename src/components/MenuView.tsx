@@ -30,9 +30,16 @@ import {
   Cloud,
   Database,
   Trash2,
-  Mail
+  Mail,
+  UserCheck,
+  Smartphone,
+  Link2,
+  Copy,
+  Power,
+  PowerOff,
+  Send
 } from 'lucide-react';
-import { AppSettings, ReguRonda, Warga, JimpitanRecord, KasMutation, AppBackup, MonthlyArchive } from '../types';
+import { AppSettings, ReguRonda, Warga, JimpitanRecord, KasMutation, AppBackup, MonthlyArchive, DesignatedOfficerDevice, UserPresence } from '../types';
 import { TabType } from './BottomNav';
 import { formatRupiah, formatTanggalIndo, getTodayDateIso, formatLocalDateIsoFromMs } from '../utils/formatters';
 import { LaporanTabKey } from './LaporanHubModal';
@@ -59,7 +66,10 @@ import {
   getMonthlyArchivesCloud, 
   deleteMonthlyArchiveCloud,
   PRIMARY_ADMIN_EMAIL,
-  getAllowedAdminEmails
+  getAllowedAdminEmails,
+  createDesignatedOfficerGrant,
+  updateDesignatedOfficerStatusCloud,
+  deleteDesignatedOfficerCloud
 } from '../services/firebaseService';
 
 interface MenuViewProps {
@@ -87,6 +97,9 @@ interface MenuViewProps {
   verifiedAdminEmail?: string | null;
   onEmailVerified?: (email: string) => void;
   onResetVerified?: () => void;
+  designatedOfficers?: DesignatedOfficerDevice[];
+  activePresences?: UserPresence[];
+  myDeviceId?: string;
 }
 
 export const MenuView: React.FC<MenuViewProps> = ({
@@ -114,6 +127,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
   verifiedAdminEmail = null,
   onEmailVerified,
   onResetVerified,
+  designatedOfficers = [],
+  activePresences = [],
+  myDeviceId = '',
 }) => {
   const currYearMonth = getTodayDateIso().slice(0, 7);
   const currMonthLabel = useMemo(() => {
@@ -548,6 +564,191 @@ export const MenuView: React.FC<MenuViewProps> = ({
       setAdminEmailMsg({ text: 'Gagal memperbarui daftar Email Admin.', isError: true });
     } finally {
       setIsSavingAdminEmail(false);
+    }
+  };
+
+  // Designated Officer Devices (PIN-less Resident Access + Admin-Only Revocation)
+  const [officerNameInput, setOfficerNameInput] = useState<string>('');
+  const [officerRumahInput, setOfficerRumahInput] = useState<string>('');
+  const [manualDeviceIdInput, setManualDeviceIdInput] = useState<string>('');
+  const [officerActionMsg, setOfficerActionMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isSavingOfficer, setIsSavingOfficer] = useState<boolean>(false);
+  const [copiedOfficerId, setCopiedOfficerId] = useState<string | null>(null);
+  const [confirmDeleteOfficerId, setConfirmDeleteOfficerId] = useState<string | null>(null);
+
+  const onlineWargaDevices = useMemo(() => {
+    const activeBoundIds = new Set(
+      designatedOfficers
+        .filter((o) => o.status === 'active' && o.deviceId)
+        .map((o) => (o.deviceId || '').trim().toUpperCase())
+    );
+    const seen = new Set<string>();
+    const list: UserPresence[] = [];
+    activePresences.forEach((p) => {
+      const devId = (p.deviceId || '').trim().toUpperCase();
+      if (!devId) return;
+      if (myDeviceId && devId === myDeviceId.trim().toUpperCase()) return;
+      if (p.mode !== 'warga') return;
+      if (activeBoundIds.has(devId)) return;
+      if (seen.has(devId)) return;
+      seen.add(devId);
+      list.push({ ...p, deviceId: devId });
+    });
+    return list;
+  }, [activePresences, designatedOfficers, myDeviceId]);
+
+  const buildOfficerActivationUrl = (token: string): string => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('petugas_token', token);
+      return url.toString();
+    } catch {
+      return `${window.location.origin}/?petugas_token=${encodeURIComponent(token)}`;
+    }
+  };
+
+  const buildOfficerWhatsAppHref = (officer: DesignatedOfficerDevice): string => {
+    const link = buildOfficerActivationUrl(officer.token);
+    const msg =
+      `Halo ${officer.officerName},\n\n` +
+      `Anda ditunjuk sebagai Petugas Jimpitan ${settings.namaRt}/${settings.namaRw} (${settings.lingkungan}).\n` +
+      `Silakan buka link khusus perangkat Anda di bawah ini untuk mengaktifkan akses Scan QR & Input Jimpitan *TANPA PIN*:\n\n` +
+      `${link}\n\n` +
+      `Catatan: Link ini hanya aktif untuk 1 perangkat HP Anda dan dikelola penuh oleh Admin RT.`;
+    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
+
+  const copyTextSafe = (text: string, officerId: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedOfficerId(officerId);
+      setTimeout(() => setCopiedOfficerId((prev) => (prev === officerId ? null : prev)), 2500);
+    } catch {
+      setOfficerActionMsg({ text: 'Gagal menyalin link ke clipboard.', isError: true });
+    }
+  };
+
+  const handleCreateOfficerGrant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOfficerActionMsg(null);
+    const cleanName = officerNameInput.trim();
+    if (!cleanName) {
+      setOfficerActionMsg({ text: 'Masukkan nama warga yang ditunjuk sebagai petugas.', isError: true });
+      return;
+    }
+    const cleanDev = manualDeviceIdInput.trim().toUpperCase();
+    if (cleanDev && !/^DEV-[A-Z0-9]{4,}$/.test(cleanDev)) {
+      setOfficerActionMsg({
+        text: 'Format Kode Perangkat harus seperti DEV-XXXXXX (atau kosongkan untuk membuat Link Aktivasi).',
+        isError: true,
+      });
+      return;
+    }
+
+    setIsSavingOfficer(true);
+    try {
+      const created = await createDesignatedOfficerGrant({
+        officerName: cleanName,
+        nomorRumah: officerRumahInput.trim() || undefined,
+        deviceId: cleanDev || undefined,
+        deviceLabel: cleanDev ? 'Perangkat Warga (Kode Manual)' : undefined,
+        createdByEmail: verifiedAdminEmail || undefined,
+      });
+      setOfficerNameInput('');
+      setOfficerRumahInput('');
+      setManualDeviceIdInput('');
+      setOfficerActionMsg({
+        text: cleanDev
+          ? `Perangkat ${cleanDev} untuk ${created.officerName} langsung diaktifkan TANPA PIN!`
+          : `Link aktivasi tanpa PIN untuk ${created.officerName} siap disalin atau dikirim ke WhatsApp.`,
+        isError: false,
+      });
+      setTimeout(() => setOfficerActionMsg(null), 5000);
+    } catch (err: any) {
+      setOfficerActionMsg({
+        text: err?.message || 'Gagal menyimpan akses petugas ke server.',
+        isError: true,
+      });
+    } finally {
+      setIsSavingOfficer(false);
+    }
+  };
+
+  const handleQuickGrantOnlineDevice = async (presence: UserPresence) => {
+    const devId = (presence.deviceId || '').trim().toUpperCase();
+    if (!devId) return;
+    setOfficerActionMsg(null);
+    setIsSavingOfficer(true);
+    const chosenName = officerNameInput.trim() || `Petugas (${devId})`;
+    try {
+      await createDesignatedOfficerGrant({
+        officerName: chosenName,
+        nomorRumah: officerRumahInput.trim() || undefined,
+        deviceId: devId,
+        deviceLabel: presence.device || 'HP Warga Online',
+        createdByEmail: verifiedAdminEmail || undefined,
+      });
+      setOfficerNameInput('');
+      setOfficerRumahInput('');
+      setOfficerActionMsg({
+        text: `Perangkat online ${devId} (${chosenName}) langsung dibuka akses Petugasnya TANPA PIN!`,
+        isError: false,
+      });
+      setTimeout(() => setOfficerActionMsg(null), 5000);
+    } catch (err: any) {
+      setOfficerActionMsg({
+        text: err?.message || 'Gagal membuka akses perangkat warga.',
+        isError: true,
+      });
+    } finally {
+      setIsSavingOfficer(false);
+    }
+  };
+
+  const handleToggleOfficerStatus = async (officer: DesignatedOfficerDevice) => {
+    const nextStatus = officer.status === 'active' ? 'revoked' : 'active';
+    setOfficerActionMsg(null);
+    setIsSavingOfficer(true);
+    try {
+      await updateDesignatedOfficerStatusCloud(officer.id, nextStatus);
+      setOfficerActionMsg({
+        text:
+          nextStatus === 'revoked'
+            ? `Akses petugas "${officer.officerName}" dinonaktifkan seketika dari sistem Admin.`
+            : `Akses petugas "${officer.officerName}" diaktifkan kembali tanpa perlu PIN.`,
+        isError: false,
+      });
+      setTimeout(() => setOfficerActionMsg(null), 4500);
+    } catch {
+      setOfficerActionMsg({ text: 'Gagal mengubah status petugas di server.', isError: true });
+    } finally {
+      setIsSavingOfficer(false);
+    }
+  };
+
+  const handleConfirmDeleteOfficer = async (id: string) => {
+    setOfficerActionMsg(null);
+    setIsSavingOfficer(true);
+    try {
+      await deleteDesignatedOfficerCloud(id);
+      setConfirmDeleteOfficerId(null);
+      setOfficerActionMsg({ text: 'Data akses petugas berhasil dihapus.', isError: false });
+      setTimeout(() => setOfficerActionMsg(null), 3500);
+    } catch {
+      setOfficerActionMsg({ text: 'Gagal menghapus data akses petugas.', isError: true });
+    } finally {
+      setIsSavingOfficer(false);
     }
   };
 
@@ -1667,6 +1868,308 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   {isSavingAdminEmail ? '...' : 'Tambah'}
                 </button>
               </form>
+            </div>
+
+            {/* DEDICATED CARD: KELOLA AKSES PETUGAS JIMPITAN (PERANGKAT TANPA PIN & KONTROL ADMIN) */}
+            <div className="bg-gradient-to-br from-sky-50/90 via-indigo-50/30 to-white rounded-2xl border-2 border-sky-200/90 p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <UserCheck className="w-4 h-4 text-sky-700 shrink-0" />
+                  <h4 className="text-xs sm:text-sm font-extrabold text-sky-950 truncate">
+                    Akses Petugas Tanpa PIN (Perangkat Warga)
+                  </h4>
+                </div>
+                <span className="text-[10px] font-bold text-sky-800 bg-sky-200/70 px-2 py-0.5 rounded-full shrink-0">
+                  Kontrol Admin
+                </span>
+              </div>
+
+              <p className="text-[11px] text-stone-600 leading-snug">
+                Buka akses <strong>Mode Penginput</strong> (Scan QR, Hitung Uang, Kas) ke HP warga yang ditunjuk <strong>tanpa perlu memberi tahu PIN</strong>. Hanya Admin yang dapat menonaktifkan kembali aksesnya secara langsung.
+              </p>
+
+              {officerActionMsg && (
+                <div
+                  className={`p-2.5 rounded-xl border text-[11px] font-bold flex items-center space-x-1.5 animate-in fade-in ${
+                    officerActionMsg.isError
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  }`}
+                >
+                  {officerActionMsg.isError ? (
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  )}
+                  <span>{officerActionMsg.text}</span>
+                </div>
+              )}
+
+              {/* Form Tambah Petugas Tanpa PIN */}
+              <form onSubmit={handleCreateOfficerGrant} className="bg-white rounded-2xl border border-sky-200/80 p-3 space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-700 mb-1">
+                      Nama Warga / Petugas Ditunjuk *
+                    </label>
+                    <input
+                      type="text"
+                      list="warga-officer-suggestions"
+                      value={officerNameInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setOfficerNameInput(val);
+                        const matched = allWarga.find(
+                          (w) => w.nama.toLowerCase() === val.trim().toLowerCase()
+                        );
+                        if (matched && !officerRumahInput) {
+                          setOfficerRumahInput(matched.nomorRumah);
+                        }
+                      }}
+                      placeholder="Contoh: Bpk. Ahmad..."
+                      className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-300 text-xs font-bold text-stone-900 outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    <datalist id="warga-officer-suggestions">
+                      {allWarga.map((w) => (
+                        <option key={w.id} value={w.nama}>{`No. ${w.nomorRumah}`}</option>
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-700 mb-1">
+                      Kode Perangkat HP (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={manualDeviceIdInput}
+                      onChange={(e) => setManualDeviceIdInput(e.target.value.toUpperCase())}
+                      placeholder="Kosongkan = Buat Link 1x Klik"
+                      className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-300 text-xs font-bold text-stone-900 font-mono uppercase outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingOfficer}
+                  className="w-full py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-extrabold flex items-center justify-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+                >
+                  {isSavingOfficer ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : manualDeviceIdInput.trim() ? (
+                    <Smartphone className="w-3.5 h-3.5" />
+                  ) : (
+                    <Link2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {manualDeviceIdInput.trim()
+                      ? 'Aktifkan Langsung Kode Perangkat Ini (Tanpa PIN)'
+                      : 'Buat Link Aktivasi Khusus Petugas (Tanpa PIN)'}
+                  </span>
+                </button>
+              </form>
+
+              {/* Perangkat Warga Sedang Online (1-Tap Buka Akses) */}
+              {onlineWargaDevices.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-extrabold text-sky-900 flex items-center space-x-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Perangkat Warga Sedang Online ({onlineWargaDevices.length})</span>
+                    </span>
+                    <span className="text-[10px] text-stone-500">
+                      {officerNameInput.trim()
+                        ? `Tunjuk sbg: ${officerNameInput.trim()}`
+                        : 'Isi nama di atas lalu klik Buka Akses'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {onlineWargaDevices.map((pres) => (
+                      <div
+                        key={pres.id}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-sky-200"
+                      >
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <Smartphone className="w-4 h-4 text-sky-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-extrabold text-stone-900 font-mono truncate">
+                              {pres.deviceId}
+                            </p>
+                            <p className="text-[10px] text-stone-500 truncate">
+                              {pres.device || 'HP Warga'} • Mode Warga
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isSavingOfficer}
+                          onClick={() => handleQuickGrantOnlineDevice(pres)}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10.5px] font-extrabold transition-colors cursor-pointer shrink-0"
+                        >
+                          Buka Akses
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Daftar Petugas & Perangkat Terdaftar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-stone-700">
+                    Daftar Perangkat Petugas ({designatedOfficers.length})
+                  </span>
+                </div>
+
+                {designatedOfficers.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-white/80 border border-dashed border-sky-200 text-center text-[11px] text-stone-500">
+                    Belum ada perangkat warga yang diberi akses tanpa PIN. Buat link atau pilih perangkat online di atas.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+                    {designatedOfficers.map((officer) => {
+                      const isPending = officer.status === 'pending';
+                      const isActive = officer.status === 'active';
+                      const isRevoked = officer.status === 'revoked';
+                      const activationUrl = buildOfficerActivationUrl(officer.token);
+                      const isCopied = copiedOfficerId === officer.id;
+                      const isConfirmDelete = confirmDeleteOfficerId === officer.id;
+
+                      return (
+                        <div
+                          key={officer.id}
+                          className={`p-3 rounded-2xl border transition-all space-y-2 ${
+                            isActive
+                              ? 'bg-white border-emerald-300 shadow-2xs'
+                              : isRevoked
+                                ? 'bg-stone-100/90 border-stone-300 opacity-90'
+                                : 'bg-white border-sky-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                                <span className="text-xs font-black text-stone-900">
+                                  {officer.officerName}
+                                </span>
+                                {officer.nomorRumah && (
+                                  <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 text-[9.5px] font-bold">
+                                    Rumah {officer.nomorRumah}
+                                  </span>
+                                )}
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[9.5px] font-extrabold ${
+                                    isActive
+                                      ? 'bg-emerald-100 text-emerald-900'
+                                      : isRevoked
+                                        ? 'bg-rose-100 text-rose-900'
+                                        : 'bg-amber-100 text-amber-900'
+                                  }`}
+                                >
+                                  {isActive
+                                    ? 'Aktif (Tanpa PIN)'
+                                    : isRevoked
+                                      ? 'Dinonaktifkan Admin'
+                                      : 'Menunggu Dibuka Warga'}
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-stone-500 mt-0.5 font-mono">
+                                {officer.deviceId
+                                  ? `Perangkat: ${officer.deviceId}${officer.deviceLabel ? ` (${officer.deviceLabel})` : ''}`
+                                  : `Kode Link: ${officer.token}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Action Bar */}
+                          <div className="flex items-center flex-wrap gap-1.5 pt-1 border-t border-stone-100">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => copyTextSafe(activationUrl, officer.id)}
+                                  className={`px-2.5 py-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center space-x-1 transition-all cursor-pointer ${
+                                    isCopied
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-sky-50 border border-sky-200 text-sky-800 hover:bg-sky-100'
+                                  }`}
+                                >
+                                  {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                  <span>{isCopied ? 'Link Tersalin!' : 'Salin Link'}</span>
+                                </button>
+
+                                <a
+                                  href={buildOfficerWhatsAppHref(officer)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-extrabold flex items-center space-x-1 transition-colors"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  <span>Kirim WhatsApp</span>
+                                </a>
+                              </>
+                            )}
+
+                            {isActive && (
+                              <button
+                                type="button"
+                                disabled={isSavingOfficer}
+                                onClick={() => handleToggleOfficerStatus(officer)}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[10.5px] font-extrabold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <PowerOff className="w-3 h-3" />
+                                <span>Nonaktifkan Petugas</span>
+                              </button>
+                            )}
+
+                            {isRevoked && (
+                              <button
+                                type="button"
+                                disabled={isSavingOfficer}
+                                onClick={() => handleToggleOfficerStatus(officer)}
+                                className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-extrabold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <Power className="w-3 h-3" />
+                                <span>Aktifkan Lagi</span>
+                              </button>
+                            )}
+
+                            {isConfirmDelete ? (
+                              <div className="flex items-center space-x-1 ml-auto">
+                                <button
+                                  type="button"
+                                  disabled={isSavingOfficer}
+                                  onClick={() => handleConfirmDeleteOfficer(officer.id)}
+                                  className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-extrabold cursor-pointer"
+                                >
+                                  Ya, Hapus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteOfficerId(null)}
+                                  className="px-2 py-1 rounded-lg bg-stone-200 text-stone-700 text-[10px] font-bold cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteOfficerId(officer.id)}
+                                className="p-1.5 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ml-auto"
+                                title="Hapus akses petugas"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {isSavedAlert && (

@@ -97,11 +97,28 @@ export interface RondaSession {
 
 export interface UserPresence {
   id: string;
+  deviceId?: string;
   mode: AppMode;
   label?: string;
   device?: string;
   lastSeen: number;
   joinedAt?: number;
+}
+
+export interface DesignatedOfficerDevice {
+  id: string;
+  token: string;
+  officerName: string;
+  nomorRumah?: string;
+  reguNama?: string;
+  status: 'pending' | 'active' | 'revoked';
+  deviceId?: string;
+  deviceLabel?: string;
+  createdAt: number;
+  activatedAt?: number;
+  revokedAt?: number;
+  updatedAt?: number;
+  createdByEmail?: string;
 }
 
 export interface MonthlyArchive {

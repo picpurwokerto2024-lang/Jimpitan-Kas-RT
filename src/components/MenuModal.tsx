@@ -22,7 +22,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { TabType } from './BottomNav';
-import { AppMode, AppSettings } from '../types';
+import { AppMode, AppSettings, DesignatedOfficerDevice } from '../types';
 import { getTodayDateIso } from '../utils/formatters';
 import { AppTheme, AVAILABLE_THEMES } from '../utils/themeManager';
 import { LaporanTabKey } from './LaporanHubModal';
@@ -60,6 +60,7 @@ interface MenuModalProps {
   settings?: AppSettings;
   currentTheme?: AppTheme;
   isAutoRotate?: boolean;
+  activeOfficerGrant?: DesignatedOfficerDevice | null;
 }
 
 export const MenuModal: React.FC<MenuModalProps> = ({
@@ -86,6 +87,7 @@ export const MenuModal: React.FC<MenuModalProps> = ({
   settings,
   currentTheme = AVAILABLE_THEMES[0],
   isAutoRotate = true,
+  activeOfficerGrant = null,
 }) => {
   if (!isOpen) return null;
 
@@ -398,10 +400,18 @@ export const MenuModal: React.FC<MenuModalProps> = ({
                     <div className="min-w-0">
                       <h3 className="font-extrabold text-sky-950 text-sm tracking-tight flex items-center space-x-1.5">
                         <span>Masuk Mode Penginput</span>
-                        <Lock className="w-3.5 h-3.5 text-sky-700" />
+                        {activeOfficerGrant ? (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold">
+                            Tanpa PIN
+                          </span>
+                        ) : (
+                          <Lock className="w-3.5 h-3.5 text-sky-700" />
+                        )}
                       </h3>
                       <p className="text-xs text-sky-700 truncate">
-                        Akses Scan QR, Kas & Rekap, Hitung Uang (PIN Ronda)
+                        {activeOfficerGrant
+                          ? `Akses dibuka Admin untuk ${activeOfficerGrant.officerName} (Tanpa PIN)`
+                          : 'Akses Scan QR, Kas & Rekap, Hitung Uang (PIN Ronda)'}
                       </p>
                     </div>
                   </div>

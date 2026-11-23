@@ -9,7 +9,8 @@ import {
   MoneyDenomination,
   RondaSession,
   AppMode,
-  UserPresence
+  UserPresence,
+  DesignatedOfficerDevice
 } from './types';
 import { 
   DEFAULT_WARGA, 
@@ -75,7 +76,10 @@ import {
   normalizeKasMutationData,
   isAuthorizedAdminEmail,
   subscribeAdminAuthState,
-  signOutAdminGoogle
+  signOutAdminGoogle,
+  getPersistentDeviceId,
+  subscribeDesignatedOfficers,
+  claimOfficerActivationToken
 } from './services/firebaseService';
 import { checkWargaDuplicate, deduplicateWargaArray, normalizeHouseNumber } from './utils/wargaDeduplicator';
 
@@ -250,6 +254,7 @@ export default function App() {
   });
 
   const ADMIN_EMAIL_SESSION_KEY = 'jimpitan_verified_admin_email_v1';
+  const PENGINPUT_AUTH_SOURCE_KEY = 'jimpitan_penginput_auth_source_v1';
 
   const handleAdminEmailVerified = (email: string) => {
     const clean = email.trim().toLowerCase();
@@ -285,6 +290,9 @@ export default function App() {
     signOutAdminGoogle();
     try {
       localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+      if (localStorage.getItem(PENGINPUT_AUTH_SOURCE_KEY) === 'pin') {
+        localStorage.removeItem(PENGINPUT_AUTH_SOURCE_KEY);
+      }
     } catch {
       // ignore
     }
@@ -305,10 +313,25 @@ export default function App() {
 
     // Mode Penginput (Operasional Ronda & Jimpitan)
     if (mode === 'penginput') {
-      if (!bypassPinCheck && appMode === 'warga' && !isAdminUnlocked) {
+      const hasPinlessGrant = Boolean(activeOfficerGrant);
+      if (!bypassPinCheck && appMode === 'warga' && !isAdminUnlocked && !hasPinlessGrant) {
         setModeSelectorTarget('penginput');
         setIsModeSelectorOpen(true);
         return;
+      }
+      if (activeOfficerGrant && !isAdminUnlocked) {
+        try {
+          localStorage.setItem(PENGINPUT_AUTH_SOURCE_KEY, 'device_grant');
+        } catch {
+          // ignore
+        }
+        setPetugasNama((prev) => (prev === 'Petugas RT' || !prev.trim() ? activeOfficerGrant.officerName : prev));
+      } else {
+        try {
+          localStorage.setItem(PENGINPUT_AUTH_SOURCE_KEY, 'pin');
+        } catch {
+          // ignore
+        }
       }
       setAppMode('penginput');
       try {
@@ -614,6 +637,116 @@ export default function App() {
       if (unsub) unsub();
     };
   }, []);
+
+  // =========================================================================
+  // DESIGNATED OFFICER DEVICE ACCESS (PIN-LESS GRANT & ADMIN-ONLY REVOKE)
+  // =========================================================================
+  const myDeviceId = React.useMemo(() => getPersistentDeviceId(), []);
+  const [designatedOfficers, setDesignatedOfficers] = useState<DesignatedOfficerDevice[]>([]);
+  const [hasSyncedOfficersFromServer, setHasSyncedOfficersFromServer] = useState<boolean>(false);
+  const activeOfficerGrant = React.useMemo(
+    () =>
+      designatedOfficers.find(
+        (g) => (g.deviceId || '').trim().toUpperCase() === myDeviceId.toUpperCase() && g.status === 'active'
+      ) || null,
+    [designatedOfficers, myDeviceId]
+  );
+  const claimedTokenRef = useRef<string | null>(null);
+  const prevOfficerGrantIdRef = useRef<string | null>(null);
+
+  // Real-time subscription to designated officer grants
+  useEffect(() => {
+    const unsub = subscribeDesignatedOfficers((list, isFromCache) => {
+      setDesignatedOfficers(list);
+      if (!isFromCache) {
+        setHasSyncedOfficersFromServer(true);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Claim 1-click ?petugas_token=... activation link on device open
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const token = url.searchParams.get('petugas_token');
+      if (!token || claimedTokenRef.current === token) return;
+      claimedTokenRef.current = token;
+
+      url.searchParams.delete('petugas_token');
+      window.history.replaceState(window.history.state || {}, '', url.toString());
+
+      claimOfficerActivationToken(token, myDeviceId).then((res) => {
+        if (res.ok && 'grant' in res) {
+          try {
+            localStorage.setItem(PENGINPUT_AUTH_SOURCE_KEY, 'device_grant');
+            localStorage.setItem(STORAGE_KEYS.APP_MODE, 'penginput');
+          } catch {
+            // ignore
+          }
+          setPetugasNama(res.grant.officerName);
+          setAppMode('penginput');
+          setActiveTab('scan');
+          showAppToast(`Akses Petugas Jimpitan dibuka untuk ${res.grant.officerName} (Tanpa PIN)!`);
+        } else if ('message' in res) {
+          showAppToast(res.message, 'error');
+        }
+      });
+    } catch {
+      // ignore invalid URL
+    }
+  }, [myDeviceId]);
+
+  // Auto-promote when Admin opens access for this device, & instant-revoke when Admin disables it
+  useEffect(() => {
+    if (activeOfficerGrant) {
+      setPetugasNama((prev) =>
+        prev === 'Petugas RT' || !prev.trim() ? activeOfficerGrant.officerName : prev
+      );
+      if (prevOfficerGrantIdRef.current !== activeOfficerGrant.id) {
+        prevOfficerGrantIdRef.current = activeOfficerGrant.id;
+        if (appMode === 'warga') {
+          try {
+            localStorage.setItem(PENGINPUT_AUTH_SOURCE_KEY, 'device_grant');
+            localStorage.setItem(STORAGE_KEYS.APP_MODE, 'penginput');
+          } catch {
+            // ignore
+          }
+          setPetugasNama(activeOfficerGrant.officerName);
+          setAppMode('penginput');
+          setActiveTab('scan');
+          showAppToast(
+            `Admin RT membuka akses Petugas Jimpitan untuk perangkat ini (${activeOfficerGrant.officerName})`
+          );
+        }
+      }
+      return;
+    }
+
+    if (hasSyncedOfficersFromServer) {
+      prevOfficerGrantIdRef.current = null;
+      let authSource: string | null = null;
+      try {
+        authSource = localStorage.getItem(PENGINPUT_AUTH_SOURCE_KEY);
+      } catch {
+        authSource = null;
+      }
+      if (appMode === 'penginput' && authSource === 'device_grant' && !isAdminUnlocked) {
+        try {
+          localStorage.removeItem(PENGINPUT_AUTH_SOURCE_KEY);
+          localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+        } catch {
+          // ignore
+        }
+        setAppMode('warga');
+        setPetugasNama('Petugas RT');
+        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+          setActiveTab('kas_rekap');
+        }
+        showAppToast('Akses Petugas Jimpitan untuk perangkat ini telah dinonaktifkan oleh Admin RT.', 'error');
+      }
+    }
+  }, [activeOfficerGrant, hasSyncedOfficersFromServer, appMode, activeTab, isAdminUnlocked]);
 
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState<boolean>(false);
   const [adminPinModalMode, setAdminPinModalMode] = useState<'unlock' | 'change_pin'>('unlock');
@@ -2163,6 +2296,9 @@ export default function App() {
               verifiedAdminEmail={verifiedAdminEmail}
               onEmailVerified={handleAdminEmailVerified}
               onResetVerified={handleResetAdminEmailVerification}
+              designatedOfficers={designatedOfficers}
+              activePresences={activePresences}
+              myDeviceId={myDeviceId}
             />
           )}
         </div>
@@ -2206,6 +2342,8 @@ export default function App() {
         verifiedAdminEmail={verifiedAdminEmail}
         onEmailVerified={handleAdminEmailVerified}
         onResetVerified={handleResetAdminEmailVerification}
+        myDeviceId={myDeviceId}
+        activeOfficerGrant={activeOfficerGrant}
         onSelectMode={(mode) => {
           if (mode === 'petugas') {
             if (!verifiedAdminEmail || !isAuthorizedAdminEmail(verifiedAdminEmail, settingsRef.current)) {
@@ -2255,6 +2393,7 @@ export default function App() {
         }}
         appMode={appMode}
         onSwitchMode={handleSwitchMode}
+        activeOfficerGrant={activeOfficerGrant}
       />
 
       {/* Jadwal Ronda 7 Hari Modal */}
