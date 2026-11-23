@@ -15,7 +15,8 @@ import {
   EyeOff,
   AlertCircle,
   Smartphone,
-  Copy
+  Copy,
+  Receipt
 } from 'lucide-react';
 import { AppMode, AppSettings, DesignatedOfficerDevice } from '../types';
 import { AdminEmailVerificationCard } from './AdminEmailVerificationCard';
@@ -534,18 +535,22 @@ export const ModeSelectorModal: React.FC<ModeSelectorModalProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-stone-600 font-medium mt-0.5">
-                    Melihat saldo kas RT, transparansi setoran, dan status iuran rumah tanpa hak ubah.
+                    Melihat saldo kas RT, transparansi setoran, rekap piutang, dan status iuran rumah.
                   </p>
 
                   {/* Feature Tags for Warga */}
                   <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 mt-2">
                     <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-900 text-[10px] font-bold">
                       <BarChart3 className="w-2.5 h-2.5" />
-                      <span>Kas & Rekap RT</span>
+                      <span>Kas &amp; Rekap RT</span>
+                    </span>
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-900 text-[10px] font-bold">
+                      <Receipt className="w-2.5 h-2.5" />
+                      <span>Rekap Piutang</span>
                     </span>
                     <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-900 text-[10px] font-bold">
                       <Users className="w-2.5 h-2.5" />
-                      <span>Data & Riwayat Warga</span>
+                      <span>Data &amp; Riwayat Warga</span>
                     </span>
                   </div>
                 </div>

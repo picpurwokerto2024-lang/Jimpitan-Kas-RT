@@ -1,16 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
-  AlertTriangle,
   Receipt,
   CheckCircle2,
   MessageSquare,
   Search,
   X,
-  SlidersHorizontal,
   RotateCcw,
   Calendar,
-  Filter,
-  ArrowUpDown,
   Phone,
   FileText,
   Sparkles,
@@ -63,26 +59,18 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
   theme: _theme = AVAILABLE_THEMES[0],
   currentPetugas = 'Petugas / Bendahara RT',
 }) => {
-  const isAuthorized = isAdmin || appMode === 'petugas' || appMode === 'penginput';
+  const isAuthorized = appMode !== 'warga' && (isAdmin || appMode === 'petugas' || appMode === 'penginput');
 
   // Scope calculation mode:
   // - 'all_history': Akumulasi seluruh bulan yang sudah lewat (< activeYearMonth)
   // - 'single_prev_month': Khusus 1 bulan lalu saja
   // - 'include_active': Akumulasi bulan lampau + kekurangan terhadap target penuh bulan berjalan (activeYearMonth)
   const [piutangScope, setPiutangScope] = useState<PiutangScopeMode>('all_history');
-  const [isTunggakanFilterExpanded, setIsTunggakanFilterExpanded] = useState<boolean>(false);
-  const [tunggakanSearchQuery, setTunggakanSearchQuery] = useState<string>('');
 
-  // Specific Filters
-  const [tunggakanStatusFilter, setTunggakanStatusFilter] = useState<'unpaid' | 'all' | 'multi_month' | 'paid'>('unpaid');
+  // Simple 3-way Filters (untuk semua mode): Bulan, Tahun, Warga
   const [tunggakanMonthFilter, setTunggakanMonthFilter] = useState<string>('semua');
   const [tunggakanYearFilter, setTunggakanYearFilter] = useState<string>('semua');
-  const [tunggakanBlokFilter, setTunggakanBlokFilter] = useState<string>('semua');
-  const [tunggakanTarifFilter, setTunggakanTarifFilter] = useState<'semua' | 'reguler' | 'khusus_tinggi' | 'khusus_rendah' | 'bebas'>('semua');
-  const [tunggakanSeverityFilter, setTunggakanSeverityFilter] = useState<'semua' | '1_bulan' | '2_3_bulan' | 'lebih_3_bulan'>('semua');
-  const [tunggakanNominalRangeFilter, setTunggakanNominalRangeFilter] = useState<'semua' | 'under_30k' | '30k_100k' | 'above_100k'>('semua');
-  const [tunggakanContactFilter, setTunggakanContactFilter] = useState<'semua' | 'ada_wa' | 'tanpa_wa'>('semua');
-  const [tunggakanSortBy, setTunggakanSortBy] = useState<'sisa_desc' | 'sisa_asc' | 'bulan_desc' | 'rumah_asc' | 'nama_asc'>('sisa_desc');
+  const [tunggakanSearchQuery, setTunggakanSearchQuery] = useState<string>('');
 
   // Modals & inline confirmation state
   const [selectedWargaForPelunasan, setSelectedWargaForPelunasan] = useState<WargaTunggakanDetail | null>(null);
@@ -200,51 +188,11 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
     return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
   }, [tunggakanRekap, includeActiveMonth, activeYearMonth]);
 
-  // Aggregate breakdown per year for quick year pills
-  const yearlyTunggakanBreakdown = useMemo(() => {
-    const map = new Map<string, { year: string; totalKurang: number; wargaIds: Set<string> }>();
-    availablePastYears.forEach((y) => {
-      map.set(y, { year: y, totalKurang: 0, wargaIds: new Set() });
-    });
-
-    const activeYr = activeYearMonth.split('-')[0];
-
-    tunggakanRekap.wargaListTunggakan.forEach((w) => {
-      w.rincianBulanLampau.forEach((rb) => {
-        if (rb.isCoveredByCutoff) return;
-        const yr = String(rb.year);
-        if (map.has(yr) && rb.kurangNominal > 0) {
-          const entry = map.get(yr)!;
-          entry.totalKurang += rb.kurangNominal;
-          entry.wargaIds.add(w.warga.id);
-        }
-      });
-
-      if (includeActiveMonth && w.kurangBulanIni > 0 && map.has(activeYr)) {
-        const entry = map.get(activeYr)!;
-        entry.totalKurang += w.kurangBulanIni;
-        entry.wargaIds.add(w.warga.id);
-      }
-    });
-
-    return Array.from(map.values())
-      .map((e) => ({
-        year: e.year,
-        totalKurang: e.totalKurang,
-        wargaCount: e.wargaIds.size,
-      }))
-      .sort((a, b) => b.year.localeCompare(a.year));
-  }, [availablePastYears, tunggakanRekap, includeActiveMonth, activeYearMonth]);
-
-  const availableBloks = useMemo(() => {
-    const bloks = new Set<string>();
-    wargaList.forEach((w) => {
-      if (w.blok && w.blok.trim()) {
-        bloks.add(w.blok.trim());
-      }
-    });
-    return Array.from(bloks).sort();
-  }, [wargaList]);
+  // Filter months list by selected year when a year is chosen
+  const displayedFilterMonths = useMemo(() => {
+    if (tunggakanYearFilter === 'semua') return availableFilterMonths;
+    return availableFilterMonths.filter((m) => m.yearMonth.startsWith(`${tunggakanYearFilter}-`));
+  }, [availableFilterMonths, tunggakanYearFilter]);
 
   const baseDefaultTarif =
     typeof settings.defaultNominal === 'number' && settings.defaultNominal > 0
@@ -257,165 +205,68 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
     return baseDefaultTarif;
   };
 
-  // Status chip counts
-  const statusCounts = useMemo(() => {
-    let unpaid = 0;
-    let multiMonth = 0;
-    let paid = 0;
-    tunggakanRekap.wargaListTunggakan.forEach((w) => {
-      const sisa = includeActiveMonth ? w.totalKewajibanBersih : w.sisaTunggakanLalu;
-      const awal = includeActiveMonth ? w.tunggakanBulanLalu + w.kurangBulanIni : w.tunggakanBulanLalu;
-      const months = includeActiveMonth
-        ? w.jumlahBulanTertunggak + (w.kurangBulanIni > 0 ? 1 : 0)
-        : w.jumlahBulanTertunggak;
-
-      if (sisa > 0) unpaid += 1;
-      if (months > 1 && sisa > 0) multiMonth += 1;
-      if (awal > 0 && sisa === 0) paid += 1;
-    });
-    return {
-      unpaid,
-      multiMonth,
-      paid,
-      all: tunggakanRekap.wargaListTunggakan.length,
-    };
-  }, [tunggakanRekap.wargaListTunggakan, includeActiveMonth]);
-
-  // Filter and sort debtors list
+  // Filter and sort debtors list (Bulan, Tahun, Warga)
   const filteredDebtorsList = useMemo(() => {
     const activeYr = activeYearMonth.split('-')[0];
+    const q = tunggakanSearchQuery.toLowerCase().trim();
+    const hasSearchQuery = q.length > 0;
 
     const list = tunggakanRekap.wargaListTunggakan.filter((item) => {
       const effSisa = includeActiveMonth ? item.totalKewajibanBersih : item.sisaTunggakanLalu;
-      const effAwal = includeActiveMonth
-        ? item.tunggakanBulanLalu + item.kurangBulanIni
-        : item.tunggakanBulanLalu;
-      const effMonths = includeActiveMonth
-        ? item.jumlahBulanTertunggak + (item.kurangBulanIni > 0 ? 1 : 0)
-        : item.jumlahBulanTertunggak;
 
-      // 1. Search Query (Nama, Nomor Rumah, Blok, HP)
-      const q = tunggakanSearchQuery.toLowerCase().trim();
-      if (q) {
+      // 1. Warga Search (Nama, Nomor Rumah, Blok)
+      if (hasSearchQuery) {
         const matchNama = item.warga.nama.toLowerCase().includes(q);
         const matchRumah = (item.warga.nomorRumah || '').toLowerCase().includes(q);
         const matchBlok = (item.warga.blok || '').toLowerCase().includes(q);
-        const cleanQDigits = q.replace(/\D/g, '');
-        const matchHp =
-          cleanQDigits.length > 0 &&
-          (item.warga.nomorHp || '').replace(/\D/g, '').includes(cleanQDigits);
-        if (!matchNama && !matchRumah && !matchBlok && !matchHp) return false;
+        if (!matchNama && !matchRumah && !matchBlok) return false;
       }
 
-      // 2. Status Filter
-      if (tunggakanStatusFilter === 'unpaid' && effSisa <= 0) return false;
-      if (tunggakanStatusFilter === 'multi_month' && (effMonths <= 1 || effSisa <= 0)) return false;
-      if (tunggakanStatusFilter === 'paid' && (effAwal === 0 || effSisa > 0)) return false;
+      // If no specific Warga search and no specific Month filter, focus on outstanding balances
+      if (!hasSearchQuery && tunggakanMonthFilter === 'semua' && effSisa <= 0) return false;
 
-      // 3. Month Filter
+      // 2. Month Filter
       if (tunggakanMonthFilter !== 'semua') {
         if (includeActiveMonth && tunggakanMonthFilter === activeYearMonth) {
-          if (item.kurangBulanIni <= 0) return false;
+          if (!hasSearchQuery && item.kurangBulanIni <= 0) return false;
         } else {
           const monthArrears = item.rincianBulanLampau.find(
             (b) => b.yearMonth === tunggakanMonthFilter && !b.isCoveredByCutoff
           );
-          if (!monthArrears || monthArrears.kurangNominal <= 0) return false;
+          if (!hasSearchQuery && (!monthArrears || monthArrears.kurangNominal <= 0)) return false;
+          if (hasSearchQuery && !monthArrears && !includeActiveMonth) return false;
         }
       }
 
-      // 4. Year Filter
+      // 3. Year Filter
       if (tunggakanYearFilter !== 'semua') {
         const hasPastArrearsInYear = item.rincianBulanLampau.some(
-          (b) => !b.isCoveredByCutoff && String(b.year) === tunggakanYearFilter && b.kurangNominal > 0
+          (b) => !b.isCoveredByCutoff && String(b.year) === tunggakanYearFilter && (hasSearchQuery || b.kurangNominal > 0)
         );
         const hasActiveArrearsInYear =
-          includeActiveMonth && activeYr === tunggakanYearFilter && item.kurangBulanIni > 0;
+          includeActiveMonth && activeYr === tunggakanYearFilter && (hasSearchQuery || item.kurangBulanIni > 0);
         if (!hasPastArrearsInYear && !hasActiveArrearsInYear) return false;
       }
-
-      // 5. Blok Filter
-      if (tunggakanBlokFilter !== 'semua') {
-        if ((item.warga.blok || '').toLowerCase() !== tunggakanBlokFilter.toLowerCase()) return false;
-      }
-
-      // 6. Tarif Filter
-      const residentNominal = getResidentTarif(item.warga);
-      if (tunggakanTarifFilter === 'bebas' && residentNominal !== 0) return false;
-      if (tunggakanTarifFilter === 'reguler' && residentNominal !== baseDefaultTarif) return false;
-      if (tunggakanTarifFilter === 'khusus_tinggi' && residentNominal <= baseDefaultTarif) return false;
-      if (
-        tunggakanTarifFilter === 'khusus_rendah' &&
-        (residentNominal === 0 || residentNominal >= baseDefaultTarif)
-      ) {
-        return false;
-      }
-
-      // 7. Severity (Durasi Menunggak)
-      if (tunggakanSeverityFilter === '1_bulan' && effMonths !== 1) return false;
-      if (tunggakanSeverityFilter === '2_3_bulan' && (effMonths < 2 || effMonths > 3)) return false;
-      if (tunggakanSeverityFilter === 'lebih_3_bulan' && effMonths <= 3) return false;
-
-      // 8. Nominal Range Filter
-      if (tunggakanNominalRangeFilter === 'under_30k' && effSisa >= 30000) return false;
-      if (tunggakanNominalRangeFilter === '30k_100k' && (effSisa < 30000 || effSisa > 100000)) return false;
-      if (tunggakanNominalRangeFilter === 'above_100k' && effSisa <= 100000) return false;
-
-      // 9. Contact Filter (WhatsApp)
-      const hasPhone = Boolean(item.warga.nomorHp && cleanWhatsAppPhone(item.warga.nomorHp));
-      if (tunggakanContactFilter === 'ada_wa' && !hasPhone) return false;
-      if (tunggakanContactFilter === 'tanpa_wa' && hasPhone) return false;
 
       return true;
     });
 
-    // 10. Sorting
+    // Sort by largest outstanding balance, then house number
     return list.sort((a, b) => {
       const sisaA = includeActiveMonth ? a.totalKewajibanBersih : a.sisaTunggakanLalu;
       const sisaB = includeActiveMonth ? b.totalKewajibanBersih : b.sisaTunggakanLalu;
-      const monthsA = includeActiveMonth
-        ? a.jumlahBulanTertunggak + (a.kurangBulanIni > 0 ? 1 : 0)
-        : a.jumlahBulanTertunggak;
-      const monthsB = includeActiveMonth
-        ? b.jumlahBulanTertunggak + (b.kurangBulanIni > 0 ? 1 : 0)
-        : b.jumlahBulanTertunggak;
-
-      switch (tunggakanSortBy) {
-        case 'sisa_desc':
-          return (
-            sisaB - sisaA ||
-            a.warga.nomorRumah.localeCompare(b.warga.nomorRumah, undefined, { numeric: true })
-          );
-        case 'sisa_asc':
-          return (
-            sisaA - sisaB ||
-            a.warga.nomorRumah.localeCompare(b.warga.nomorRumah, undefined, { numeric: true })
-          );
-        case 'bulan_desc':
-          return monthsB - monthsA || sisaB - sisaA;
-        case 'rumah_asc':
-          return a.warga.nomorRumah.localeCompare(b.warga.nomorRumah, undefined, { numeric: true });
-        case 'nama_asc':
-          return a.warga.nama.localeCompare(b.warga.nama);
-        default:
-          return sisaB - sisaA;
-      }
+      return (
+        sisaB - sisaA ||
+        a.warga.nomorRumah.localeCompare(b.warga.nomorRumah, undefined, { numeric: true })
+      );
     });
   }, [
     tunggakanRekap.wargaListTunggakan,
     includeActiveMonth,
     activeYearMonth,
     tunggakanSearchQuery,
-    tunggakanStatusFilter,
     tunggakanMonthFilter,
     tunggakanYearFilter,
-    tunggakanBlokFilter,
-    tunggakanTarifFilter,
-    tunggakanSeverityFilter,
-    tunggakanNominalRangeFilter,
-    tunggakanContactFilter,
-    tunggakanSortBy,
-    baseDefaultTarif,
   ]);
 
   // Dynamic filter summary
@@ -448,44 +299,19 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
     };
   }, [filteredDebtorsList, includeActiveMonth]);
 
-  // Active filters count
+  // Active filters count (Bulan, Tahun, Warga)
   const activeTunggakanFiltersCount = useMemo(() => {
     let count = 0;
-    if (tunggakanStatusFilter !== 'unpaid') count++;
     if (tunggakanMonthFilter !== 'semua') count++;
     if (tunggakanYearFilter !== 'semua') count++;
-    if (tunggakanBlokFilter !== 'semua') count++;
-    if (tunggakanTarifFilter !== 'semua') count++;
-    if (tunggakanSeverityFilter !== 'semua') count++;
-    if (tunggakanNominalRangeFilter !== 'semua') count++;
-    if (tunggakanContactFilter !== 'semua') count++;
-    if (tunggakanSortBy !== 'sisa_desc') count++;
     if (tunggakanSearchQuery.trim()) count++;
     return count;
-  }, [
-    tunggakanStatusFilter,
-    tunggakanMonthFilter,
-    tunggakanYearFilter,
-    tunggakanBlokFilter,
-    tunggakanTarifFilter,
-    tunggakanSeverityFilter,
-    tunggakanNominalRangeFilter,
-    tunggakanContactFilter,
-    tunggakanSortBy,
-    tunggakanSearchQuery,
-  ]);
+  }, [tunggakanMonthFilter, tunggakanYearFilter, tunggakanSearchQuery]);
 
   const handleResetTunggakanFilters = () => {
     setTunggakanMonthFilter('semua');
     setTunggakanYearFilter('semua');
-    setTunggakanBlokFilter('semua');
-    setTunggakanTarifFilter('semua');
-    setTunggakanSeverityFilter('semua');
-    setTunggakanNominalRangeFilter('semua');
-    setTunggakanContactFilter('semua');
-    setTunggakanSortBy('sisa_desc');
     setTunggakanSearchQuery('');
-    setTunggakanStatusFilter('unpaid');
   };
 
   // Build pure WhatsApp URL (avoids window.open / popup issues inside iframe)
@@ -646,7 +472,7 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
             </div>
 
             {/* Tombol Hitung Otomatis Murni Target (Hapus Koreksi Manual Lama) */}
-            {isAdmin && onRestoreAutoPiutang && (
+            {isAuthorized && isAdmin && onRestoreAutoPiutang && (
               <button
                 type="button"
                 onClick={() => setConfirmBatchModal('restore_auto')}
@@ -659,7 +485,7 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
             )}
 
             {/* Tombol Pemutihan Piutang (Default 0 Rupiah) */}
-            {isAdmin && onResetAllPiutangToZero && (
+            {isAuthorized && isAdmin && onResetAllPiutangToZero && (
               <button
                 type="button"
                 onClick={() => setConfirmBatchModal('reset_zero')}
@@ -785,333 +611,129 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Search, Quick Filters & Year Chips Bar */}
+      {/* 3. Simple Filters: Bulan, Tahun, Warga (Semua Mode) */}
       <div className="bg-white rounded-3xl border border-stone-200 p-4 space-y-3 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={tunggakanSearchQuery}
-              onChange={(e) => setTunggakanSearchQuery(e.target.value)}
-              placeholder="Cari nama warga / no. rumah / blok / HP..."
-              className="w-full pl-10 pr-8 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:border-amber-500 focus:bg-white placeholder:text-stone-400 transition-colors"
-            />
-            {tunggakanSearchQuery && (
-              <button
-                type="button"
-                onClick={() => setTunggakanSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-1.5 text-xs font-extrabold text-stone-800">
+            <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Filter Rekap Piutang</span>
           </div>
-
-          {/* Filter Actions */}
-          <div className="flex items-center space-x-2 shrink-0">
+          {activeTunggakanFiltersCount > 0 && (
             <button
               type="button"
-              onClick={() => setIsTunggakanFilterExpanded(!isTunggakanFilterExpanded)}
-              className={`px-3 py-2.5 rounded-2xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                isTunggakanFilterExpanded || activeTunggakanFiltersCount > 0
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-              }`}
-              title="Buka panel filter lanjutan piutang warga"
+              onClick={handleResetTunggakanFilters}
+              className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+              title="Reset filter ke kondisi awal"
             >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Filter Lanjutan</span>
-              {activeTunggakanFiltersCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-white text-amber-800 text-[10px] font-black flex items-center justify-center ml-0.5">
-                  {activeTunggakanFiltersCount}
-                </span>
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          {/* Filter 1: Bulan */}
+          <div>
+            <label htmlFor="filter-piutang-bulan" className="block text-[11px] font-bold text-stone-600 mb-1">
+              Bulan
+            </label>
+            <select
+              id="filter-piutang-bulan"
+              value={tunggakanMonthFilter}
+              onChange={(e) => {
+                const nextMonth = e.target.value;
+                setTunggakanMonthFilter(nextMonth);
+                if (nextMonth !== 'semua') {
+                  setTunggakanYearFilter(nextMonth.split('-')[0]);
+                }
+              }}
+              className="w-full min-h-[42px] px-3 py-2 rounded-2xl bg-stone-50 border border-stone-200 text-stone-900 outline-none focus:border-amber-500 focus:bg-white text-xs font-semibold transition-colors"
+            >
+              <option value="semua">Semua Bulan</option>
+              {displayedFilterMonths.map((m) => (
+                <option key={m.yearMonth} value={m.yearMonth}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 2: Tahun */}
+          <div>
+            <label htmlFor="filter-piutang-tahun" className="block text-[11px] font-bold text-stone-600 mb-1">
+              Tahun
+            </label>
+            <select
+              id="filter-piutang-tahun"
+              value={tunggakanYearFilter}
+              onChange={(e) => {
+                const nextYear = e.target.value;
+                setTunggakanYearFilter(nextYear);
+                if (
+                  nextYear !== 'semua' &&
+                  tunggakanMonthFilter !== 'semua' &&
+                  !tunggakanMonthFilter.startsWith(`${nextYear}-`)
+                ) {
+                  setTunggakanMonthFilter('semua');
+                }
+              }}
+              className="w-full min-h-[42px] px-3 py-2 rounded-2xl bg-stone-50 border border-stone-200 text-stone-900 outline-none focus:border-amber-500 focus:bg-white text-xs font-semibold transition-colors"
+            >
+              <option value="semua">Semua Tahun</option>
+              {availablePastYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  Tahun {yr}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 3: Warga */}
+          <div>
+            <label htmlFor="filter-piutang-warga" className="block text-[11px] font-bold text-stone-600 mb-1">
+              Warga
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="filter-piutang-warga"
+                type="text"
+                value={tunggakanSearchQuery}
+                onChange={(e) => setTunggakanSearchQuery(e.target.value)}
+                placeholder="Cari nama warga / no. rumah..."
+                className="w-full min-h-[42px] pl-9 pr-8 py-2 rounded-2xl bg-stone-50 border border-stone-200 text-xs text-stone-900 outline-none focus:border-amber-500 focus:bg-white placeholder:text-stone-400 transition-colors"
+              />
+              {tunggakanSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTunggakanSearchQuery('')}
+                  aria-label="Hapus pencarian warga"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
-            </button>
-
-            {activeTunggakanFiltersCount > 0 && (
-              <button
-                type="button"
-                onClick={handleResetTunggakanFilters}
-                className="p-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs transition-colors cursor-pointer"
-                title="Reset semua filter ke kondisi awal"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            )}
+            </div>
           </div>
         </div>
-
-        {/* Status Chips Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pb-1 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setTunggakanStatusFilter('unpaid')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-              tunggakanStatusFilter === 'unpaid'
-                ? 'bg-rose-600 text-white shadow-2xs'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            Belum Sesuai Target / Hutang ({statusCounts.unpaid})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTunggakanStatusFilter('multi_month')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-              tunggakanStatusFilter === 'multi_month'
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            &gt; 1 Bulan ({statusCounts.multiMonth})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTunggakanStatusFilter('paid')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-              tunggakanStatusFilter === 'paid'
-                ? 'bg-emerald-700 text-white shadow-2xs'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            Telah Dilunasi ({statusCounts.paid})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTunggakanStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-              tunggakanStatusFilter === 'all'
-                ? 'bg-stone-800 text-white shadow-2xs'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            Semua Warga ({statusCounts.all})
-          </button>
-        </div>
-
-        {/* Dedicated Quick Filter Piutang Per Tahun */}
-        {availablePastYears.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] py-1.5 bg-amber-50/60 p-2.5 rounded-2xl border border-amber-200/80 scrollbar-none">
-            <div className="flex items-center space-x-1.5 text-amber-900 font-extrabold shrink-0 text-xs pr-1">
-              <Calendar className="w-4 h-4 text-amber-700" />
-              <span>Filter Tahun:</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setTunggakanYearFilter('semua')}
-              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center space-x-1 ${
-                tunggakanYearFilter === 'semua'
-                  ? 'bg-amber-800 text-white shadow-2xs'
-                  : 'bg-white text-stone-700 hover:bg-amber-100/70 border border-stone-200'
-              }`}
-            >
-              <span>Semua Tahun</span>
-            </button>
-
-            {yearlyTunggakanBreakdown.map((yrData) => (
-              <button
-                key={yrData.year}
-                type="button"
-                onClick={() => setTunggakanYearFilter(tunggakanYearFilter === yrData.year ? 'semua' : yrData.year)}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center space-x-1.5 ${
-                  tunggakanYearFilter === yrData.year
-                    ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-400 font-black'
-                    : 'bg-white text-stone-800 hover:bg-amber-100/70 border border-stone-200'
-                }`}
-              >
-                <span>Tahun {yrData.year}</span>
-                <span
-                  className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-black ${
-                    tunggakanYearFilter === yrData.year ? 'bg-white text-amber-900' : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  {yrData.wargaCount} Rumah • {formatRupiah(yrData.totalKurang)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Advanced Filter Expansion Box */}
-        {isTunggakanFilterExpanded && (
-          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
-              <span className="text-xs font-black text-amber-950 flex items-center space-x-1.5">
-                <Filter className="w-4 h-4 text-amber-700" />
-                <span>Kriteria Filter & Pengurutan Piutang</span>
-              </span>
-              <button
-                type="button"
-                onClick={handleResetTunggakanFilters}
-                className="text-xs font-bold text-rose-700 hover:underline flex items-center space-x-1 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Filter</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
-              {/* Filter 1: Bulan Tertentu */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Bulan Tertunggak:</label>
-                <select
-                  value={tunggakanMonthFilter}
-                  onChange={(e) => setTunggakanMonthFilter(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Bulan</option>
-                  {availableFilterMonths.map((m) => (
-                    <option key={m.yearMonth} value={m.yearMonth}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filter 2: Tahun Tertentu */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Tahun Tertunggak:</label>
-                <select
-                  value={tunggakanYearFilter}
-                  onChange={(e) => setTunggakanYearFilter(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Tahun</option>
-                  {availablePastYears.map((yr) => (
-                    <option key={yr} value={yr}>
-                      Tahun {yr}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filter 3: Kategori Blok Warga */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Kategori Blok:</label>
-                <select
-                  value={tunggakanBlokFilter}
-                  onChange={(e) => setTunggakanBlokFilter(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Blok Warga</option>
-                  {availableBloks.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filter 4: Kategori Tarif Jimpitan */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Kategori Tarif:</label>
-                <select
-                  value={tunggakanTarifFilter}
-                  onChange={(e) => setTunggakanTarifFilter(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Tarif</option>
-                  <option value="reguler">Tarif Reguler (Rp {baseDefaultTarif.toLocaleString('id-ID')}/hari)</option>
-                  <option value="khusus_tinggi">
-                    Tarif Khusus / Usaha (&gt; Rp {baseDefaultTarif.toLocaleString('id-ID')})
-                  </option>
-                  <option value="khusus_rendah">
-                    Tarif Subsidi (&lt; Rp {baseDefaultTarif.toLocaleString('id-ID')})
-                  </option>
-                  <option value="bebas">Tanah Kosong / Bebas Target (Rp 0)</option>
-                </select>
-              </div>
-
-              {/* Filter 5: Durasi Menunggak (Severity) */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Durasi Menunggak:</label>
-                <select
-                  value={tunggakanSeverityFilter}
-                  onChange={(e) => setTunggakanSeverityFilter(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Durasi</option>
-                  <option value="1_bulan">Tunggakan Baru (1 Bulan)</option>
-                  <option value="2_3_bulan">Tunggakan Sedang (2 - 3 Bulan)</option>
-                  <option value="lebih_3_bulan">Tunggakan Kritis (&gt; 3 Bulan)</option>
-                </select>
-              </div>
-
-              {/* Filter 6: Rentang Nominal Hutang */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Rentang Nominal:</label>
-                <select
-                  value={tunggakanNominalRangeFilter}
-                  onChange={(e) => setTunggakanNominalRangeFilter(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Nominal</option>
-                  <option value="under_30k">&lt; Rp 30.000 (Ringan)</option>
-                  <option value="30k_100k">Rp 30.000 - Rp 100.000 (Sedang)</option>
-                  <option value="above_100k">&gt; Rp 100.000 (Besar)</option>
-                </select>
-              </div>
-
-              {/* Filter 7: Kontak WhatsApp */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Kontak WhatsApp:</label>
-                <select
-                  value={tunggakanContactFilter}
-                  onChange={(e) => setTunggakanContactFilter(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="semua">Semua Warga</option>
-                  <option value="ada_wa">Punya WhatsApp (Bisa Ditagih Online)</option>
-                  <option value="tanpa_wa">Tanpa No. WhatsApp (Tagih Manual)</option>
-                </select>
-              </div>
-
-              {/* Filter 8: Urutkan Berdasarkan */}
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1 flex items-center space-x-1">
-                  <ArrowUpDown className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Urutkan:</span>
-                </label>
-                <select
-                  value={tunggakanSortBy}
-                  onChange={(e) => setTunggakanSortBy(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl bg-white border border-amber-300 text-stone-900 outline-none focus:ring-2 focus:ring-amber-400 text-xs font-semibold"
-                >
-                  <option value="sisa_desc">Sisa Hutang Terbesar (Prioritas)</option>
-                  <option value="sisa_asc">Sisa Hutang Terkecil</option>
-                  <option value="bulan_desc">Jumlah Bulan Menunggak Terbanyak</option>
-                  <option value="rumah_asc">Nomor Rumah (Urut)</option>
-                  <option value="nama_asc">Nama Warga (A-Z)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 4. Dynamic Filter Results Summary Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs">
         <div className="flex items-center space-x-2 text-stone-700 font-semibold flex-wrap">
           <span>Menampilkan:</span>
-          <strong className="text-stone-900">{filteredDebtorsSummary.count} Warga</strong>
-          <span>• Sisa Kewajiban:</span>
-          <strong className="text-rose-700 font-bold">{formatRupiah(filteredDebtorsSummary.totalSisa)}</strong>
+          <strong className="text-stone-900 tabular-nums">{filteredDebtorsSummary.count} Warga</strong>
+          <span>· Sisa Kewajiban:</span>
+          <strong className="text-rose-700 font-bold tabular-nums">{formatRupiah(filteredDebtorsSummary.totalSisa)}</strong>
           {tunggakanYearFilter !== 'semua' && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-extrabold text-[10.5px]">
-              Tahun {tunggakanYearFilter}
-            </span>
+            <span className="text-amber-900 font-bold">· Tahun {tunggakanYearFilter}</span>
           )}
           {includeActiveMonth && (
-            <span className="px-2 py-0.5 rounded-md bg-sky-200 text-sky-950 font-extrabold text-[10.5px]">
-              Termasuk {tunggakanRekap.activeMonthLabel}
-            </span>
+            <span className="text-sky-800 font-bold">· Termasuk {tunggakanRekap.activeMonthLabel}</span>
           )}
         </div>
 
-        {filteredDebtorsSummary.countWaSiap > 0 && (
+        {isAuthorized && filteredDebtorsSummary.countWaSiap > 0 && (
           <div className="text-[11px] text-emerald-800 font-bold flex items-center space-x-1">
             <Phone className="w-3.5 h-3.5 text-emerald-600" />
             <span>{filteredDebtorsSummary.countWaSiap} Warga Siap Ditagih via WA</span>
@@ -1427,7 +1049,7 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
       </div>
 
       {/* Inline Batch Confirmation Modal (No window.confirm / alert) */}
-      {confirmBatchModal && (
+      {isAuthorized && isAdmin && confirmBatchModal && (
         <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 shadow-2xl overflow-hidden">
             <div
@@ -1526,7 +1148,7 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
       )}
 
       {/* Pelunasan Modal */}
-      {selectedWargaForPelunasan && (
+      {isAuthorized && selectedWargaForPelunasan && (
         <BayarPelunasanTunggakanModal
           isOpen={Boolean(selectedWargaForPelunasan)}
           onClose={() => setSelectedWargaForPelunasan(null)}
@@ -1552,7 +1174,7 @@ export const RekapPiutangView: React.FC<RekapPiutangViewProps> = ({
       )}
 
       {/* Edit Sisa Piutang Modal */}
-      {selectedWargaForEditPiutang && onUpdateWarga && (
+      {isAuthorized && selectedWargaForEditPiutang && onUpdateWarga && (
         <EditSisaPiutangModal
           isOpen={Boolean(selectedWargaForEditPiutang)}
           onClose={() => setSelectedWargaForEditPiutang(null)}

@@ -34,6 +34,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const wargaTabs = [
     { id: 'kas_rekap', label: 'Kas RT', icon: BarChart3 },
+    { id: 'rekap_piutang', label: 'Rekap Piutang', icon: Receipt },
     { id: 'data_warga', label: 'Data Warga', icon: Users },
   ] as const;
 
@@ -59,7 +60,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button
               key={tab.id}
               onClick={() => onChangeTab(tab.id as TabType)}
-              className={`flex-1 ${appMode === 'warga' ? 'py-3 sm:py-3.5' : 'py-2 sm:py-2.5'} flex flex-col items-center justify-center relative transition-all duration-200 active:scale-92 cursor-pointer ${
+              className={`flex-1 ${appMode === 'warga' ? 'py-2.5 sm:py-3' : 'py-2 sm:py-2.5'} flex flex-col items-center justify-center relative transition-all duration-200 active:scale-92 cursor-pointer ${
                 isActive
                   ? `${theme.bottomNavActive} font-extrabold`
                   : 'text-stone-400 hover:text-stone-600 font-medium'
@@ -69,7 +70,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               {/* Active Animated Top Highlight Bar Indicator */}
               {isActive && (
                 <div 
-                  className={`absolute top-0 ${appMode === 'warga' ? 'left-10 right-10' : 'left-3 sm:left-4 right-3 sm:right-4'} h-0.5 ${theme.bottomNavIndicator} rounded-full shadow-xs transition-all duration-300 animate-in fade-in zoom-in-95`} 
+                  className={`absolute top-0 ${appMode === 'warga' ? 'left-5 sm:left-8 right-5 sm:right-8' : 'left-3 sm:left-4 right-3 sm:right-4'} h-0.5 ${theme.bottomNavIndicator} rounded-full shadow-xs transition-all duration-300 animate-in fade-in zoom-in-95`} 
                 />
               )}
 
@@ -83,10 +84,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <div
                 className={`transition-transform duration-200 ${isActive ? 'scale-110 -translate-y-0.5' : 'scale-100 translate-y-0'}`}
               >
-                <Icon className={`${appMode === 'warga' ? 'w-6 h-6' : 'w-5 h-5 sm:w-5.5 sm:h-5.5'} ${isActive ? theme.bottomNavIcon : ''}`} />
+                <Icon className={`${appMode === 'warga' ? 'w-5 h-5 sm:w-5.5 sm:h-5.5' : 'w-5 h-5 sm:w-5.5 sm:h-5.5'} ${isActive ? theme.bottomNavIcon : ''}`} />
               </div>
 
-              <span className={`${appMode === 'warga' ? 'text-xs font-bold' : 'text-[10px] sm:text-[11px]'} mt-1 tracking-tight truncate max-w-full transition-colors duration-200`}>
+              <span className={`${appMode === 'warga' ? 'text-[11px] sm:text-xs font-bold' : 'text-[10px] sm:text-[11px]'} mt-1 tracking-tight whitespace-nowrap truncate max-w-full transition-colors duration-200`}>
                 {tab.label}
               </span>
             </button>

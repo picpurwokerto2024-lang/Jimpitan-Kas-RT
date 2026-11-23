@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Receipt, Shield, Lock } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { 
   Warga, 
   JimpitanRecord, 
@@ -228,37 +228,74 @@ const removeOutboxMutationIds = (ids: string[]) => {
   }
 };
 
+const ADMIN_EMAIL_SESSION_KEY = 'jimpitan_verified_admin_email_v1';
+const ADMIN_UNLOCKED_KEY = 'jimpitan_admin_unlocked_v1';
+const PENGINPUT_AUTH_SOURCE_KEY = 'jimpitan_penginput_auth_source_v1';
+
+const readPersistedSettings = (): AppSettings => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (raw) return JSON.parse(raw) as AppSettings;
+  } catch {
+    // ignore
+  }
+  return DEFAULT_SETTINGS;
+};
+
+const readPersistedAdminEmail = (): string | null => {
+  try {
+    const fromLocal = localStorage.getItem(ADMIN_EMAIL_SESSION_KEY);
+    if (fromLocal && fromLocal.trim()) return fromLocal.trim().toLowerCase();
+    const fromSession = sessionStorage.getItem(ADMIN_EMAIL_SESSION_KEY);
+    if (fromSession && fromSession.trim()) return fromSession.trim().toLowerCase();
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const hasPersistedUnlockedAdmin = (): boolean => {
+  try {
+    const savedMode = localStorage.getItem(STORAGE_KEYS.APP_MODE);
+    const savedUnlocked = localStorage.getItem(ADMIN_UNLOCKED_KEY) === 'true';
+    const savedEmail = readPersistedAdminEmail();
+    if (savedMode !== 'petugas' || !savedUnlocked || !savedEmail) return false;
+    return isAuthorizedAdminEmail(savedEmail, readPersistedSettings());
+  } catch {
+    return false;
+  }
+};
+
 export default function App() {
-  // Application Mode: 'warga' (transparansi kas & data warga), 'penginput' (scan QR, kas, hitung uang), or 'petugas' (menu lengkap)
-  // Security: Never boot directly into 'petugas' (Admin) from localStorage without Firebase Auth email verification
+  // Application Mode: 'warga' (transparansi kas, rekap piutang lihat-saja, data warga), 'penginput' (operasional ronda), or 'petugas' (admin penuh)
+  // Once entered Mode Admin, device remains in Mode Admin across reloads/restarts until user explicitly exits/locks Mode Admin
   const [appMode, setAppMode] = useState<AppMode>(() => {
     try {
+      if (hasPersistedUnlockedAdmin()) return 'petugas';
       const saved = localStorage.getItem(STORAGE_KEYS.APP_MODE);
-      if (saved === 'warga' || saved === 'penginput') return saved as AppMode;
-    } catch (e) {
+      if (saved === 'penginput') return 'penginput';
+    } catch {
       // ignore
     }
     return 'warga';
   });
 
-  // Navigation tab state (defaults to kas_rekap for warga mode, scan for penginput)
+  // Navigation tab state (defaults to kas_rekap for warga mode, scan for penginput/petugas)
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
+      if (hasPersistedUnlockedAdmin()) return 'scan';
       const savedMode = localStorage.getItem(STORAGE_KEYS.APP_MODE);
       if (savedMode === 'penginput') return 'scan';
-      return 'kas_rekap';
-    } catch (e) {
+    } catch {
       // ignore
     }
     return 'kas_rekap';
   });
 
-  const ADMIN_EMAIL_SESSION_KEY = 'jimpitan_verified_admin_email_v1';
-  const PENGINPUT_AUTH_SOURCE_KEY = 'jimpitan_penginput_auth_source_v1';
-
   const handleAdminEmailVerified = (email: string) => {
     const clean = email.trim().toLowerCase();
     try {
+      localStorage.setItem(ADMIN_EMAIL_SESSION_KEY, clean);
       sessionStorage.setItem(ADMIN_EMAIL_SESSION_KEY, clean);
     } catch {
       // ignore
@@ -269,12 +306,21 @@ export default function App() {
 
   const handleResetAdminEmailVerification = () => {
     try {
+      localStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
       sessionStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
+      localStorage.removeItem(ADMIN_UNLOCKED_KEY);
+      if (appMode === 'petugas') {
+        localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
+      }
     } catch {
       // ignore
     }
+    setIsAdminUnlocked(false);
     setAuthEmailRaw(null);
     setVerifiedAdminEmail(null);
+    if (appMode === 'petugas') {
+      setAppMode('warga');
+    }
     signOutAdminGoogle();
   };
 
@@ -283,7 +329,9 @@ export default function App() {
     setVerifiedAdminEmail(null);
     setAuthEmailRaw(null);
     try {
+      localStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
       sessionStorage.removeItem(ADMIN_EMAIL_SESSION_KEY);
+      localStorage.removeItem(ADMIN_UNLOCKED_KEY);
     } catch {
       // ignore
     }
@@ -296,16 +344,16 @@ export default function App() {
     } catch {
       // ignore
     }
-    if (switchToWarga) {
+    if (switchToWarga || appMode === 'petugas') {
       setAppMode('warga');
-      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+      if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'rekap_piutang') {
         setActiveTab('kas_rekap');
       }
     }
   };
 
   const handleSwitchMode = (mode: AppMode, bypassPinCheck = false) => {
-    // Mode Warga: Lock admin, sign out Google Admin session & set read-only transparency mode
+    // Mode Warga: Explicitly exit Admin Mode, sign out Google Admin session & set read-only transparency mode
     if (mode === 'warga') {
       lockAdminAndSignOut(true);
       return;
@@ -318,6 +366,14 @@ export default function App() {
         setModeSelectorTarget('penginput');
         setIsModeSelectorOpen(true);
         return;
+      }
+      if (isAdminUnlocked) {
+        setIsAdminUnlocked(false);
+        try {
+          localStorage.removeItem(ADMIN_UNLOCKED_KEY);
+        } catch {
+          // ignore
+        }
       }
       if (activeOfficerGrant && !isAdminUnlocked) {
         try {
@@ -356,10 +412,11 @@ export default function App() {
       return;
     }
 
-    // Unlocked: Grant full access (Petugas == Pengurus RT == Admin)
+    // Unlocked: Grant full access & persist Mode Admin on this device until explicitly exited
     setIsAdminUnlocked(true);
     setAppMode('petugas');
     try {
+      localStorage.setItem(ADMIN_UNLOCKED_KEY, 'true');
       localStorage.setItem(STORAGE_KEYS.APP_MODE, 'petugas');
     } catch (e) {
       // ignore
@@ -535,37 +592,30 @@ export default function App() {
   });
 
   // Admin lock toggle & strict Email verification state
-  // Always boots locked unless current session has verified Admin email (Google or registered email check)
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
-  const [authEmailRaw, setAuthEmailRaw] = useState<string | null>(() => {
-    try {
-      return sessionStorage.getItem('jimpitan_verified_admin_email_v1');
-    } catch {
-      return null;
-    }
+  // Persists across reloads/restarts on this device once unlocked until explicitly exited/locked
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => hasPersistedUnlockedAdmin());
+  const [authEmailRaw, setAuthEmailRaw] = useState<string | null>(() => readPersistedAdminEmail());
+  const [verifiedAdminEmail, setVerifiedAdminEmail] = useState<string | null>(() => {
+    const email = readPersistedAdminEmail();
+    return email && isAuthorizedAdminEmail(email, readPersistedSettings()) ? email : null;
   });
-  const [verifiedAdminEmail, setVerifiedAdminEmail] = useState<string | null>(null);
-  const initialAdminRestoreRef = useRef<boolean>(false);
+  const initialAdminRestoreRef = useRef<boolean>(hasPersistedUnlockedAdmin());
 
   useEffect(() => {
     const unsub = subscribeAdminAuthState((user) => {
       if (user && user.email && user.emailVerified) {
         const clean = user.email.trim().toLowerCase();
         try {
-          sessionStorage.setItem('jimpitan_verified_admin_email_v1', clean);
+          localStorage.setItem(ADMIN_EMAIL_SESSION_KEY, clean);
+          sessionStorage.setItem(ADMIN_EMAIL_SESSION_KEY, clean);
         } catch {
           // ignore
         }
         setAuthEmailRaw(clean);
       } else {
-        let sessionEmail: string | null = null;
-        try {
-          sessionEmail = sessionStorage.getItem('jimpitan_verified_admin_email_v1');
-        } catch {
-          sessionEmail = null;
-        }
-        if (sessionEmail) {
-          setAuthEmailRaw(sessionEmail.trim().toLowerCase());
+        const persistedEmail = readPersistedAdminEmail();
+        if (persistedEmail) {
+          setAuthEmailRaw(persistedEmail);
         } else {
           setAuthEmailRaw(null);
           initialAdminRestoreRef.current = true;
@@ -581,7 +631,10 @@ export default function App() {
       if (!initialAdminRestoreRef.current) {
         initialAdminRestoreRef.current = true;
         try {
-          if (localStorage.getItem(STORAGE_KEYS.APP_MODE) === 'petugas') {
+          if (
+            localStorage.getItem(STORAGE_KEYS.APP_MODE) === 'petugas' &&
+            localStorage.getItem(ADMIN_UNLOCKED_KEY) === 'true'
+          ) {
             setIsAdminUnlocked(true);
             setAppMode('petugas');
             setActiveTab('scan');
@@ -596,11 +649,12 @@ export default function App() {
         setIsAdminUnlocked(false);
         setAppMode('warga');
         try {
+          localStorage.removeItem(ADMIN_UNLOCKED_KEY);
           localStorage.setItem(STORAGE_KEYS.APP_MODE, 'warga');
         } catch {
           // ignore
         }
-        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'rekap_piutang') {
           setActiveTab('kas_rekap');
         }
       }
@@ -740,7 +794,7 @@ export default function App() {
         }
         setAppMode('warga');
         setPetugasNama('Petugas RT');
-        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga') {
+        if (activeTab !== 'kas_rekap' && activeTab !== 'data_warga' && activeTab !== 'rekap_piutang') {
           setActiveTab('kas_rekap');
         }
         showAppToast('Akses Petugas Jimpitan untuk perangkat ini telah dinonaktifkan oleh Admin RT.', 'error');
@@ -1843,6 +1897,7 @@ export default function App() {
       setIsAdminUnlocked(true);
       setAppMode('petugas');
       try {
+        localStorage.setItem(ADMIN_UNLOCKED_KEY, 'true');
         localStorage.setItem(STORAGE_KEYS.APP_MODE, 'petugas');
       } catch {
         // ignore
@@ -2167,62 +2222,26 @@ export default function App() {
             </ErrorBoundary>
           )}
 
-          {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA (KHUSUS ADMIN / PETUGAS) */}
+          {/* TAB: REKAP PIUTANG & TUNGGAKAN WARGA (Admin: Edit & Pelunasan | Warga: Hanya Lihat) */}
           {activeTab === 'rekap_piutang' && (
-            isAdminUnlocked ? (
-              <RekapPiutangView
-                allRecords={allRecords}
-                kasMutations={kasMutations}
-                wargaList={wargaList}
-                onAddMutation={handleAddMutation}
-                onUpdateMutation={handleUpdateMutation}
-                onUpdateRecord={handleUpdateRecord}
-                onUpdateWarga={handleUpdateWarga}
-                onResetAllPiutangToZero={handleResetAllPiutangToZero}
-                onRestoreAutoPiutang={handleRestoreAutoPiutangCalculation}
-                settings={settings}
-                selectedDate={selectedDate}
-                isAdmin={isAdminUnlocked}
-                appMode={appMode}
-                theme={themeState.theme}
-                currentPetugas={petugasNama}
-                onNavigateToKas={() => setActiveTab('kas_rekap')}
-              />
-            ) : (
-              <div className="p-6 sm:p-8 bg-white rounded-3xl border border-stone-200 shadow-sm text-center space-y-4 max-w-md mx-auto my-8 animate-in fade-in zoom-in-95">
-                <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto shadow-xs">
-                  <Receipt className="w-8 h-8" />
-                </div>
-                <div className="space-y-1">
-                  <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider mb-1">
-                    <Shield className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Akses Khusus Admin RT</span>
-                  </div>
-                  <h3 className="text-lg font-black text-stone-900">Rekap Piutang Dikunci</h3>
-                  <p className="text-xs text-stone-500 leading-relaxed max-w-xs mx-auto">
-                    Data rincian piutang, pelunasan hutang lampau, dan tagihan warga hanya dapat diakses dalam Mode Pengurus RT / Admin.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 pt-2">
-                  <button
-                    onClick={() => {
-                      setModeSelectorTarget('petugas');
-                      setIsModeSelectorOpen(true);
-                    }}
-                    className="w-full py-3 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
-                  >
-                    <Lock className="w-4 h-4" />
-                    <span>Buka Kunci Admin (Email &amp; PIN)</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('kas_rekap')}
-                    className="w-full py-2.5 px-4 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-extrabold text-xs transition-colors cursor-pointer"
-                  >
-                    Kembali ke Buku Kas RT
-                  </button>
-                </div>
-              </div>
-            )
+            <RekapPiutangView
+              allRecords={allRecords}
+              kasMutations={kasMutations}
+              wargaList={wargaList}
+              onAddMutation={handleAddMutation}
+              onUpdateMutation={handleUpdateMutation}
+              onUpdateRecord={handleUpdateRecord}
+              onUpdateWarga={handleUpdateWarga}
+              onResetAllPiutangToZero={handleResetAllPiutangToZero}
+              onRestoreAutoPiutang={handleRestoreAutoPiutangCalculation}
+              settings={settings}
+              selectedDate={selectedDate}
+              isAdmin={isAdminUnlocked}
+              appMode={appMode}
+              theme={themeState.theme}
+              currentPetugas={petugasNama}
+              onNavigateToKas={() => setActiveTab('kas_rekap')}
+            />
           )}
 
           {/* TAB 3: DATA WARGA */}
@@ -2322,6 +2341,7 @@ export default function App() {
           setIsAdminUnlocked(true);
           setAppMode('petugas');
           try {
+            localStorage.setItem(ADMIN_UNLOCKED_KEY, 'true');
             localStorage.setItem(STORAGE_KEYS.APP_MODE, 'petugas');
           } catch (e) {
             // ignore
